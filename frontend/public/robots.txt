@@ -7,4 +7,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://luzes-ipf.assist.com.br/sitemap.xml
+Sitemap: https://refereelights.app/sitemap.xml

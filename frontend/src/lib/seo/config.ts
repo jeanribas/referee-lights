@@ -3,7 +3,7 @@ const DEFAULT_DESCRIPTION =
   'Free, open-source referee light system for IPF Powerlifting competitions. Real-time sync, penalty cards, timer, chroma key overlay, QR code access, PWA. Works on any device.';
 
 export const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') ?? 'https://luzes-ipf.assist.com.br';
+  process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') ?? 'https://refereelights.app';
 
 export const OG_IMAGE_URL = `${SITE_URL}/screenshots/display.jpg`;
 

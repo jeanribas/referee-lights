@@ -13,19 +13,20 @@ const nextConfig = {
     dirs: ['src']
   },
   async redirects() {
-    // Consolidação de hostname (2026-07-31): o canônico é luzes-ipf.assist.com.br
-    // (declarado no sitemap/robots). Os aliases serviam 5 cópias idênticas do
-    // app no domínio assist.com.br — duplicate content que dilui o domínio raiz.
+    // Consolidação de hostname (2026-07-31): o canônico é refereelights.app
+    // (domínio próprio do produto). Os 5 subdomínios legados do assist.com.br
+    // dão 301 — eram cópias idênticas que diluíam o domínio da empresa.
     const aliasHosts = [
       'ipf-ligths.assist.com.br',
       'ligths.assist.com.br',
       'referee.assist.com.br',
-      'arbitros.assist.com.br'
+      'arbitros.assist.com.br',
+      'luzes-ipf.assist.com.br'
     ];
     return aliasHosts.map((host) => ({
       source: '/:path*',
       has: [{ type: 'host', value: host }],
-      destination: 'https://luzes-ipf.assist.com.br/:path*',
+      destination: 'https://refereelights.app/:path*',
       permanent: true,
       locale: false
     }));
