@@ -12,8 +12,35 @@ const nextConfig = {
   eslint: {
     dirs: ['src']
   },
+  async redirects() {
+    // Consolidação de hostname (2026-07-31): o canônico é refereelights.app
+    // (domínio próprio do produto). Os 5 subdomínios legados do assist.com.br
+    // dão 301 — eram cópias idênticas que diluíam o domínio da empresa.
+    const aliasHosts = [
+      'ipf-ligths.assist.com.br',
+      'ligths.assist.com.br',
+      'referee.assist.com.br',
+      'arbitros.assist.com.br',
+      'luzes-ipf.assist.com.br'
+    ];
+    return aliasHosts.map((host) => ({
+      source: '/:path*',
+      has: [{ type: 'host', value: host }],
+      destination: 'https://refereelights.app/:path*',
+      permanent: true,
+      locale: false
+    }));
+  },
   async headers() {
+    // Telas de app fora do índice: robots.txt Disallow sozinho não desindexa
+    // (o Bing chegou a listar /admin) — o header noindex exige crawl liberado,
+    // por isso os Disallow correspondentes saíram do robots.txt.
+    const noindex = ['/admin', '/display', '/legend', '/timer', '/master', '/ref/:path*'];
     return [
+      ...noindex.map((source) => ({
+        source,
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }]
+      })),
       {
         source: '/screenshots/:path*',
         headers: [

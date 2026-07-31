@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
-    <loc>https://luzes-ipf.assist.com.br/pt-BR</loc>
-    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://luzes-ipf.assist.com.br/pt-BR" />
-    <xhtml:link rel="alternate" hreflang="en-US" href="https://luzes-ipf.assist.com.br/en-US" />
-    <xhtml:link rel="alternate" hreflang="es-ES" href="https://luzes-ipf.assist.com.br/es-ES" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://luzes-ipf.assist.com.br/" />
+    <loc>https://refereelights.app/pt-BR</loc>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://refereelights.app/pt-BR" />
+    <xhtml:link rel="alternate" hreflang="en-US" href="https://refereelights.app/en-US" />
+    <xhtml:link rel="alternate" hreflang="es-ES" href="https://refereelights.app/es-ES" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://refereelights.app/" />
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://luzes-ipf.assist.com.br/pt-BR/windows</loc>
-    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://luzes-ipf.assist.com.br/pt-BR/windows" />
-    <xhtml:link rel="alternate" hreflang="en-US" href="https://luzes-ipf.assist.com.br/en-US/windows" />
-    <xhtml:link rel="alternate" hreflang="es-ES" href="https://luzes-ipf.assist.com.br/es-ES/windows" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://luzes-ipf.assist.com.br/windows" />
+    <loc>https://refereelights.app/pt-BR/windows</loc>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://refereelights.app/pt-BR/windows" />
+    <xhtml:link rel="alternate" hreflang="en-US" href="https://refereelights.app/en-US/windows" />
+    <xhtml:link rel="alternate" hreflang="es-ES" href="https://refereelights.app/es-ES/windows" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://refereelights.app/windows" />
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>

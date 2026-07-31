@@ -259,10 +259,10 @@ export default function HomePage() {
               url: 'https://github.com/jeanribas/referee-lights',
               downloadUrl: 'https://github.com/jeanribas/referee-lights/releases',
               screenshot: [
-                'https://luzes-ipf.assist.com.br/screenshots/display.jpg',
-                'https://luzes-ipf.assist.com.br/screenshots/admin.jpg',
-                'https://luzes-ipf.assist.com.br/screenshots/display-2.jpg',
-                'https://luzes-ipf.assist.com.br/screenshots/cromakey.jpg',
+                'https://refereelights.app/screenshots/display.jpg',
+                'https://refereelights.app/screenshots/admin.jpg',
+                'https://refereelights.app/screenshots/display-2.jpg',
+                'https://refereelights.app/screenshots/cromakey.jpg',
               ],
               featureList: [
                 'Real-time referee light synchronization',
