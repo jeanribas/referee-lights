@@ -20,6 +20,7 @@ const nextConfig = {
       'ipf-ligths.assist.com.br',
       'ligths.assist.com.br',
       'referee.assist.com.br',
+      'referee-ligths.assist.com.br',
       'arbitros.assist.com.br',
       'luzes-ipf.assist.com.br'
     ];
