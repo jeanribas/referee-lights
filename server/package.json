@@ -14,7 +14,7 @@
     "@fastify/cors": "^9.0.1",
     "better-sqlite3": "^12.6.2",
     "dotenv": "^16.4.5",
-    "fastify": "^5.8.5",
+    "fastify": "^4.26.2",
     "fastify-socket.io": "^5.0.1",
     "geoip-lite": "^2.0.3"
   },
