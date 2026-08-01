@@ -120,7 +120,7 @@ export class RoomManager {
   private readonly alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
   private generateRoomId() {
-    let candidate = '';
+    let candidate: string;
     do {
       candidate = [...crypto.randomBytes(4)]
         .map((value) => this.alphabet[value % this.alphabet.length])
