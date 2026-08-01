@@ -4,16 +4,11 @@ updates:
     directory: /frontend
     schedule:
       interval: weekly
-    # Majors do Next quebraram produção duas vezes (PR #14 e #17 — cache
-    # poisoning na Vercel e bump acidental 14→16). Major só manualmente.
+    # Majors só manualmente: Next 14→16 acidental quebrou produção (PRs #14
+    # e #17), e a primeira varredura propôs TS 7, zod 4 e Tailwind 4 de uma
+    # vez (PRs #22–#30). Vale para todas as dependências.
     ignore:
-      - dependency-name: next
-        update-types: ["version-update:semver-major"]
-      - dependency-name: eslint-config-next
-        update-types: ["version-update:semver-major"]
-      - dependency-name: react
-        update-types: ["version-update:semver-major"]
-      - dependency-name: react-dom
+      - dependency-name: "*"
         update-types: ["version-update:semver-major"]
     groups:
       frontend-minor-patch:
@@ -24,7 +19,7 @@ updates:
     schedule:
       interval: weekly
     ignore:
-      - dependency-name: fastify
+      - dependency-name: "*"
         update-types: ["version-update:semver-major"]
     groups:
       server-minor-patch:
