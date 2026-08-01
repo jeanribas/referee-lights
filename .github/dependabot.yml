@@ -1,0 +1,31 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    # Majors do Next quebraram produção duas vezes (PR #14 e #17 — cache
+    # poisoning na Vercel e bump acidental 14→16). Major só manualmente.
+    ignore:
+      - dependency-name: next
+        update-types: ["version-update:semver-major"]
+      - dependency-name: eslint-config-next
+        update-types: ["version-update:semver-major"]
+      - dependency-name: react
+        update-types: ["version-update:semver-major"]
+      - dependency-name: react-dom
+        update-types: ["version-update:semver-major"]
+    groups:
+      frontend-minor-patch:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: npm
+    directory: /server
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: fastify
+        update-types: ["version-update:semver-major"]
+    groups:
+      server-minor-patch:
+        update-types: ["minor", "patch"]
