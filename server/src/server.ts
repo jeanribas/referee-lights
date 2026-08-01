@@ -1,8 +1,6 @@
 import fastifyCors from '@fastify/cors';
 import Fastify from 'fastify';
-import type { FastifyPluginCallback } from 'fastify';
-import fastifySocketIO from 'fastify-socket.io';
-import type { Server as SocketIOServer, Socket } from 'socket.io';
+import { Server as SocketIOServer, type Socket } from 'socket.io';
 
 import geoip from 'geoip-lite';
 import { AnalyticsStore } from './analytics.js';
@@ -97,14 +95,6 @@ type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerE
 
 type AppSocketServer = SocketIOServer<ClientToServerEvents, ServerToClientEvents, InterServerEvents, ClientData>;
 
-interface SocketIOPluginOptions {
-  cors?: {
-    origin: string | string[];
-  };
-}
-
-type SocketIOPlugin = FastifyPluginCallback<SocketIOPluginOptions>;
-
 const ROOM_CHANNEL_PREFIX = 'room:';
 
 const SUPPORTED_LOCALES: Locale[] = ['pt-BR', 'en-US', 'es-ES'];
@@ -136,12 +126,16 @@ export async function createServer() {
     origin: config.CORS_ORIGIN === '*' ? true : config.CORS_ORIGIN.split(',').map((origin) => origin.trim())
   });
 
-  const socketPlugin = fastifySocketIO as unknown as SocketIOPlugin;
-
-  await app.register(socketPlugin, {
+  // socket.io acoplado direto ao http.Server do Fastify (o plugin
+  // fastify-socket.io não suporta Fastify 5)
+  app.decorate('io', new SocketIOServer(app.server, {
     cors: {
       origin: config.CORS_ORIGIN === '*' ? '*' : config.CORS_ORIGIN.split(',').map((origin) => origin.trim())
     }
+  }));
+  app.addHook('onClose', (instance, done) => {
+    instance.io.close();
+    done();
   });
 
   const io = app.io as AppSocketServer;
@@ -176,7 +170,7 @@ export async function createServer() {
     return '';
   }
 
-  function mapRoleToPage(role: string, judgeRole?: string): string {
+  function mapRoleToPage(role: string, _judgeRole?: string): string {
     if (role === 'admin') return '/admin';
     if (role === 'display') return '/display';
     if (role === 'left' || role === 'center' || role === 'right') return `/ref/${role}`;
@@ -546,7 +540,7 @@ export async function createServer() {
 
   // --- Telemetry Endpoints (receive from all instances) ---
 
-  app.post('/telemetry/events', async (request, reply) => {
+  app.post('/telemetry/events', async () => {
     // Receive event batches from instances (fire-and-forget on their side)
     return { ok: true };
   });
