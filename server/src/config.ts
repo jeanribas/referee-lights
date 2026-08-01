@@ -1,4 +1,7 @@
-import 'dotenv/config';
+import { config as loadEnv } from 'dotenv';
+
+// dotenv 17 loga uma dica de runtime a cada boot; quiet mantém o stdout limpo.
+loadEnv({ quiet: true });
 
 export const config = {
   PORT: Number(process.env.PORT ?? 3333),

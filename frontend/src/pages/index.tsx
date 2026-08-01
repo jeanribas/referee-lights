@@ -15,7 +15,6 @@ function StepCard({
   number,
   title,
   description,
-  icon,
 }: {
   number: number;
   title: string;

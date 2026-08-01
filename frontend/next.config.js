@@ -9,9 +9,6 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: false
   },
-  eslint: {
-    dirs: ['src']
-  },
   async redirects() {
     // Consolidação de hostname (2026-07-31): o canônico é refereelights.app
     // (domínio próprio do produto). Os subdomínios legados do assist.com.br e o

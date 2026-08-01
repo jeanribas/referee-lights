@@ -277,24 +277,24 @@ export function TimerDisplay(props: TimerDisplayProps) {
 export default TimerDisplay;
 
 function CooldownBadge({ value, gradient, size = 'md' }: { value: number; gradient: string; size?: 'sm' | 'md' }) {
-  const height = size === 'sm' ? 'h-[2.6rem]' : 'h-[4rem]';
-  const width = size === 'sm' ? 'w-[3rem]' : 'w-[4.5rem]';
+  const height = size === 'sm' ? 'h-[2.6rem]' : 'h-16';
+  const width = size === 'sm' ? 'w-12' : 'w-18';
   const text = size === 'sm' ? 'text-base' : 'text-4xl';
 
   return (
     <span
-      className={`inline-flex skew-x-[-12deg] items-center justify-center rounded-md ${height} ${width} ${text} font-black text-slate-900 shadow-[0_6px_0_rgba(0,0,0,0.3)]`}
+      className={`inline-flex -skew-x-12 items-center justify-center rounded-md ${height} ${width} ${text} font-black text-slate-900 shadow-[0_6px_0_rgba(0,0,0,0.3)]`}
       style={{ backgroundImage: gradient }}
     >
-      <span className="skew-x-[12deg] leading-none tabular-nums">{value}</span>
+      <span className="skew-x-12 leading-none tabular-nums">{value}</span>
     </span>
   );
 }
 
 function SkewPill({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex skew-x-[-12deg] rounded-md bg-white px-10 py-3 shadow-[0_8px_0_rgba(0,0,0,0.35)]">
-      <span className="skew-x-[12deg] text-sm font-black uppercase tracking-[0.5em] text-slate-900">{children}</span>
+    <span className="inline-flex -skew-x-12 rounded-md bg-white px-10 py-3 shadow-[0_8px_0_rgba(0,0,0,0.35)]">
+      <span className="skew-x-12 text-sm font-black uppercase tracking-[0.5em] text-slate-900">{children}</span>
     </span>
   );
 }
@@ -325,11 +325,11 @@ function AttemptMarker({ value, className }: { value: number; className?: string
 
 function CooldownStack({ badges }: { badges: Array<{ id: number; value: number; gradient: string }> }) {
   if (!badges.length) {
-    return <div className="min-h-[3rem] min-w-[0]" />;
+    return <div className="min-h-12 min-w-0" />;
   }
 
   return (
-    <div className="flex min-h-[3rem] items-center gap-3 whitespace-nowrap">
+    <div className="flex min-h-12 items-center gap-3 whitespace-nowrap">
       {badges.map((badge) => (
         <CooldownBadge key={badge.id} value={badge.value} gradient={badge.gradient} />
       ))}

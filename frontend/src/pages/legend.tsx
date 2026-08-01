@@ -95,7 +95,7 @@ export default function LegendPage() {
     let nextShowDashedFrame = true;
     let nextDigitMode: 'mmss' | 'hhmmss' = 'hhmmss';
     let nextTimerColor = '#FFFFFF';
-    let nextKeepAwake = storedWake !== 'false';
+    const nextKeepAwake = storedWake !== 'false';
 
     if (storedBg && isLegendBgColor(storedBg)) {
       nextBgColor = storedBg;
@@ -391,7 +391,7 @@ export default function LegendPage() {
                   type="color"
                   value={bgPickerValue}
                   onChange={(event) => setBgColor(event.target.value)}
-                  className="h-9 w-20 cursor-pointer rounded border border-white/30 bg-transparent"
+                  className="h-9 w-20 cursor-pointer rounded-sm border border-white/30 bg-transparent"
                 />
                 <span className="text-[10px] text-slate-400">{bgColor.toUpperCase()}</span>
               </label>
@@ -401,7 +401,7 @@ export default function LegendPage() {
                   type="color"
                   value={timerColor}
                   onChange={(event) => setTimerColor(event.target.value)}
-                  className="h-9 w-20 cursor-pointer rounded border border-white/30 bg-transparent"
+                  className="h-9 w-20 cursor-pointer rounded-sm border border-white/30 bg-transparent"
                 />
                 <span className="text-[10px] text-slate-400">{timerColor.toUpperCase()}</span>
               </label>

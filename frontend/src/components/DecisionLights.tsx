@@ -33,7 +33,9 @@ export function DecisionLights({
     state.cards.right.join(',')
   ].join('|');
   // Signatures ensure we only react when underlying vote/card values change, not on timer ticks.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- memo por assinatura, deps diretas anulariam o propósito
   const stableVotes = useMemo(() => state.votes, [voteSignature]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- memo por assinatura, deps diretas anulariam o propósito
   const stableCards = useMemo(() => state.cards, [cardsSignature]);
   const isLegendSize = sizeMode === 'legend';
   const isStageSize = sizeMode === 'stage';

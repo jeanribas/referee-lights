@@ -48,7 +48,7 @@ export function FooterBadges({ alwaysVisible = false }: { alwaysVisible?: boolea
         target="_blank"
         rel="noopener noreferrer"
         onClick={handleClick('https://assist.com.br')}
-        className="text-[10px] tracking-[0.1em] text-slate-400 transition hover:text-slate-200"
+        className="text-[10px] tracking-widest text-slate-400 transition hover:text-slate-200"
       >
 {footer.hostedBy} <span className="font-semibold">{footer.hostedByName}</span>
       </a>

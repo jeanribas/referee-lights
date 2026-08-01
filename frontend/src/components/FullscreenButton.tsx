@@ -37,7 +37,7 @@ export function FullscreenButton({ className, enterLabel, exitLabel }: Fullscree
     <button
       onClick={toggle}
       className={clsx(
-        'rounded-full bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white backdrop-blur transition hover:bg-white/20',
+        'rounded-full bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white backdrop-blur-sm transition hover:bg-white/20',
         className
       )}
     >

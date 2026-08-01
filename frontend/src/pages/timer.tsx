@@ -56,7 +56,7 @@ export default function TimerPage() {
   const adminPin = typeof router.query.pin === 'string' ? router.query.pin : undefined;
 
   const {
-    state, status, error,
+    state, error,
     timerStart, timerStop, timerReset, timerSet,
     intervalStart, intervalStop, intervalReset, intervalSet,
     intervalShow, intervalHide
@@ -122,10 +122,10 @@ export default function TimerPage() {
               {cooldownBadges.map((b) => (
                 <span
                   key={b.id}
-                  className="inline-flex skew-x-[-12deg] items-center justify-center rounded-md h-[2.6rem] w-[3rem] text-base font-black text-slate-900 shadow-[0_4px_0_rgba(0,0,0,0.3)]"
+                  className="inline-flex -skew-x-12 items-center justify-center rounded-md h-[2.6rem] w-12 text-base font-black text-slate-900 shadow-[0_4px_0_rgba(0,0,0,0.3)]"
                   style={{ backgroundImage: b.gradient }}
                 >
-                  <span className="skew-x-[12deg] leading-none tabular-nums">{b.value}</span>
+                  <span className="skew-x-12 leading-none tabular-nums">{b.value}</span>
                 </span>
               ))}
             </div>
@@ -160,7 +160,7 @@ export default function TimerPage() {
                   step={0.5}
                   value={customMinutes}
                   onChange={(e) => setCustomMinutes(Number(e.target.value))}
-                  className="w-full min-h-[44px] rounded border border-slate-700 bg-slate-950 px-3 text-sm font-semibold text-white outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
+                  className="w-full min-h-[44px] rounded-sm border border-slate-700 bg-slate-950 px-3 text-sm font-semibold text-white outline-hidden transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
                 />
               </label>
               <button
@@ -196,7 +196,7 @@ export default function TimerPage() {
                   min={0}
                   value={intervalHours}
                   onChange={(e) => setIntervalHours(Number(e.target.value))}
-                  className="min-h-[44px] rounded border border-slate-700 bg-slate-950 px-3 text-center text-sm font-medium text-white/90 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
+                  className="min-h-[44px] rounded-sm border border-slate-700 bg-slate-950 px-3 text-center text-sm font-medium text-white/90 outline-hidden transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
                 />
               </label>
               <label className="flex flex-col gap-1">
@@ -208,7 +208,7 @@ export default function TimerPage() {
                   min={0}
                   value={intervalMinutes}
                   onChange={(e) => setIntervalMinutes(Number(e.target.value))}
-                  className="min-h-[44px] rounded border border-slate-700 bg-slate-950 px-3 text-center text-sm font-medium text-white/90 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
+                  className="min-h-[44px] rounded-sm border border-slate-700 bg-slate-950 px-3 text-center text-sm font-medium text-white/90 outline-hidden transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
                 />
               </label>
               <label className="flex flex-col gap-1">
@@ -220,7 +220,7 @@ export default function TimerPage() {
                   min={0}
                   value={intervalSeconds}
                   onChange={(e) => setIntervalSeconds(Number(e.target.value))}
-                  className="min-h-[44px] rounded border border-slate-700 bg-slate-950 px-3 text-center text-sm font-medium text-white/90 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
+                  className="min-h-[44px] rounded-sm border border-slate-700 bg-slate-950 px-3 text-center text-sm font-medium text-white/90 outline-hidden transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
                 />
               </label>
             </div>
