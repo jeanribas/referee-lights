@@ -56,7 +56,7 @@ export default function TimerPage() {
   const adminPin = typeof router.query.pin === 'string' ? router.query.pin : undefined;
 
   const {
-    state, status, error,
+    state, error,
     timerStart, timerStop, timerReset, timerSet,
     intervalStart, intervalStop, intervalReset, intervalSet,
     intervalShow, intervalHide

@@ -122,21 +122,11 @@ function ProgressList({ items, labelKey, valueKey, labelMap }: {
 
 /* ─── Interactive map ─── */
 
-function GeoMap({ markers, onlineVisitors }: {
+function GeoMap({ markers }: {
   markers: MasterGeoMarkersResponse['markers'];
-  onlineVisitors: MasterOnlineResponse['visitors'];
 }) {
   const [hoveredMarker, setHoveredMarker] = useState<{ city: string; country: string; count: number } | null>(null);
   const maxCount = markers.length > 0 ? markers[0].count : 1;
-
-  // Merge online visitor locations as live dots
-  const liveLocations = useMemo(() => {
-    const map = new Map<string, { lat: number; lng: number; count: number }>();
-    for (const v of onlineVisitors) {
-      // we don't have lat/lng for online visitors directly, skip if no geo marker match
-    }
-    return map;
-  }, [onlineVisitors]);
 
   return (
     <div className="relative overflow-hidden rounded-xl bg-slate-950/50 flex-1 min-h-[300px]">
@@ -521,10 +511,7 @@ export default function MasterPage() {
               </SectionCard>
             </div>
             <SectionCard title="Mapa de conexões" className="flex flex-col">
-              <GeoMap
-                markers={geoMarkers?.markers ?? []}
-                onlineVisitors={online?.visitors ?? []}
-              />
+              <GeoMap markers={geoMarkers?.markers ?? []} />
             </SectionCard>
           </div>
 

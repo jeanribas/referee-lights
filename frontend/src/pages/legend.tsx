@@ -95,7 +95,7 @@ export default function LegendPage() {
     let nextShowDashedFrame = true;
     let nextDigitMode: 'mmss' | 'hhmmss' = 'hhmmss';
     let nextTimerColor = '#FFFFFF';
-    let nextKeepAwake = storedWake !== 'false';
+    const nextKeepAwake = storedWake !== 'false';
 
     if (storedBg && isLegendBgColor(storedBg)) {
       nextBgColor = storedBg;

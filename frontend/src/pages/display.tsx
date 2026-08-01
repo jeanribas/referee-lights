@@ -13,9 +13,6 @@ import { getMessages, type Messages } from '@/lib/i18n/messages';
 import { Seo } from '@/components/Seo';
 import { FooterBadges } from '@/components/FooterBadges';
 
-const BASE_SCALE = 0.9;
-const DEFAULT_ZOOM = 1;
-
 function useViewportScale(designWidth = 1920, designHeight = 1080) {
   const [scale, setScale] = useState(1);
   useEffect(() => {

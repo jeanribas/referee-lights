@@ -196,9 +196,6 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
   const {
     state,
     status,
-    ready,
-    release,
-    clear,
     timerStart,
     timerStop,
     timerReset,
