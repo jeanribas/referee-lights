@@ -14,15 +14,16 @@ const nextConfig = {
   },
   async redirects() {
     // Consolidação de hostname (2026-07-31): o canônico é refereelights.app
-    // (domínio próprio do produto). Os 5 subdomínios legados do assist.com.br
-    // dão 301 — eram cópias idênticas que diluíam o domínio da empresa.
+    // (domínio próprio do produto). Os subdomínios legados do assist.com.br e o
+    // www dão 301 — Bing exige redirect (não só canonical) para host duplicado.
     const aliasHosts = [
       'ipf-ligths.assist.com.br',
       'ligths.assist.com.br',
       'referee.assist.com.br',
       'referee-ligths.assist.com.br',
       'arbitros.assist.com.br',
-      'luzes-ipf.assist.com.br'
+      'luzes-ipf.assist.com.br',
+      'www.refereelights.app'
     ];
     return aliasHosts.map((host) => ({
       source: '/:path*',
