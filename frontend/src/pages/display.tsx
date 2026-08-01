@@ -120,7 +120,7 @@ export default function DisplayPage() {
         <div className="fixed bottom-6 left-6 z-30 flex flex-col items-start gap-3" ref={menuRef}>
           {menuOpen && (
             <div
-              className="w-full max-w-[20rem] rounded-3xl border border-white/10 bg-[#141820]/95 p-5 shadow-2xl backdrop-blur"
+              className="w-full max-w-[20rem] rounded-3xl border border-white/10 bg-[#141820]/95 p-5 shadow-2xl backdrop-blur-sm"
               style={{ width: 'min(20rem, calc(100vw - 2.5rem))' }}
             >
               <h2 className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-200">
@@ -132,7 +132,7 @@ export default function DisplayPage() {
                     {displayMessages.menu.quickActionsTitle}
                   </span>
                   <FullscreenButton
-                    className={`w-full !rounded-xl bg-white/15 px-4 py-3 text-[10px] font-semibold uppercase ${buttonTrackingClass} text-white transition hover:bg-white/25`}
+                    className={`w-full rounded-xl! bg-white/15 px-4 py-3 text-[10px] font-semibold uppercase ${buttonTrackingClass} text-white transition hover:bg-white/25`}
                     enterLabel={displayMessages.menu.fullscreenEnter}
                     exitLabel={displayMessages.menu.fullscreenExit}
                   />
@@ -175,9 +175,9 @@ export default function DisplayPage() {
           >
             <span className="sr-only">{displayMessages.menu.toggleButton}</span>
             <div className="flex flex-col gap-[5px]">
-              <span className="block h-[3px] w-6 rounded bg-white"></span>
-              <span className="block h-[3px] w-6 rounded bg-white"></span>
-              <span className="block h-[3px] w-6 rounded bg-white"></span>
+              <span className="block h-[3px] w-6 rounded-sm bg-white"></span>
+              <span className="block h-[3px] w-6 rounded-sm bg-white"></span>
+              <span className="block h-[3px] w-6 rounded-sm bg-white"></span>
             </div>
           </button>
         </div>

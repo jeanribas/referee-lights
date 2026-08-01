@@ -32,3 +32,7 @@ tools/key-relay/key-relay-config.txt
 # Logs
 logs
 *.log
+
+# Artefatos do Playwright
+frontend/test-results/
+frontend/playwright-report/

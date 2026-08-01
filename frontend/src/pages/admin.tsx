@@ -470,7 +470,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
               id="locale-select"
               value={currentLocale}
               onChange={handleLocaleChange}
-              className="min-w-[8rem] rounded-xl border border-white/10 bg-[#1A2231] px-3 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white shadow-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
+              className="min-w-32 rounded-xl border border-white/10 bg-[#1A2231] px-3 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white shadow-xs transition focus:border-indigo-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-400/40"
             >
               {localeOptions.map((option) => (
                 <option key={option.code} value={option.code} className="text-slate-900">
@@ -519,7 +519,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
                     step={0.5}
                     value={customMinutes}
                     onChange={(event) => setCustomMinutes(Number(event.target.value))}
-                    className="w-full min-h-[44px] rounded border border-slate-700 bg-slate-950 px-3 text-sm font-semibold text-white outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
+                    className="w-full min-h-[44px] rounded-sm border border-slate-700 bg-slate-950 px-3 text-sm font-semibold text-white outline-hidden transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
                   />
                 </label>
                 <button
@@ -554,7 +554,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
                     min={0}
                     value={intervalHours}
                     onChange={(event) => setIntervalHours(Number(event.target.value))}
-                    className="min-h-[44px] rounded border border-slate-700 bg-slate-950 px-3 text-center text-sm font-medium text-white/90 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
+                    className="min-h-[44px] rounded-sm border border-slate-700 bg-slate-950 px-3 text-center text-sm font-medium text-white/90 outline-hidden transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
                   />
                 </label>
                 <label className="flex flex-col gap-1">
@@ -566,7 +566,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
                     min={0}
                     value={intervalMinutes}
                     onChange={(event) => setIntervalMinutes(Number(event.target.value))}
-                    className="min-h-[44px] rounded border border-slate-700 bg-slate-950 px-3 text-center text-sm font-medium text-white/90 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
+                    className="min-h-[44px] rounded-sm border border-slate-700 bg-slate-950 px-3 text-center text-sm font-medium text-white/90 outline-hidden transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
                   />
                 </label>
                 <label className="flex flex-col gap-1">
@@ -578,7 +578,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
                     min={0}
                     value={intervalSeconds}
                     onChange={(event) => setIntervalSeconds(Number(event.target.value))}
-                    className="min-h-[44px] rounded border border-slate-700 bg-slate-950 px-3 text-center text-sm font-medium text-white/90 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
+                    className="min-h-[44px] rounded-sm border border-slate-700 bg-slate-950 px-3 text-center text-sm font-medium text-white/90 outline-hidden transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
                   />
                 </label>
               </div>
@@ -718,7 +718,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
         <StatusBanner message={roomErrorMessage ?? socketErrorMessage ?? ''} />
       )}
       {krConfigOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => { setKrConfigOpen(false); setKrCapturing(null); }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs" onClick={() => { setKrConfigOpen(false); setKrCapturing(null); }}>
           <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-[0.3em] text-white">Configurar teclas</h2>
             <div className="flex flex-col gap-4">
@@ -884,8 +884,8 @@ function RoomSetup(props: {
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-6 py-16 text-white">
-      <div className="absolute inset-0 -z-20 bg-gradient-to-br from-[#0B1220] via-[#0C1526] to-[#020617]" />
-      <div className="absolute inset-x-0 top-0 -z-10 h-80 bg-gradient-to-b from-indigo-500/30 via-transparent" />
+      <div className="absolute inset-0 -z-20 bg-linear-to-br from-[#0B1220] via-[#0C1526] to-[#020617]" />
+      <div className="absolute inset-x-0 top-0 -z-10 h-80 bg-linear-to-b from-indigo-500/30 via-transparent" />
       <div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[460px] w-[460px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-indigo-700/20 blur-3xl" />
 
       <div className="w-full max-w-6xl space-y-14">
@@ -900,8 +900,8 @@ function RoomSetup(props: {
         </header>
 
         <section className="grid gap-10 md:grid-cols-[1.1fr_1fr]">
-          <article className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#101b2f] via-[#0d1728] to-[#091120] p-10 shadow-[0_26px_90px_rgba(6,11,24,0.6)]">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/6 via-transparent to-transparent" />
+          <article className="relative overflow-hidden rounded-3xl border border-white/10 bg-linear-to-br from-[#101b2f] via-[#0d1728] to-[#091120] p-10 shadow-[0_26px_90px_rgba(6,11,24,0.6)]">
+            <div className="pointer-events-none absolute inset-0 bg-linear-to-br from-white/6 via-transparent to-transparent" />
 
             <div className="relative z-10 space-y-6">
               <div className="space-y-4">
@@ -914,13 +914,13 @@ function RoomSetup(props: {
               </div>
 
               <div className="grid gap-4 text-sm text-slate-200">
-                <div className="flex items-start gap-4 rounded-2xl border border-white/5 bg-white/10 p-4 backdrop-blur">
+                <div className="flex items-start gap-4 rounded-2xl border border-white/5 bg-white/10 p-4 backdrop-blur-sm">
                   <span className="mt-1 flex h-10 w-10 items-center justify-center rounded-full bg-sky-500/20 text-sm font-semibold text-sky-100">
                     01
                   </span>
                   <p className="leading-relaxed">{messages.roomSetup.create.steps[0]}</p>
                 </div>
-                <div className="flex items-start gap-4 rounded-2xl border border-white/5 bg-white/10 p-4 backdrop-blur">
+                <div className="flex items-start gap-4 rounded-2xl border border-white/5 bg-white/10 p-4 backdrop-blur-sm">
                   <span className="mt-1 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/20 text-sm font-semibold text-emerald-100">
                     02
                   </span>
@@ -933,7 +933,7 @@ function RoomSetup(props: {
                   type="button"
                   onClick={onCreate}
                   disabled={loading}
-                  className="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-sky-500 via-indigo-500 to-blue-500 px-6 py-3 text-base font-semibold tracking-tight text-white transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-70"
+                  className="inline-flex items-center justify-center rounded-2xl bg-linear-to-r from-sky-500 via-indigo-500 to-blue-500 px-6 py-3 text-base font-semibold tracking-tight text-white transition hover:brightness-110 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {messages.roomSetup.create.cta}
                 </button>
@@ -944,7 +944,7 @@ function RoomSetup(props: {
 
           <form
             onSubmit={handleSubmit}
-            className="flex h-full flex-col gap-7 rounded-3xl border border-white/10 bg-slate-900/80 p-10 shadow-[0_30px_90px_rgba(15,23,42,0.55)] backdrop-blur"
+            className="flex h-full flex-col gap-7 rounded-3xl border border-white/10 bg-slate-900/80 p-10 shadow-[0_30px_90px_rgba(15,23,42,0.55)] backdrop-blur-sm"
           >
             <div className="space-y-4">
               <h2 className="text-2xl font-semibold tracking-tight text-white">
@@ -961,7 +961,7 @@ function RoomSetup(props: {
                 value={roomId}
                 onChange={(event) => setRoomId(event.target.value.toUpperCase())}
                 placeholder={messages.roomSetup.join.roomPlaceholder}
-                className="rounded-2xl border border-white/15 bg-slate-950/80 px-4 py-3 text-lg font-medium uppercase tracking-[0.22em] text-white placeholder:text-slate-500 shadow-inner transition focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-400/50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-2xl border border-white/15 bg-slate-950/80 px-4 py-3 text-lg font-medium uppercase tracking-[0.22em] text-white placeholder:text-slate-500 shadow-inner transition focus:border-indigo-300 focus:outline-hidden focus:ring-2 focus:ring-indigo-400/50 disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={loading}
               />
             </label>
@@ -972,7 +972,7 @@ function RoomSetup(props: {
                 value={pin}
                 onChange={(event) => setPin(event.target.value)}
                 placeholder={messages.roomSetup.join.pinPlaceholder}
-                className="rounded-2xl border border-white/15 bg-slate-950/80 px-4 py-3 text-lg font-medium text-white placeholder:text-slate-500 shadow-inner transition focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-400/50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-2xl border border-white/15 bg-slate-950/80 px-4 py-3 text-lg font-medium text-white placeholder:text-slate-500 shadow-inner transition focus:border-indigo-300 focus:outline-hidden focus:ring-2 focus:ring-indigo-400/50 disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={loading}
               />
             </label>
@@ -980,7 +980,7 @@ function RoomSetup(props: {
             <button
               type="submit"
               disabled={loading || !roomId || !pin}
-              className="mt-2 inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-500 via-indigo-400 to-sky-400 px-6 py-3 text-base font-semibold tracking-tight text-white transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300 disabled:cursor-not-allowed disabled:opacity-70"
+              className="mt-2 inline-flex items-center justify-center rounded-2xl bg-linear-to-r from-indigo-500 via-indigo-400 to-sky-400 px-6 py-3 text-base font-semibold tracking-tight text-white transition hover:brightness-110 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300 disabled:cursor-not-allowed disabled:opacity-70"
             >
               {messages.roomSetup.join.submit}
             </button>

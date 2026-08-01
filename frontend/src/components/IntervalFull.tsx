@@ -121,8 +121,8 @@ export function IntervalFull({ intervalMs, configuredMs, running, labels }: Inte
   return (
     <div className="mx-auto flex w-full max-w-[min(92vw,1200px)] flex-col items-center gap-[5vh] text-white py-[3vh]">
       <div className="relative flex flex-col items-center gap-8 rounded-[48px] border border-white/10 bg-black/70 px-12 py-10 shadow-[0_22px_70px_rgba(0,0,0,0.6)]">
-        <span className="absolute -top-6 left-1/2 -translate-x-1/2 skew-x-[-12deg] rounded-md bg-white px-7 py-2 text-[clamp(0.6rem,0.9vw,2rem)] font-black uppercase tracking-[0.45em] text-slate-900">
-          <span className="block skew-x-[12deg] whitespace-nowrap">{labels.primaryLabel}</span>
+        <span className="absolute -top-6 left-1/2 -translate-x-1/2 -skew-x-12 rounded-md bg-white px-7 py-2 text-[clamp(0.6rem,0.9vw,2rem)] font-black uppercase tracking-[0.45em] text-slate-900">
+          <span className="block skew-x-12 whitespace-nowrap">{labels.primaryLabel}</span>
         </span>
         <span
           className={clsx(
@@ -135,8 +135,8 @@ export function IntervalFull({ intervalMs, configuredMs, running, labels }: Inte
       </div>
 
       <div className="relative flex flex-col items-center gap-8 rounded-[48px] border border-white/10 bg-black/70 px-12 py-10 shadow-[0_22px_70px_rgba(0,0,0,0.6)]">
-        <span className="absolute -top-6 left-1/2 -translate-x-1/2 skew-x-[-12deg] rounded-md bg-white px-7 py-2 text-[clamp(0.6rem,0.9vw,2rem)] font-black uppercase tracking-[.45em] text-slate-900">
-          <span className="block skew-x-[12deg] whitespace-nowrap">{labels.secondaryLabel}</span>
+        <span className="absolute -top-6 left-1/2 -translate-x-1/2 -skew-x-12 rounded-md bg-white px-7 py-2 text-[clamp(0.6rem,0.9vw,2rem)] font-black uppercase tracking-[.45em] text-slate-900">
+          <span className="block skew-x-12 whitespace-nowrap">{labels.secondaryLabel}</span>
         </span>
         <span
           className={clsx(

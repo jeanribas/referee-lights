@@ -68,7 +68,7 @@ const tooltipStyle = {
 
 function StatCard({ label, value, sub, accent }: { label: string; value: string | number; sub?: string; accent?: string }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-gradient-to-br from-slate-900/90 to-slate-800/40 p-5">
+    <div className="relative overflow-hidden rounded-2xl border border-white/6 bg-linear-to-br from-slate-900/90 to-slate-800/40 p-5">
       <div className={`absolute -right-4 -top-4 h-20 w-20 rounded-full opacity-10 blur-2xl ${accent ?? 'bg-indigo-500'}`} />
       <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-400">{label}</p>
       <p className="mt-1.5 text-3xl font-bold tabular-nums text-white">{value}</p>
@@ -79,7 +79,7 @@ function StatCard({ label, value, sub, accent }: { label: string; value: string 
 
 function SectionCard({ title, children, className = '' }: { title: string; children: React.ReactNode; className?: string }) {
   return (
-    <section className={`rounded-2xl border border-white/[0.06] bg-gradient-to-br from-slate-900/90 to-slate-800/40 p-5 ${className}`}>
+    <section className={`rounded-2xl border border-white/6 bg-linear-to-br from-slate-900/90 to-slate-800/40 p-5 ${className}`}>
       <h2 className="mb-4 text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">{title}</h2>
       {children}
     </section>
@@ -107,9 +107,9 @@ function ProgressList({ items, labelKey, valueKey, labelMap }: {
               <span className="truncate text-xs text-slate-300">{label || '—'}</span>
               <span className="ml-3 text-xs font-bold tabular-nums text-white">{count}</span>
             </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.04]">
+            <div className="h-1.5 overflow-hidden rounded-full bg-white/4">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-cyan-400 transition-all duration-500"
+                className="h-full rounded-full bg-linear-to-r from-indigo-500 to-cyan-400 transition-all duration-500"
                 style={{ width: `${pct}%` }}
               />
             </div>
@@ -182,7 +182,7 @@ function GeoMap({ markers }: {
         </ZoomableGroup>
       </ComposableMap>
       {hoveredMarker && (
-        <div className="pointer-events-none absolute left-4 bottom-4 rounded-lg border border-white/[0.08] bg-slate-900/95 px-3 py-2 text-xs backdrop-blur">
+        <div className="pointer-events-none absolute left-4 bottom-4 rounded-lg border border-white/8 bg-slate-900/95 px-3 py-2 text-xs backdrop-blur-sm">
           <span className="font-medium text-white">{hoveredMarker.city}, {hoveredMarker.country}</span>
           <span className="ml-2 text-indigo-300">{hoveredMarker.count} conexões</span>
         </div>
@@ -340,7 +340,7 @@ export default function MasterPage() {
         <main className="flex min-h-screen items-center justify-center bg-[#0a0e1a] px-6 py-16 text-white">
           <form
             onSubmit={handleLogin}
-            className="w-full max-w-sm space-y-6 rounded-2xl border border-white/[0.06] bg-gradient-to-br from-slate-900/90 to-slate-800/40 p-8 shadow-2xl backdrop-blur"
+            className="w-full max-w-sm space-y-6 rounded-2xl border border-white/6 bg-linear-to-br from-slate-900/90 to-slate-800/40 p-8 shadow-2xl backdrop-blur-sm"
           >
             <div className="text-center">
               <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/20">
@@ -356,7 +356,7 @@ export default function MasterPage() {
               <input
                 value={user}
                 onChange={(e) => setUser(e.target.value)}
-                className="min-h-[44px] rounded-lg border border-white/[0.06] bg-slate-950/80 px-3 text-sm font-medium text-white outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/30"
+                className="min-h-[44px] rounded-lg border border-white/6 bg-slate-950/80 px-3 text-sm font-medium text-white outline-hidden transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/30"
               />
             </label>
 
@@ -366,7 +366,7 @@ export default function MasterPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="min-h-[44px] rounded-lg border border-white/[0.06] bg-slate-950/80 px-3 text-sm font-medium text-white outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/30"
+                className="min-h-[44px] rounded-lg border border-white/6 bg-slate-950/80 px-3 text-sm font-medium text-white outline-hidden transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/30"
               />
             </label>
 
@@ -401,7 +401,7 @@ export default function MasterPage() {
       {pageHead}
       <main className="min-h-screen bg-[#0a0e1a] text-slate-100">
         {/* Header */}
-        <header className="sticky top-0 z-10 border-b border-white/[0.04] bg-[#0a0e1a]/80 backdrop-blur-xl">
+        <header className="sticky top-0 z-10 border-b border-white/4 bg-[#0a0e1a]/80 backdrop-blur-xl">
           <div className="flex items-center justify-between px-6 py-4">
             <div className="flex items-center gap-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/20">
@@ -414,7 +414,7 @@ export default function MasterPage() {
 
             <div className="flex items-center gap-4">
               {/* Period selector */}
-              <nav className="flex items-center gap-1 rounded-lg border border-white/[0.06] bg-white/[0.02] p-1">
+              <nav className="flex items-center gap-1 rounded-lg border border-white/6 bg-white/2 p-1">
                 {(['today', '7d', '30d', 'all'] as Period[]).map((p) => (
                   <button
                     key={p}
@@ -441,7 +441,7 @@ export default function MasterPage() {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 transition hover:bg-white/[0.06] hover:text-white"
+                className="rounded-lg border border-white/6 bg-white/3 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 transition hover:bg-white/6 hover:text-white"
               >
                 {m.header.logout}
               </button>
@@ -539,7 +539,7 @@ export default function MasterPage() {
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {active.rooms.map((r) => (
-                  <div key={r.id} className="flex items-center justify-between rounded-xl border border-white/[0.04] bg-white/[0.02] px-4 py-3">
+                  <div key={r.id} className="flex items-center justify-between rounded-xl border border-white/4 bg-white/2 px-4 py-3">
                     <div>
                       <span className="font-mono text-sm text-indigo-300">{r.id}</span>
                       <p className="text-[10px] text-slate-500">{formatRelative(r.createdAt)}</p>
@@ -562,7 +562,7 @@ export default function MasterPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead>
-                    <tr className="border-b border-white/[0.04] text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    <tr className="border-b border-white/4 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
                       <th className="px-3 py-2">Página</th>
                       <th className="px-3 py-2">Sala</th>
                       <th className="px-3 py-2">Subdomínio</th>
@@ -572,7 +572,7 @@ export default function MasterPage() {
                   </thead>
                   <tbody>
                     {online.visitors.map((v, i) => (
-                      <tr key={i} className="border-b border-white/[0.02] transition hover:bg-white/[0.02]">
+                      <tr key={i} className="border-b border-white/2 transition hover:bg-white/2">
                         <td className="px-3 py-2.5">
                           <span className="inline-flex items-center gap-1.5">
                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -602,7 +602,7 @@ export default function MasterPage() {
                   const uptimeM = Math.floor((inst.uptime_seconds % 3600) / 60);
                   const uptimeStr = uptimeH > 0 ? `${uptimeH}h ${uptimeM}m` : `${uptimeM}m`;
                   return (
-                    <div key={inst.instance_id} className="rounded-xl border border-white/[0.04] bg-white/[0.02] p-4 space-y-2">
+                    <div key={inst.instance_id} className="rounded-xl border border-white/4 bg-white/2 p-4 space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="font-mono text-[10px] text-indigo-300">{inst.instance_id.slice(0, 8)}...</span>
                         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${

@@ -79,8 +79,8 @@ function CooldownColumn({
 
 function SkewPill({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex skew-x-[-12deg] rounded-md bg-white px-10 py-3 shadow-[0_8px_0_rgba(0,0,0,0.35)]">
-      <span className="skew-x-[12deg] text-sm font-black uppercase tracking-[0.5em] text-slate-900">{children}</span>
+    <span className="inline-flex -skew-x-12 rounded-md bg-white px-10 py-3 shadow-[0_8px_0_rgba(0,0,0,0.35)]">
+      <span className="skew-x-12 text-sm font-black uppercase tracking-[0.5em] text-slate-900">{children}</span>
     </span>
   );
 }
@@ -108,21 +108,21 @@ function AttemptMarker({ value, className }: { value: number; className?: string
 function CooldownBadge({ value, gradient }: { value: number; gradient: string }) {
   return (
     <span
-      className="inline-flex skew-x-[-12deg] items-center justify-center rounded-md px-4 py-2 text-lg font-black text-slate-900 shadow-[0_6px_0_rgba(0,0,0,0.3)]"
+      className="inline-flex -skew-x-12 items-center justify-center rounded-md px-4 py-2 text-lg font-black text-slate-900 shadow-[0_6px_0_rgba(0,0,0,0.3)]"
       style={{ backgroundImage: gradient }}
     >
-      <span className="skew-x-[12deg] leading-none">{value}</span>
+      <span className="skew-x-12 leading-none">{value}</span>
     </span>
   );
 }
 
 function CooldownStack({ badges }: { badges: CooldownBadgeData[] }) {
   if (!badges.length) {
-    return <div className="min-h-[3rem] min-w-[0]" />;
+    return <div className="min-h-12 min-w-0" />;
   }
 
   return (
-    <div className="flex min-h-[3rem] min-w-0 items-center gap-2 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]">
+    <div className="flex min-h-12 min-w-0 items-center gap-2 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]">
       {badges.map((badge) => (
         <CooldownBadge key={badge.id} value={badge.value} gradient={badge.gradient} />
       ))}
