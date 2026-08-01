@@ -1,8 +1,6 @@
 import fastifyCors from '@fastify/cors';
 import Fastify from 'fastify';
-import type { FastifyPluginCallback } from 'fastify';
-import fastifySocketIO from 'fastify-socket.io';
-import type { Server as SocketIOServer, Socket } from 'socket.io';
+import { Server as SocketIOServer, type Socket } from 'socket.io';
 
 import geoip from 'geoip-lite';
 import { AnalyticsStore } from './analytics.js';
@@ -97,14 +95,6 @@ type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerE
 
 type AppSocketServer = SocketIOServer<ClientToServerEvents, ServerToClientEvents, InterServerEvents, ClientData>;
 
-interface SocketIOPluginOptions {
-  cors?: {
-    origin: string | string[];
-  };
-}
-
-type SocketIOPlugin = FastifyPluginCallback<SocketIOPluginOptions>;
-
 const ROOM_CHANNEL_PREFIX = 'room:';
 
 const SUPPORTED_LOCALES: Locale[] = ['pt-BR', 'en-US', 'es-ES'];
@@ -136,12 +126,16 @@ export async function createServer() {
     origin: config.CORS_ORIGIN === '*' ? true : config.CORS_ORIGIN.split(',').map((origin) => origin.trim())
   });
 
-  const socketPlugin = fastifySocketIO as unknown as SocketIOPlugin;
-
-  await app.register(socketPlugin, {
+  // socket.io acoplado direto ao http.Server do Fastify (o plugin
+  // fastify-socket.io não suporta Fastify 5)
+  app.decorate('io', new SocketIOServer(app.server, {
     cors: {
       origin: config.CORS_ORIGIN === '*' ? '*' : config.CORS_ORIGIN.split(',').map((origin) => origin.trim())
     }
+  }));
+  app.addHook('onClose', (instance, done) => {
+    instance.io.close();
+    done();
   });
 
   const io = app.io as AppSocketServer;
