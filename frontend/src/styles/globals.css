@@ -33,14 +33,21 @@
   color-scheme: dark;
 }
 
-body {
-  @apply bg-slate-900 text-slate-100 min-h-screen;
-}
+/*
+  Regras de elemento ficam em @layer base: no v4 as utilities moram na layer
+  `utilities`, e CSS sem layer venceria qualquer classe (foi o que deixou os
+  links azuis por cima de text-white após a migração).
+*/
+@layer base {
+  body {
+    @apply bg-slate-900 text-slate-100 min-h-screen;
+  }
 
-a {
-  @apply text-primary hover:underline;
-}
+  a {
+    @apply text-primary hover:underline;
+  }
 
-button {
-  @apply focus:outline-hidden focus-visible:ring-4 focus-visible:ring-offset-2 focus-visible:ring-primary;
+  button {
+    @apply focus:outline-hidden focus-visible:ring-4 focus-visible:ring-offset-2 focus-visible:ring-primary;
+  }
 }
