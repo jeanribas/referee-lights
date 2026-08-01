@@ -13,6 +13,16 @@ frontend/.env.local
 frontend/.next
 frontend/out
 *.zip
+*.tsbuildinfo
+
+# Bundle Windows — tudo em dist/ é gerado por tools/windows/build-package.mjs
+dist/
+
+# Artefatos locais de sessão/ferramentas
+*.pid
+.compact-summary.md
+tools/key-relay/key-relay-config.json
+tools/key-relay/key-relay-config.txt
 
 # Editor
 .DS_Store
