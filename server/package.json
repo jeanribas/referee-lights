@@ -19,14 +19,14 @@
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/geoip-lite": "^1.4.4",
     "@types/node": "^20.11.30",
-    "@typescript-eslint/eslint-plugin": "^6.21.0",
-    "@typescript-eslint/parser": "^6.21.0",
-    "eslint": "^8.57.0",
+    "@typescript-eslint/eslint-plugin": "^8.65.0",
+    "@typescript-eslint/parser": "^8.65.0",
+    "eslint": "^10.8.0",
     "eslint-config-prettier": "^9.1.0",
-    "eslint-plugin-import": "^2.29.1",
     "prettier": "^3.2.5",
     "tsx": "^4.7.1",
     "typescript": "^5.4.2"

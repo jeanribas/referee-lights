@@ -170,7 +170,7 @@ export async function createServer() {
     return '';
   }
 
-  function mapRoleToPage(role: string, judgeRole?: string): string {
+  function mapRoleToPage(role: string, _judgeRole?: string): string {
     if (role === 'admin') return '/admin';
     if (role === 'display') return '/display';
     if (role === 'left' || role === 'center' || role === 'right') return `/ref/${role}`;
@@ -540,7 +540,7 @@ export async function createServer() {
 
   // --- Telemetry Endpoints (receive from all instances) ---
 
-  app.post('/telemetry/events', async (request, reply) => {
+  app.post('/telemetry/events', async () => {
     // Receive event batches from instances (fire-and-forget on their side)
     return { ok: true };
   });

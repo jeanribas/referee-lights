@@ -29,7 +29,7 @@ export interface AppState {
   legendConfig: LegendConfig;
 }
 
-export interface RoomSnapshot extends AppState {}
+export type RoomSnapshot = AppState;
 
 const DEFAULT_TIMER_MS = 60_000;
 const AUTO_CLEAR_MS = 10_000;
