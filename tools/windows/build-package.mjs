@@ -23,8 +23,19 @@ function run(command, options = {}) {
 
 async function prepare() {
   console.log('\n📦 Limpando bundle anterior...');
+  // Preserva o runtime Node já baixado para não repetir o download de ~30MB
+  const nodeDir = path.join(outputDir, 'node');
+  const nodeBackup = path.join(rootDir, 'dist', '.node-runtime-keep');
+  if (existsSync(path.join(nodeDir, 'node.exe'))) {
+    await rm(nodeBackup, { recursive: true, force: true });
+    await cp(nodeDir, nodeBackup, { recursive: true });
+  }
   await rm(outputDir, { recursive: true, force: true });
   await mkdir(outputDir, { recursive: true });
+  if (existsSync(path.join(nodeBackup, 'node.exe'))) {
+    await cp(nodeBackup, nodeDir, { recursive: true });
+    await rm(nodeBackup, { recursive: true, force: true });
+  }
 }
 
 async function buildProjects() {
@@ -55,13 +66,64 @@ TELEMETRY_ENABLED=true
 KEY_RELAY_AVAILABLE=true
 `, 'utf8');
 
-  // Install prod deps (needed for native modules like better-sqlite3)
-  console.log('📥 Instalando deps de produção do server...');
-  run('npm ci --omit=dev', { cwd: dest });
+  // Install prod deps forçando binários Windows x64 para o Node do bundle,
+  // mesmo empacotando a partir de macOS/Linux (prebuild-install respeita
+  // npm_config_platform/arch/target ao baixar o .node do better-sqlite3).
+  console.log('📥 Instalando deps de produção do server (win-x64)...');
+  run('npm ci --omit=dev --ignore-scripts=false', {
+    cwd: dest,
+    env: {
+      ...process.env,
+      npm_config_platform: 'win32',
+      npm_config_arch: 'x64',
+      npm_config_target: NODE_VERSION
+    }
+  });
+
+  await assertWindowsBinary(path.join(dest, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'));
+
+  // geoip-lite carrega ~150MB de dados só para geolocalizar IPs na telemetria —
+  // irrelevante rodando offline/rede local. Substitui por stub compatível
+  // (lookup() → null, mesmo retorno de IP privado/desconhecido).
+  console.log('🌍 Substituindo geoip-lite por stub (economiza ~150MB)...');
+  const geoipDir = path.join(dest, 'node_modules', 'geoip-lite');
+  await rm(geoipDir, { recursive: true, force: true });
+  await mkdir(geoipDir, { recursive: true });
+  await writeFile(path.join(geoipDir, 'package.json'), JSON.stringify({
+    name: 'geoip-lite',
+    version: '0.0.0-stub',
+    description: 'Stub offline do geoip-lite para o bundle Windows (sem base de dados geo)',
+    main: 'index.js'
+  }, null, 2), 'utf8');
+  await writeFile(path.join(geoipDir, 'index.js'), `// Stub do geoip-lite para o bundle portátil: rede local não precisa de geolocalização.
+// Mesma interface pública; lookup() devolve null como faria com IP privado.
+module.exports = {
+  lookup: () => null,
+  pretty: (ip) => String(ip),
+  startWatchingDataUpdate: () => {},
+  stopWatchingDataUpdate: () => {}
+};
+`, 'utf8');
 
   // Remove unnecessary files from node_modules to reduce size
   console.log('🧹 Limpando node_modules do server...');
   await pruneNodeModules(path.join(dest, 'node_modules'));
+}
+
+/** Garante que o binário nativo é PE (Windows). Sai com erro se vier Mach-O/ELF. */
+async function assertWindowsBinary(binaryPath) {
+  if (!existsSync(binaryPath)) {
+    console.error(`❌ Binário nativo não encontrado: ${binaryPath}`);
+    process.exit(1);
+  }
+  const { readFile } = await import('node:fs/promises');
+  const head = (await readFile(binaryPath)).subarray(0, 2).toString('latin1');
+  if (head !== 'MZ') {
+    console.error(`❌ ${path.basename(binaryPath)} não é um binário Windows (PE). O prebuild win-x64 não foi baixado.`);
+    console.error('   Rode novamente com rede liberada ou copie manualmente o .node de um bundle que funcionava.');
+    process.exit(1);
+  }
+  console.log('✅ better_sqlite3.node é PE/Windows x64.');
 }
 
 async function bundleFrontend() {
@@ -291,9 +353,20 @@ do Iniciar ou de duplo-clique em "Parar.cmd"
 
 REDE: todos os dispositivos devem estar na mesma rede Wi-Fi
 
-GitHub: https://github.com/jeanribas/luzes-de-arbitros-ipf
+GitHub: https://github.com/jeanribas/referee-lights
+Site: https://refereelights.app
 Contato: contato@assist.com.br
 `, 'utf8');
+}
+
+async function createZip() {
+  const zipPath = path.join(rootDir, 'dist', 'referee-lights-windows.zip');
+  console.log('\n🗜️  Gerando referee-lights-windows.zip...');
+  await rm(zipPath, { force: true });
+  // -X: sem atributos extras de macOS; exclui lixo de SO
+  run(`zip -qryX "${zipPath}" . -x "*.DS_Store" -x "__MACOSX/*"`, { cwd: outputDir });
+  const { statSync } = await import('node:fs');
+  console.log(`   ${(statSync(zipPath).size / 1024 / 1024).toFixed(1)} MB → ${zipPath}`);
 }
 
 async function main() {
@@ -307,6 +380,7 @@ async function main() {
   await bundleFrontend();
   await downloadNode();
   await createScripts();
+  await createZip();
 
   // Count files and size
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
