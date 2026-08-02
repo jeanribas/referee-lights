@@ -82,6 +82,10 @@ export function trackPageView(path: string, opts?: { locale?: string; includeRef
   const clean = path.split('?')[0].split('#')[0];
   if (!clean.startsWith('/')) return;
   try {
+    // Crawlers que renderizam JS (Google/Bing) e automação não contam
+    // como visita — poluíam o dashboard com geo de datacenter.
+    if ((navigator as { webdriver?: boolean }).webdriver) return;
+    if (/bot|crawler|spider|crawling|bingpreview|headless|lighthouse/i.test(navigator.userAgent)) return;
     const width = window.innerWidth;
     const device = width < 768 ? 'mobile' : width < 1100 ? 'tablet' : 'desktop';
     // Referrer: só o hostname externo, só na primeira carga (não em navegação interna)

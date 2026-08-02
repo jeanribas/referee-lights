@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import Database from 'better-sqlite3';
-import geoip from 'geoip-lite';
+import { lookupGeo } from './geo.js';
 
 interface GeoInfo {
   country: string;
@@ -144,22 +144,27 @@ export class AnalyticsStore {
     try {
       this.db!.exec("ALTER TABLE connections ADD COLUMN lng REAL DEFAULT 0");
     } catch { /* exists */ }
+
+    // Limpeza única (user_version 1): o geoip-lite antigo gravava país errado
+    // sem coordenadas (ex.: faixa BR marcada como RW). País sem lat/lng não é
+    // verificável nem mapeável — zera para não poluir os painéis.
+    try {
+      const version = (this.db!.pragma('user_version', { simple: true }) as number) ?? 0;
+      if (version < 1) {
+        this.db!.exec(`
+          UPDATE access_logs SET country = '', region = '', city = '' WHERE lat = 0 AND lng = 0;
+          UPDATE connections SET country = '', region = '', city = '' WHERE lat = 0 AND lng = 0;
+          PRAGMA user_version = 1;
+        `);
+        console.log('[analytics] migração 1: geo sem coordenadas zerado');
+      }
+    } catch (err) {
+      console.error('[analytics] migração user_version falhou:', err);
+    }
   }
 
   private resolveGeo(ip: string): GeoInfo {
-    try {
-      const result = geoip.lookup(ip);
-      if (!result) return { country: '', region: '', city: '', lat: 0, lng: 0 };
-      return {
-        country: result.country ?? '',
-        region: typeof result.region === 'string' ? result.region : '',
-        city: result.city ?? '',
-        lat: result.ll?.[0] ?? 0,
-        lng: result.ll?.[1] ?? 0
-      };
-    } catch {
-      return { country: '', region: '', city: '', lat: 0, lng: 0 };
-    }
+    return lookupGeo(ip);
   }
 
   private hashPin(pin: string): string {

@@ -63,6 +63,7 @@ CORS_ORIGIN=*
 LOG_LEVEL=info
 ANALYTICS_DB_PATH=data/analytics.db
 TELEMETRY_ENABLED=true
+GEO_ENABLED=false
 KEY_RELAY_AVAILABLE=true
 `, 'utf8');
 
@@ -82,28 +83,7 @@ KEY_RELAY_AVAILABLE=true
 
   await assertWindowsBinary(path.join(dest, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'));
 
-  // geoip-lite carrega ~150MB de dados só para geolocalizar IPs na telemetria —
-  // irrelevante rodando offline/rede local. Substitui por stub compatível
-  // (lookup() → null, mesmo retorno de IP privado/desconhecido).
-  console.log('🌍 Substituindo geoip-lite por stub (economiza ~150MB)...');
-  const geoipDir = path.join(dest, 'node_modules', 'geoip-lite');
-  await rm(geoipDir, { recursive: true, force: true });
-  await mkdir(geoipDir, { recursive: true });
-  await writeFile(path.join(geoipDir, 'package.json'), JSON.stringify({
-    name: 'geoip-lite',
-    version: '0.0.0-stub',
-    description: 'Stub offline do geoip-lite para o bundle Windows (sem base de dados geo)',
-    main: 'index.js'
-  }, null, 2), 'utf8');
-  await writeFile(path.join(geoipDir, 'index.js'), `// Stub do geoip-lite para o bundle portátil: rede local não precisa de geolocalização.
-// Mesma interface pública; lookup() devolve null como faria com IP privado.
-module.exports = {
-  lookup: () => null,
-  pretty: (ip) => String(ip),
-  startWatchingDataUpdate: () => {},
-  stopWatchingDataUpdate: () => {}
-};
-`, 'utf8');
+  // geo: GEO_ENABLED=false no .env — geolite2-redist nem baixa o .mmdb em LAN
 
   // Remove unnecessary files from node_modules to reduce size
   console.log('🧹 Limpando node_modules do server...');
