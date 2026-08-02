@@ -1,10 +1,10 @@
-# Referee Lights 1.2
+# Referee Lights 1.3
 
 ![release](https://img.shields.io/github/v/tag/jeanribas/referee-lights?label=release&sort=semver) ![visitors](https://visitor-badge.laobi.icu/badge?page_id=jeanribas.referee-lights) ![license](https://img.shields.io/badge/license-Custom-blue)
 
 [Português](README.md) · English · [Español](README.es.md)
 
-Complete referee light system for Powerlifting competitions following IPF rules. Version **1.2** brings responsive viewport scaling on every screen, PWA support, and a redesigned standalone timer page. Five web interfaces share the same real-time state via Socket.IO and can be opened on different devices:
+Complete referee light system for Powerlifting competitions following IPF rules. Version **1.3** brings GeoLite2 geolocation, telemetry with an offline queue, and the CSS fixes from the Tailwind v4 migration. Five web interfaces share the same real-time state via Socket.IO and can be opened on different devices:
 
 - `/` – admin panel that creates/resumes sessions, generates QR codes, controls the timer, and monitors the platform state
 - `/display` – full-screen display with the three lights, countdown timer, interval alerts, and cooldown badges
@@ -16,14 +16,13 @@ Complete referee light system for Powerlifting competitions following IPF rules.
 
 Each session has a `roomId` and an admin PIN. The panel automatically generates referee QR codes and direct links for the display/legend, and it can rotate tokens if needed.
 
-## What's new in 1.2
+## What's new in 1.3
 
-- **Responsive viewport scaling** – all screens (admin, display, timer, referee) auto-scale to fit any screen size; no more manual zoom controls on display; admin panel scales proportionally on smaller windows; referee consoles work on any smartphone without manual zoom adjustment
-- **PWA support** – Web App Manifest with standalone display mode; apple-mobile-web-app-capable for iOS; saves the current URL (with roomId/token) to home screen; SVG app icon with referee lights design
-- **Redesigned standalone timer** (`/timer`) – now a full control panel (not just a display); Timer + Interval cards side by side (landscape) or stacked (portrait); cooldown badges showing lifter change time; responsive scaling
-- **Footer auto-hide on scroll** – FooterBadges component hides during scroll, reappears after 1.5 s
-- **Cooldown badge improvements** – fixed-width badges (tabular-nums), positioned absolutely above LIFTER/ATTEMPT plates (no layout shift), exported `useCooldownBadges` hook for reuse
-- **Key Relay built into server** – no longer requires a separate helper process. The admin panel has an "Ativar Key Relay" toggle that starts/stops the key relay directly from the browser. Supports any key combination (F1–F12, Ctrl+key, Alt+key, etc.) configurable via a modal that captures keystrokes
+- **Geolocation via GeoLite2 (MaxMind)** – replaces `geoip-lite`, which misclassified Brazilian IP ranges as other countries. Legacy records without coordinates were cleared, since a country with no lat/lng cannot be verified
+- **Telemetry with an offline queue** – events that fail to send are persisted to disk (up to 500) and retried when connectivity returns, so competitions run on an offline LAN no longer lose data. Hardened auth: tokens are now signed with a dedicated key, separate from the password
+- **Node 22 in the Windows package and Docker** – `better-sqlite3` 12 requires ABI 127
+- **CSS fixes from the Tailwind v4 migration** – palette pinned to the v3 hex values (v4 redefined colors in OKLCH and, on P3 displays, the referee lights rendered oversaturated); button cursor and placeholder color restored; element rules moved into `@layer base`, which brought link colors back
+- **Telemetry endpoint moved** to `api.refereelights.app`. The previous address stays live — already-distributed installs have no upgrade path
 
 
 ## Screenshots

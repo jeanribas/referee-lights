@@ -1,10 +1,10 @@
-# Referee Lights 1.2
+# Referee Lights 1.3
 
 ![release](https://img.shields.io/github/v/tag/jeanribas/referee-lights?label=release&sort=semver) ![visitors](https://visitor-badge.laobi.icu/badge?page_id=jeanribas.referee-lights) ![license](https://img.shields.io/badge/license-Custom-blue)
 
 [Português](README.md) · [English](README.en.md) · Español
 
-Plataforma completa de luces de arbitraje para competiciones de Powerlifting siguiendo las reglas de la IPF. La versión **1.2** incorpora escalado responsivo del viewport en todas las pantallas, soporte PWA y la página de temporizador rediseñada. Cinco interfaces web comparten el mismo estado en tiempo real mediante Socket.IO y pueden abrirse en distintos dispositivos:
+Plataforma completa de luces de arbitraje para competiciones de Powerlifting siguiendo las reglas de la IPF. La versión **1.3** incorpora geolocalización con GeoLite2, telemetría con cola sin conexión y las correcciones de CSS de la migración a Tailwind v4. Cinco interfaces web comparten el mismo estado en tiempo real mediante Socket.IO y pueden abrirse en distintos dispositivos:
 
 - `/` – panel administrativo que crea/recupera sesiones, genera códigos QR, controla el temporizador y sigue el estado de la plataforma
 - `/display` – pantalla a tamaño completo con las tres luces, cronómetro, intervalo y badges de cooldown
@@ -16,14 +16,13 @@ Plataforma completa de luces de arbitraje para competiciones de Powerlifting sig
 
 Cada sesión tiene `roomId` y PIN administrativo. El panel genera automáticamente los códigos QR de los árbitros y enlaces directos para la pantalla/leyenda, además de permitir rotar los tokens cuando sea necesario.
 
-## Novedades de la 1.2
+## Novedades de la 1.3
 
-- **Escalado responsivo de viewport** – todas las pantallas (admin, display, timer, referee) se ajustan automáticamente a cualquier tamaño de pantalla; sin controles manuales de zoom en display; el panel admin escala proporcionalmente en ventanas menores; las consolas de árbitros funcionan en cualquier smartphone sin ajuste manual
-- **Soporte PWA** – Web App Manifest con display standalone; apple-mobile-web-app-capable para iOS; guarda la URL actual (con roomId/token) en la pantalla de inicio; ícono SVG con diseño de luces de árbitros
-- **Temporizador standalone rediseñado** (`/timer`) – ahora es un panel de control completo (no solo visualización); tarjetas de Timer + Intervalo lado a lado (paisaje) o apiladas (retrato); badges de cooldown mostrando tiempo de cambio; escalado responsivo
-- **Footer auto-hide al desplazar** – el componente FooterBadges se oculta durante el scroll, reaparece después de 1,5 s
-- **Mejoras en los badges de cooldown** – ancho fijo (tabular-nums), posicionados de forma absoluta sobre las placas LIFTER/ATTEMPT (sin desplazamiento de layout), hook `useCooldownBadges` exportado para reutilización
-- **Key Relay integrado en el servidor** – ya no requiere un proceso auxiliar separado. El panel admin tiene un toggle "Ativar Key Relay" que inicia/detiene el key relay directamente desde el navegador. Soporta cualquier combinación de teclas (F1–F12, Ctrl+tecla, Alt+tecla, etc.) configurable mediante un modal que captura pulsaciones de teclas
+- **Geolocalización con GeoLite2 (MaxMind)** – sustituye a `geoip-lite`, que clasificaba rangos de IP brasileños como otros países. Se limpiaron los registros antiguos sin coordenadas, ya que un país sin lat/lng no es verificable
+- **Telemetría con cola sin conexión** – los eventos que fallan al enviarse se guardan en disco (hasta 500) y se reenvían cuando vuelve la conexión; las competiciones en LAN sin internet ya no pierden datos. Autenticación reforzada: los tokens se firman con una clave dedicada, separada de la contraseña
+- **Node 22 en el paquete Windows y en Docker** – `better-sqlite3` 12 exige ABI 127
+- **Correcciones de CSS de la migración a Tailwind v4** – paleta fijada a los hex de la v3 (la v4 redefinió los colores en OKLCH y, en pantallas P3, las luces de los jueces se renderizaban más saturadas); cursor de botón y color de placeholder restaurados; reglas de elemento movidas a `@layer base`, lo que devolvió el color correcto a los enlaces
+- **Endpoint de telemetría migrado** a `api.refereelights.app`. La dirección anterior sigue activa — las instalaciones ya distribuidas no tienen ruta de actualización
 
 
 ## Capturas

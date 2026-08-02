@@ -1,10 +1,10 @@
-# Referee Lights 1.2
+# Referee Lights 1.3
 
 ![release](https://img.shields.io/github/v/tag/jeanribas/referee-lights?label=release&sort=semver) ![visitors](https://visitor-badge.laobi.icu/badge?page_id=jeanribas.referee-lights) ![license](https://img.shields.io/badge/license-Custom-blue)
 
 Português · [English](README.en.md) · [Español](README.es.md)
 
-Plataforma completa de luzes de arbitragem para competições de Powerlifting seguindo as regras da IPF. A versão **1.2** traz escalonamento responsivo em todas as telas, suporte a PWA e a página de timer redesenhada. Cinco interfaces web compartilham o mesmo estado em tempo real via Socket.IO e podem ser abertas em diferentes dispositivos:
+Plataforma completa de luzes de arbitragem para competições de Powerlifting seguindo as regras da IPF. A versão **1.3** traz geolocalização com GeoLite2, telemetria com fila offline e as correções de CSS da migração para Tailwind v4. Cinco interfaces web compartilham o mesmo estado em tempo real via Socket.IO e podem ser abertas em diferentes dispositivos:
 
 - `/` – painel administrativo que cria/recupera sessões, gera QR Codes, controla o timer e acompanha o estado da plataforma
 - `/display` – display em tela cheia com as três luzes, cronômetro, intervalo e badges de cooldown
@@ -16,14 +16,13 @@ Plataforma completa de luzes de arbitragem para competições de Powerlifting se
 
 Cada sessão possui `roomId` e PIN. O painel gera automaticamente os QR Codes dos árbitros e links de exibição/legenda, além de permitir a rotação dos tokens quando necessário.
 
-## Novidades da 1.2
+## Novidades da 1.3
 
-- **Escalonamento responsivo de viewport** – todas as telas (admin, display, timer, referee) se ajustam automaticamente a qualquer tamanho de tela; sem controles manuais de zoom no display; painel admin escala proporcionalmente em janelas menores; consoles de árbitros funcionam em qualquer smartphone sem ajuste manual
-- **Suporte a PWA** – Web App Manifest com display standalone; apple-mobile-web-app-capable para iOS; salva a URL atual (com roomId/token) na tela inicial; ícone SVG com design de luzes de árbitros
-- **Timer standalone redesenhado** (`/timer`) – agora é um painel de controle completo (não apenas exibição); cards de Timer + Intervalo lado a lado (paisagem) ou empilhados (retrato); badges de cooldown mostrando tempo de troca; escalonamento responsivo
-- **Footer auto-hide ao rolar** – componente FooterBadges oculta durante scroll, reaparecendo após 1,5 s
-- **Melhorias nos badges de cooldown** – largura fixa (tabular-nums), posicionados de forma absoluta acima das placas LIFTER/ATTEMPT (sem shift de layout), hook `useCooldownBadges` exportado para reuso
-- **Key Relay integrado ao servidor** – não é mais necessário um processo auxiliar separado. O painel admin possui um toggle "Ativar Key Relay" que inicia/para o key relay diretamente pelo navegador. Suporta qualquer combinação de teclas (F1–F12, Ctrl+tecla, Alt+tecla, etc.) configurável via modal que captura pressionamentos de tecla
+- **Geolocalização com GeoLite2 (MaxMind)** – substitui o `geoip-lite`, que classificava faixas de IP brasileiras como outros países. Registros antigos sem coordenadas foram limpos, já que país sem lat/lng não é verificável
+- **Telemetria com fila offline** – eventos que falham no envio são persistidos em disco (até 500) e reenviados quando a conexão volta; competições rodadas em LAN sem internet não perdem mais dados. Autenticação endurecida: os tokens passam a ser assinados por uma chave dedicada, separada da senha
+- **Node 22 no pacote Windows e no Docker** – o `better-sqlite3` 12 exige ABI 127
+- **Correções de CSS da migração para Tailwind v4** – paleta fixada nos hex da v3 (o v4 redefiniu as cores em OKLCH e, em telas P3, as luzes dos árbitros renderizavam mais saturadas); cursor de botão e cor de placeholder restaurados; regras de elemento movidas para `@layer base`, o que devolveu a cor correta aos links
+- **Endpoint de telemetria migrado** para `api.refereelights.app`. O endereço anterior continua ativo — instalações já distribuídas não têm caminho de atualização
 
 
 ## Screenshots
