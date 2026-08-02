@@ -14,7 +14,7 @@ export default [
       // Paridade com server/eslint.config.mjs.
       '@typescript-eslint/no-explicit-any': 'off',
       // Regras advisory do React Compiler (eslint-config-next 16): as telas de
-      // tempo real (master, admin, legend, sockets) usam setState síncrono em
+      // tempo real (admin, legend, sockets) usam setState síncrono em
       // effects de sync com localStorage/socket/timers. Adotar exige refatorar
       // tela a tela — follow-up dedicado; não entra no PR de dependências.
       'react-hooks/set-state-in-effect': 'off',
