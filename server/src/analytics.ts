@@ -122,6 +122,21 @@ export class AnalyticsStore {
     } catch {
       // column already exists
     }
+    // Migrate: geo + contexto do visitante nos access_logs (page_view no mapa,
+    // dispositivos/idiomas/origens no dashboard)
+    for (const ddl of [
+      'ALTER TABLE access_logs ADD COLUMN lat REAL DEFAULT 0',
+      'ALTER TABLE access_logs ADD COLUMN lng REAL DEFAULT 0',
+      "ALTER TABLE access_logs ADD COLUMN device TEXT DEFAULT ''",
+      "ALTER TABLE access_logs ADD COLUMN locale TEXT DEFAULT ''",
+      "ALTER TABLE access_logs ADD COLUMN referrer TEXT DEFAULT ''"
+    ]) {
+      try {
+        this.db!.exec(ddl);
+      } catch {
+        /* coluna já existe */
+      }
+    }
     // Migrate: add lat/lng columns
     try {
       this.db!.exec("ALTER TABLE connections ADD COLUMN lat REAL DEFAULT 0");
@@ -250,16 +265,34 @@ export class AnalyticsStore {
     }
   }
 
-  logAccess(eventType: string, roomId: string | null, ip: string): void {
+  logAccess(
+    eventType: string,
+    roomId: string | null,
+    ip: string,
+    meta?: { device?: string; locale?: string; referrer?: string }
+  ): void {
     if (!this.db) return;
     try {
       const geo = this.resolveGeo(ip);
       const ipHash = this.hashIp(ip);
       this.db
         .prepare(
-          'INSERT INTO access_logs (event_type, room_id, ip, country, region, city, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?)'
+          'INSERT INTO access_logs (event_type, room_id, ip, country, region, city, user_agent, lat, lng, device, locale, referrer) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         )
-        .run(eventType, roomId, ipHash, geo.country, geo.region, geo.city, '');
+        .run(
+          eventType,
+          roomId,
+          ipHash,
+          geo.country,
+          geo.region,
+          geo.city,
+          '',
+          geo.lat,
+          geo.lng,
+          meta?.device ?? '',
+          meta?.locale ?? '',
+          meta?.referrer ?? ''
+        );
     } catch (err) {
       console.error('[analytics] logAccess error:', err);
     }
@@ -528,12 +561,17 @@ export class AnalyticsStore {
   getGeoDistribution(period?: string): GeoDistribution {
     if (!this.db) return { countries: [], cities: [] };
     try {
-      const where = this.periodToSql(period);
+      const whereConn = this.periodToSql(period);
+      const whereLog = this.periodToSql(period).replaceAll('connected_at', 'timestamp');
+      const unionSql = `
+        SELECT country, city FROM connections WHERE ${whereConn}
+        UNION ALL
+        SELECT country, city FROM access_logs WHERE event_type = 'page_view' AND ${whereLog}`;
       const countries = this.db.prepare(
-        `SELECT country, COUNT(*) as count FROM connections WHERE country != '' AND ${where} GROUP BY country ORDER BY count DESC LIMIT 30`
+        `SELECT country, COUNT(*) as count FROM (${unionSql}) WHERE country != '' GROUP BY country ORDER BY count DESC LIMIT 30`
       ).all() as Array<{ country: string; count: number }>;
       const cities = this.db.prepare(
-        `SELECT city, country, COUNT(*) as count FROM connections WHERE city != '' AND ${where} GROUP BY city, country ORDER BY count DESC LIMIT 30`
+        `SELECT city, country, COUNT(*) as count FROM (${unionSql}) WHERE city != '' GROUP BY city, country ORDER BY count DESC LIMIT 30`
       ).all() as Array<{ city: string; country: string; count: number }>;
       return { countries, cities };
     } catch (err) {
@@ -542,22 +580,72 @@ export class AnalyticsStore {
     }
   }
 
-  getGeoMarkers(period?: string): Array<{ city: string; country: string; lat: number; lng: number; count: number }> {
+  getGeoMarkers(
+    period?: string
+  ): Array<{ city: string; country: string; lat: number; lng: number; count: number; users: number; visitors: number }> {
     if (!this.db) return [];
     try {
-      const where = this.periodToSql(period);
+      const whereConn = this.periodToSql(period);
+      const whereLog = this.periodToSql(period).replaceAll('connected_at', 'timestamp');
+      // União de usuários de sala (connections) e visitantes do site
+      // (page_view), clusterizada por região: lat/lng arredondados a 1 casa
+      // (~11km) — mesmo IP ou vizinhança viram UM ponto com contagens por tipo.
+      // Sem exigir city != '': o geoip raramente resolve cidade, só país+coord.
       return this.db.prepare(
-        `SELECT city, country, ROUND(AVG(lat), 4) as lat, ROUND(AVG(lng), 4) as lng, COUNT(*) as count
-        FROM connections
-        WHERE city != '' AND lat != 0 AND lng != 0 AND ${where}
-        GROUP BY city, country
+        `SELECT
+          MAX(city) as city, MAX(country) as country,
+          ROUND(AVG(lat), 4) as lat, ROUND(AVG(lng), 4) as lng,
+          SUM(CASE WHEN src = 'user' THEN 1 ELSE 0 END) as users,
+          SUM(CASE WHEN src = 'visitor' THEN 1 ELSE 0 END) as visitors,
+          COUNT(*) as count
+        FROM (
+          SELECT lat, lng, city, country, 'user' as src
+          FROM connections WHERE lat != 0 AND lng != 0 AND ${whereConn}
+          UNION ALL
+          SELECT lat, lng, city, country, 'visitor' as src
+          FROM access_logs WHERE event_type = 'page_view' AND lat != 0 AND lng != 0 AND ${whereLog}
+        )
+        GROUP BY ROUND(lat, 1), ROUND(lng, 1)
         ORDER BY count DESC
-        LIMIT 50`
-      ).all() as Array<{ city: string; country: string; lat: number; lng: number; count: number }>;
+        LIMIT 100`
+      ).all() as Array<{ city: string; country: string; lat: number; lng: number; count: number; users: number; visitors: number }>;
     } catch (err) {
       console.error('[analytics] getGeoMarkers error:', err);
       return [];
     }
+  }
+
+  /** Agregado simples de uma coluna dos page_views (device, locale, referrer). */
+  private pageViewFacet(column: 'device' | 'locale' | 'referrer', period?: string): Array<{ value: string; count: number }> {
+    if (!this.db) return [];
+    try {
+      const where = this.periodToSql(period).replaceAll('connected_at', 'timestamp');
+      return this.db
+        .prepare(
+          `SELECT ${column} as value, COUNT(*) as count
+           FROM access_logs
+           WHERE event_type = 'page_view' AND ${column} != '' AND ${where}
+           GROUP BY ${column}
+           ORDER BY count DESC
+           LIMIT 20`
+        )
+        .all() as Array<{ value: string; count: number }>;
+    } catch (err) {
+      console.error(`[analytics] pageViewFacet(${column}) error:`, err);
+      return [];
+    }
+  }
+
+  getDevices(period?: string) {
+    return this.pageViewFacet('device', period);
+  }
+
+  getLocales(period?: string) {
+    return this.pageViewFacet('locale', period);
+  }
+
+  getReferrers(period?: string) {
+    return this.pageViewFacet('referrer', period);
   }
 
   getPages(period?: string): Array<{ page: string; count: number }> {

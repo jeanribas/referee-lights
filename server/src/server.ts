@@ -607,19 +607,43 @@ export async function createServer() {
     return { ok: true };
   });
 
-  app.post<{ Body: { path?: string } }>('/track/page', async (request, reply) => {
-    // Page views do site: só o pathname (nunca query string — PINs e tokens
-    // de sala viajam em query e não podem chegar aos logs). IP é hasheado
-    // dentro do logAccess, como nos demais eventos.
-    if (!rateLimitOk(`page:${extractIp(request)}`, 60, 60_000)) {
-      reply.code(429);
-      return { error: 'rate_limited' };
+  app.post<{ Body: { path?: string; device?: string; locale?: string; referrer?: string } }>(
+    '/track/page',
+    async (request, reply) => {
+      // Page views do site: só o pathname (nunca query string — PINs e tokens
+      // de sala viajam em query e não podem chegar aos logs). IP é hasheado
+      // dentro do logAccess, como nos demais eventos.
+      if (!rateLimitOk(`page:${extractIp(request)}`, 60, 60_000)) {
+        reply.code(429);
+        return { error: 'rate_limited' };
+      }
+      const raw = request.body?.path?.trim() ?? '';
+      const path = raw.split('?')[0].split('#')[0].slice(0, 200);
+      if (!path.startsWith('/')) { reply.code(400); return { error: 'invalid_path' }; }
+      const device = ['mobile', 'tablet', 'desktop'].includes(request.body?.device ?? '')
+        ? (request.body!.device as string)
+        : '';
+      const locale = (request.body?.locale ?? '').slice(0, 10).replace(/[^a-zA-Z-]/g, '');
+      // Referrer: só o hostname, nunca a URL completa
+      const referrer = (request.body?.referrer ?? '').slice(0, 100).replace(/[^a-zA-Z0-9.-]/g, '');
+      analyticsStore.logAccess('page_view', path, extractIp(request), { device, locale, referrer });
+      return { ok: true };
     }
-    const raw = request.body?.path?.trim() ?? '';
-    const path = raw.split('?')[0].split('#')[0].slice(0, 200);
-    if (!path.startsWith('/')) { reply.code(400); return { error: 'invalid_path' }; }
-    analyticsStore.logAccess('page_view', path, extractIp(request));
-    return { ok: true };
+  );
+
+  app.get<{ Querystring: { period?: string } }>('/master/devices', async (request, reply) => {
+    if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
+    return { devices: analyticsStore.getDevices(request.query.period) };
+  });
+
+  app.get<{ Querystring: { period?: string } }>('/master/locales', async (request, reply) => {
+    if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
+    return { locales: analyticsStore.getLocales(request.query.period) };
+  });
+
+  app.get<{ Querystring: { period?: string } }>('/master/referrers', async (request, reply) => {
+    if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
+    return { referrers: analyticsStore.getReferrers(request.query.period) };
   });
 
   app.get('/master/clicks', async (request, reply) => {

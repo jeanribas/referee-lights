@@ -76,16 +76,28 @@ export function trackLinkClick(url: string) {
   return postJson<{ ok: true }>('/track/click', { url });
 }
 
-export function trackPageView(path: string): void {
+export function trackPageView(path: string, opts?: { locale?: string; includeReferrer?: boolean }): void {
   // Só o pathname — query string carrega PINs e tokens de sala e nunca
   // pode sair do navegador em telemetria.
   const clean = path.split('?')[0].split('#')[0];
   if (!clean.startsWith('/')) return;
   try {
+    const width = window.innerWidth;
+    const device = width < 768 ? 'mobile' : width < 1100 ? 'tablet' : 'desktop';
+    // Referrer: só o hostname externo, só na primeira carga (não em navegação interna)
+    let referrer = '';
+    if (opts?.includeReferrer && document.referrer) {
+      try {
+        const ref = new URL(document.referrer);
+        if (ref.hostname !== window.location.hostname) referrer = ref.hostname;
+      } catch {
+        /* referrer inválido: ignora */
+      }
+    }
     void fetch(`${getApiBaseUrl()}/track/page`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: clean }),
+      body: JSON.stringify({ path: clean, device, locale: opts?.locale ?? '', referrer }),
       keepalive: true
     }).catch(() => {});
   } catch {

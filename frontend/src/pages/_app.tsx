@@ -15,16 +15,16 @@ export default function App({ Component, pageProps }: AppProps) {
 
   useEffect(() => {
     if (!router.isReady) return;
-    trackPageView(window.location.pathname);
+    trackPageView(window.location.pathname, { locale: router.locale, includeReferrer: true });
     // roda uma vez por carga inicial; navegações client-side vêm do listener abaixo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.isReady]);
 
   useEffect(() => {
-    const onRouteDone = (url: string) => trackPageView(url);
+    const onRouteDone = (url: string) => trackPageView(url, { locale: router.locale });
     router.events.on('routeChangeComplete', onRouteDone);
     return () => router.events.off('routeChangeComplete', onRouteDone);
-  }, [router.events]);
+  }, [router.events, router.locale]);
 
   return (
     <>
