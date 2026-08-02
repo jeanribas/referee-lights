@@ -34,7 +34,7 @@ const nextConfig = {
     // Telas de app fora do índice: robots.txt Disallow sozinho não desindexa
     // (o Bing chegou a listar /admin) — o header noindex exige crawl liberado,
     // por isso os Disallow correspondentes saíram do robots.txt.
-    const noindex = ['/admin', '/display', '/legend', '/timer', '/master', '/ref/:path*'];
+    const noindex = ['/admin', '/display', '/legend', '/timer', '/ref/:path*'];
     return [
       ...noindex.map((source) => ({
         source,

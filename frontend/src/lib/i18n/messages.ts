@@ -226,54 +226,6 @@ type HomeMessages = {
   ctaDesc: string;
 };
 
-type MasterMessages = {
-  metaDescription: string;
-  login: {
-    title: string;
-    userLabel: string;
-    passwordLabel: string;
-    submit: string;
-    error: string;
-    notConfigured: string;
-  };
-  header: {
-    title: string;
-    logout: string;
-  };
-  stats: {
-    totalSessions: string;
-    totalConnections: string;
-    activeRooms: string;
-    uniqueIps: string;
-  };
-  sessions: {
-    title: string;
-    roomId: string;
-    created: string;
-    connections: string;
-    country: string;
-    previous: string;
-    next: string;
-    empty: string;
-  };
-  geo: {
-    title: string;
-    countries: string;
-    cities: string;
-    country: string;
-    city: string;
-    count: string;
-    empty: string;
-  };
-  active: {
-    title: string;
-    room: string;
-    judges: string;
-    created: string;
-    empty: string;
-  };
-};
-
 type WindowsMessages = {
   metaTitle: string;
   metaDescription: string;
@@ -294,7 +246,6 @@ export type Messages = {
   admin: AdminMessages;
   legend: LegendMessages;
   referee: RefereeMessages;
-  master: MasterMessages;
 };
 
 const MESSAGES: Record<AppLocale, Messages> = {
@@ -358,7 +309,6 @@ const MESSAGES: Record<AppLocale, Messages> = {
         { path: '/ref/:posição', title: 'Console do Árbitro', desc: 'Botões de voto e cartões IPF no celular', href: '/ref' },
         { path: '/legend', title: 'Legenda / Chroma Key', desc: 'Overlay para transmissão ao vivo', href: '/legend' },
         { path: '/timer', title: 'Cronômetro', desc: 'Painel standalone de timer e intervalos', href: '/timer' },
-        { path: '/master', title: 'Master Dashboard', desc: 'Métricas de uso e analytics', href: '/master' },
       ],
       featuresTitle: 'Por que usar o Referee Lights?',
       features: [
@@ -593,15 +543,6 @@ const MESSAGES: Record<AppLocale, Messages> = {
         description: 'Utilize um QR Code atualizado para acessar `{judge}` com sala e token válidos.'
       }
     },
-    master: {
-      metaDescription: 'Painel master com métricas de uso, sessões e distribuição geográfica da plataforma Referee Lights.',
-      login: { title: 'Master Admin', userLabel: 'Usuário', passwordLabel: 'Senha', submit: 'Entrar', error: 'Credenciais inválidas.', notConfigured: 'Acesso master não configurado no servidor.' },
-      header: { title: 'Master Dashboard', logout: 'Sair' },
-      stats: { totalSessions: 'Sessões criadas', totalConnections: 'Conexões', activeRooms: 'Salas ativas', uniqueIps: 'IPs únicos' },
-      sessions: { title: 'Sessões recentes', roomId: 'Sala', created: 'Criada em', connections: 'Conexões', country: 'País', previous: 'Anterior', next: 'Próxima', empty: 'Nenhuma sessão registrada.' },
-      geo: { title: 'Distribuição geográfica', countries: 'Países', cities: 'Cidades', country: 'País', city: 'Cidade', count: 'Acessos', empty: 'Sem dados geográficos.' },
-      active: { title: 'Salas ativas', room: 'Sala', judges: 'Árbitros', created: 'Criada em', empty: 'Nenhuma sala ativa.' }
-    }
   },
   'en-US': {
     common: {
@@ -663,7 +604,6 @@ const MESSAGES: Record<AppLocale, Messages> = {
         { path: '/ref/:position', title: 'Referee Console', desc: 'Vote buttons and IPF cards on mobile', href: '/ref' },
         { path: '/legend', title: 'Legend / Chroma Key', desc: 'Overlay for live broadcasting', href: '/legend' },
         { path: '/timer', title: 'Timer', desc: 'Standalone timer and interval panel', href: '/timer' },
-        { path: '/master', title: 'Master Dashboard', desc: 'Usage metrics and analytics', href: '/master' },
       ],
       featuresTitle: 'Why use Referee Lights?',
       features: [
@@ -898,15 +838,6 @@ const MESSAGES: Record<AppLocale, Messages> = {
         description: 'Use an updated QR Code to access `{judge}` with a valid room and token.'
       }
     },
-    master: {
-      metaDescription: 'Master panel with usage metrics, sessions, and geographic distribution for the Referee Lights platform.',
-      login: { title: 'Master Admin', userLabel: 'Username', passwordLabel: 'Password', submit: 'Sign in', error: 'Invalid credentials.', notConfigured: 'Master access not configured on the server.' },
-      header: { title: 'Master Dashboard', logout: 'Logout' },
-      stats: { totalSessions: 'Sessions created', totalConnections: 'Connections', activeRooms: 'Active rooms', uniqueIps: 'Unique IPs' },
-      sessions: { title: 'Recent sessions', roomId: 'Room', created: 'Created at', connections: 'Connections', country: 'Country', previous: 'Previous', next: 'Next', empty: 'No sessions recorded.' },
-      geo: { title: 'Geographic distribution', countries: 'Countries', cities: 'Cities', country: 'Country', city: 'City', count: 'Accesses', empty: 'No geographic data.' },
-      active: { title: 'Active rooms', room: 'Room', judges: 'Judges', created: 'Created at', empty: 'No active rooms.' }
-    }
   },
   'es-ES': {
     common: {
@@ -968,7 +899,6 @@ const MESSAGES: Record<AppLocale, Messages> = {
         { path: '/ref/:posici\u00f3n', title: 'Consola del Juez', desc: 'Botones de voto y tarjetas IPF en el celular', href: '/ref' },
         { path: '/legend', title: 'Leyenda / Chroma Key', desc: 'Overlay para transmisi\u00f3n en vivo', href: '/legend' },
         { path: '/timer', title: 'Cron\u00f3metro', desc: 'Panel standalone de timer e intervalos', href: '/timer' },
-        { path: '/master', title: 'Master Dashboard', desc: 'M\u00e9tricas de uso y analytics', href: '/master' },
       ],
       featuresTitle: '\u00bfPor qu\u00e9 usar Referee Lights?',
       features: [
@@ -1203,15 +1133,6 @@ const MESSAGES: Record<AppLocale, Messages> = {
         description: 'Usa un código QR actualizado para acceder a `{judge}` con una sala y token válidos.'
       }
     },
-    master: {
-      metaDescription: 'Panel maestro con métricas de uso, sesiones y distribución geográfica de la plataforma Referee Lights.',
-      login: { title: 'Master Admin', userLabel: 'Usuario', passwordLabel: 'Contraseña', submit: 'Acceder', error: 'Credenciales inválidas.', notConfigured: 'Acceso master no configurado en el servidor.' },
-      header: { title: 'Master Dashboard', logout: 'Salir' },
-      stats: { totalSessions: 'Sesiones creadas', totalConnections: 'Conexiones', activeRooms: 'Salas activas', uniqueIps: 'IPs únicos' },
-      sessions: { title: 'Sesiones recientes', roomId: 'Sala', created: 'Creada en', connections: 'Conexiones', country: 'País', previous: 'Anterior', next: 'Siguiente', empty: 'Ninguna sesión registrada.' },
-      geo: { title: 'Distribución geográfica', countries: 'Países', cities: 'Ciudades', country: 'País', city: 'Ciudad', count: 'Accesos', empty: 'Sin datos geográficos.' },
-      active: { title: 'Salas activas', room: 'Sala', judges: 'Árbitros', created: 'Creada en', empty: 'Ninguna sala activa.' }
-    }
   }
 };
 
