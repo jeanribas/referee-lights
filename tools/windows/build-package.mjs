@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execSync } from 'node:child_process';
-import { cp, mkdir, rm, writeFile, readdir } from 'node:fs/promises';
+import { cp, mkdir, rm, writeFile, readFile, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -9,7 +9,7 @@ import https from 'node:https';
 import http from 'node:http';
 import { createWriteStream } from 'node:fs';
 
-const NODE_VERSION = '20.18.1';
+const NODE_VERSION = '22.23.2';
 const NODE_ZIP_URL = `https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-win-x64.zip`;
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -150,9 +150,19 @@ NEXT_PUBLIC_API_URL=http://localhost:3333
 
 async function downloadNode() {
   const nodeDir = path.join(outputDir, 'node');
+  const versionMarker = path.join(nodeDir, '.node-version');
+  // Cache só vale se for da MESMA versão: um node.exe antigo com a DLL do
+  // better-sqlite3 de outra ABI quebra o bundle na inicialização.
   if (existsSync(path.join(nodeDir, 'node.exe'))) {
-    console.log('✅ Node.js já presente.');
-    return;
+    const cached = existsSync(versionMarker)
+      ? (await readFile(versionMarker, 'utf8')).trim()
+      : 'desconhecida';
+    if (cached === NODE_VERSION) {
+      console.log(`✅ Node.js v${NODE_VERSION} já presente (cache).`);
+      return;
+    }
+    console.log(`♻️  Cache do Node é v${cached}, esperado v${NODE_VERSION} — descartando.`);
+    await rm(nodeDir, { recursive: true, force: true });
   }
 
   console.log(`\n⬇️  Baixando Node.js v${NODE_VERSION}...`);
@@ -174,6 +184,7 @@ async function downloadNode() {
     }
   }
   await rm(zipPath, { force: true });
+  await writeFile(versionMarker, NODE_VERSION, 'utf8');
 
   // Remove unnecessary Node files to save space
   const nodeNpmDir = path.join(nodeDir, 'node_modules');
