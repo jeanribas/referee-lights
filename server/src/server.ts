@@ -2,7 +2,7 @@ import fastifyCors from '@fastify/cors';
 import Fastify from 'fastify';
 import { Server as SocketIOServer, type Socket } from 'socket.io';
 
-import geoip from 'geoip-lite';
+import { lookupGeo } from './geo.js';
 import { AnalyticsStore } from './analytics.js';
 import { config } from './config.js';
 import { KeyRelay } from './key-relay.js';
@@ -672,7 +672,7 @@ export async function createServer() {
       if (!data.roomId) continue;
       const host = data.frontendHost || socketHost(socket as unknown as AppSocket);
       const ip = socketIp(socket as unknown as AppSocket);
-      const geo = geoip.lookup(ip);
+      const geo = lookupGeo(ip);
       visitors.push({
         role: data.role,
         roomId: data.roomId,

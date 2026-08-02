@@ -15,5 +15,7 @@ export const config = {
   ANALYTICS_DB_PATH: process.env.ANALYTICS_DB_PATH ?? 'data/analytics.db',
   TELEMETRY_URL: process.env.TELEMETRY_URL ?? 'https://api-luzes-ipf.assist.com.br',
   TELEMETRY_ENABLED: (process.env.TELEMETRY_ENABLED ?? 'true') === 'true',
+  // GeoLite2 baixa ~70MB no primeiro boot; desligado no bundle Windows (LAN)
+  GEO_ENABLED: (process.env.GEO_ENABLED ?? 'true') === 'true',
   KEY_RELAY_AVAILABLE: (process.env.KEY_RELAY_AVAILABLE ?? 'false') === 'true'
 };
