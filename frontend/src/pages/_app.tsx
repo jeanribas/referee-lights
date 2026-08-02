@@ -1,13 +1,31 @@
+import { useEffect } from 'react';
 import type { AppProps } from 'next/app';
 import Head from 'next/head';
 import Script from 'next/script';
+import { useRouter } from 'next/router';
 import { Analytics } from '@vercel/analytics/react';
 
 import { Seo } from '@/components/Seo';
+import { trackPageView } from '@/lib/api';
 
 import '@/styles/globals.css';
 
 export default function App({ Component, pageProps }: AppProps) {
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    trackPageView(window.location.pathname);
+    // roda uma vez por carga inicial; navegações client-side vêm do listener abaixo
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady]);
+
+  useEffect(() => {
+    const onRouteDone = (url: string) => trackPageView(url);
+    router.events.on('routeChangeComplete', onRouteDone);
+    return () => router.events.off('routeChangeComplete', onRouteDone);
+  }, [router.events]);
+
   return (
     <>
       <Head>

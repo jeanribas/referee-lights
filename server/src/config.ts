@@ -9,6 +9,9 @@ export const config = {
   LOG_LEVEL: process.env.LOG_LEVEL ?? 'info',
   MASTER_USER: process.env.MASTER_USER ?? '',
   MASTER_PASSWORD: process.env.MASTER_PASSWORD ?? '',
+  // Chave de assinatura dos tokens do master, separada da senha: um token
+  // capturado não pode mais ser usado para brute-forçar a senha offline.
+  MASTER_TOKEN_SECRET: process.env.MASTER_TOKEN_SECRET ?? '',
   ANALYTICS_DB_PATH: process.env.ANALYTICS_DB_PATH ?? 'data/analytics.db',
   TELEMETRY_URL: process.env.TELEMETRY_URL ?? 'https://api-luzes-ipf.assist.com.br',
   TELEMETRY_ENABLED: (process.env.TELEMETRY_ENABLED ?? 'true') === 'true',
