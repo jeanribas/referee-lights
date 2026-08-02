@@ -356,20 +356,24 @@ export class AnalyticsStore {
     }
   }
 
-  getTimeline(period?: string): Array<{ date: string; sessions: number; connections: number }> {
+  getTimeline(period?: string): Array<{ date: string; sessions: number; connections: number; views: number }> {
     if (!this.db) return [];
     try {
       const whereSess = this.periodToSqlCreated(period);
+      const whereConn = this.periodToSql(period);
+      const whereLog = this.periodToSql(period).replaceAll('connected_at', 'timestamp');
+      // União por dia: dias com só visitas (sem sessão) também aparecem
       return this.db.prepare(
-        `SELECT
-          date(created_at) as date,
-          COUNT(*) as sessions,
-          (SELECT COUNT(*) FROM connections WHERE date(connected_at) = date(s.created_at)) as connections
-        FROM sessions s
-        WHERE ${whereSess}
-        GROUP BY date(created_at)
+        `SELECT date, SUM(sessions) as sessions, SUM(connections) as connections, SUM(views) as views FROM (
+          SELECT date(created_at) as date, 1 as sessions, 0 as connections, 0 as views FROM sessions WHERE ${whereSess}
+          UNION ALL
+          SELECT date(connected_at), 0, 1, 0 FROM connections WHERE ${whereConn}
+          UNION ALL
+          SELECT date(timestamp), 0, 0, 1 FROM access_logs WHERE event_type = 'page_view' AND ${whereLog}
+        )
+        GROUP BY date
         ORDER BY date ASC`
-      ).all() as Array<{ date: string; sessions: number; connections: number }>;
+      ).all() as Array<{ date: string; sessions: number; connections: number; views: number }>;
     } catch (err) {
       console.error('[analytics] getTimeline error:', err);
       return [];
