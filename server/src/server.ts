@@ -659,7 +659,10 @@ export async function createServer() {
         connectedAt: (socket as any).handshake?.time ?? new Date().toISOString()
       });
     }
-    return { visitors, count: visitors.length };
+    // Além dos sockets de sala, inclui quem navega no site (page_view nos
+    // últimos 5min, um por IP hasheado) — visão "ao vivo" completa.
+    const siteVisitors = analyticsStore.getRecentSiteVisitors(5);
+    return { visitors, count: visitors.length, siteVisitors, siteCount: siteVisitors.length };
   });
 
   app.get<{ Querystring: { period?: string } }>('/master/pages', async (request, reply) => {

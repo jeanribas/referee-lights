@@ -486,6 +486,27 @@ export class AnalyticsStore {
     }
   }
 
+  /** Visitantes do site "ao vivo": page_views dos últimos N minutos, um por IP (hasheado). */
+  getRecentSiteVisitors(windowMinutes = 5): Array<{ page: string; country: string; city: string; last_seen: string }> {
+    if (!this.db) return [];
+    try {
+      return this.db
+        .prepare(
+          `SELECT room_id as page, country, city, MAX(timestamp) as last_seen
+           FROM access_logs
+           WHERE event_type = 'page_view'
+             AND timestamp >= datetime('now', ?)
+           GROUP BY ip
+           ORDER BY last_seen DESC
+           LIMIT 100`
+        )
+        .all(`-${windowMinutes} minutes`) as Array<{ page: string; country: string; city: string; last_seen: string }>;
+    } catch (err) {
+      console.error('[analytics] getRecentSiteVisitors error:', err);
+      return [];
+    }
+  }
+
   getLinkClicks(): Array<{ url: string; count: number; last_click: string }> {
     if (!this.db) return [];
     try {
