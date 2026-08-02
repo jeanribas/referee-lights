@@ -1,5 +1,7 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import os from 'node:os';
+import path from 'node:path';
 import { getInstanceId } from './instance-id.js';
 
 interface TelemetryEvent {
@@ -24,7 +26,15 @@ export interface InstanceSnapshot {
  * - IPs are hashed (one-way) before leaving the process
  * - Only aggregated, non-identifying stats are sent in heartbeats
  * - Instance ID is a random UUID — not tied to any person
+ *
+ * Store-and-forward: eventos que falham no envio (bundle offline em LAN)
+ * voltam para a fila, são persistidos em data/telemetry-queue.json e
+ * reenviados quando a conexão voltar. Fila limitada a MAX_QUEUE eventos
+ * (descarta os mais antigos) para nunca crescer sem limite.
  */
+const MAX_QUEUE = 500;
+const QUEUE_FILE = path.resolve('data', 'telemetry-queue.json');
+
 export class Telemetry {
   private buffer: TelemetryEvent[] = [];
   private readonly endpoint: string;
@@ -44,6 +54,8 @@ export class Telemetry {
     this.enabled = enabled;
 
     if (!this.enabled) return;
+
+    this.loadQueue();
 
     this.flushTimer = setInterval(() => this.flush(), 30_000);
     if (this.flushTimer.unref) this.flushTimer.unref();
@@ -84,23 +96,66 @@ export class Telemetry {
       timestamp: new Date().toISOString(),
       instanceId: this.instanceId
     });
+    if (this.buffer.length > MAX_QUEUE) {
+      this.buffer.splice(0, this.buffer.length - MAX_QUEUE);
+    }
     if (this.buffer.length >= 20) {
       void this.flush();
     }
   }
 
+  private flushing = false;
+
   private async flush(): Promise<void> {
-    if (this.buffer.length === 0) return;
-    const batch = this.buffer.splice(0);
+    if (this.buffer.length === 0 || this.flushing) return;
+    this.flushing = true;
+    // Envia em lotes de até 100 (limite aceito pelo servidor)
+    const batch = this.buffer.slice(0, 100);
     try {
-      await fetch(this.endpoint, {
+      const res = await fetch(this.endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ events: batch }),
         signal: AbortSignal.timeout(10_000)
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      this.buffer.splice(0, batch.length);
+      this.saveQueue();
+      if (this.buffer.length > 0) {
+        this.flushing = false;
+        return this.flush();
+      }
     } catch {
-      // fire-and-forget
+      // Offline ou servidor fora: eventos ficam na fila e vão para o disco;
+      // o timer de 30s tenta de novo quando a conexão voltar.
+      this.saveQueue();
+    } finally {
+      this.flushing = false;
+    }
+  }
+
+  private loadQueue(): void {
+    try {
+      if (!fs.existsSync(QUEUE_FILE)) return;
+      const stored = JSON.parse(fs.readFileSync(QUEUE_FILE, 'utf8'));
+      if (Array.isArray(stored)) {
+        this.buffer = stored.slice(-MAX_QUEUE);
+      }
+    } catch {
+      // fila corrompida: descarta
+    }
+  }
+
+  private saveQueue(): void {
+    try {
+      fs.mkdirSync(path.dirname(QUEUE_FILE), { recursive: true });
+      if (this.buffer.length === 0) {
+        if (fs.existsSync(QUEUE_FILE)) fs.unlinkSync(QUEUE_FILE);
+        return;
+      }
+      fs.writeFileSync(QUEUE_FILE, JSON.stringify(this.buffer));
+    } catch {
+      // sem disco disponível: segue só com a fila em memória
     }
   }
 

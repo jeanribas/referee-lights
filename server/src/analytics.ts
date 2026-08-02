@@ -99,10 +99,21 @@ export class AnalyticsStore {
         last_seen TEXT NOT NULL DEFAULT (datetime('now'))
       );
 
+      CREATE TABLE IF NOT EXISTS instance_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        instance_id TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        room_id TEXT,
+        payload TEXT,
+        event_ts TEXT,
+        received_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
       CREATE INDEX IF NOT EXISTS idx_sessions_room_id ON sessions(room_id);
       CREATE INDEX IF NOT EXISTS idx_connections_session_id ON connections(session_id);
       CREATE INDEX IF NOT EXISTS idx_access_logs_timestamp ON access_logs(timestamp);
       CREATE INDEX IF NOT EXISTS idx_instances_last_seen ON instances(last_seen);
+      CREATE INDEX IF NOT EXISTS idx_instance_events_instance ON instance_events(instance_id, received_at);
     `);
 
     // Migrate: add host column
@@ -207,6 +218,35 @@ export class AnalyticsStore {
         .run(connectionId);
     } catch (err) {
       console.error('[analytics] logDisconnection error:', err);
+    }
+  }
+
+  recordInstanceEvents(
+    events: Array<{ instanceId: string; event: string; roomId?: string; data?: unknown; timestamp?: string }>
+  ): number {
+    if (!this.db) return 0;
+    try {
+      const stmt = this.db.prepare(
+        'INSERT INTO instance_events (instance_id, event_type, room_id, payload, event_ts) VALUES (?, ?, ?, ?, ?)'
+      );
+      const insertAll = this.db.transaction(
+        (batch: Array<{ instanceId: string; event: string; roomId?: string; data?: unknown; timestamp?: string }>) => {
+          for (const ev of batch) {
+            stmt.run(
+              ev.instanceId,
+              ev.event,
+              ev.roomId ?? null,
+              ev.data != null ? JSON.stringify(ev.data).slice(0, 2000) : null,
+              ev.timestamp ?? null
+            );
+          }
+        }
+      );
+      insertAll(events);
+      return events.length;
+    } catch (err) {
+      console.error('[analytics] recordInstanceEvents error:', err);
+      return 0;
     }
   }
 
@@ -502,18 +542,30 @@ export class AnalyticsStore {
   getPages(period?: string): Array<{ page: string; count: number }> {
     if (!this.db) return [];
     try {
-      const where = this.periodToSql(period);
+      const whereConn = this.periodToSql(period);
+      const whereLog = this.periodToSql(period).replaceAll('connected_at', 'timestamp');
+      // Une os page_view reais do site (access_logs, beacon do frontend) com
+      // as telas de app derivadas das conexões de socket — antes só as
+      // segundas existiam e o tráfego da landing/windows era invisível.
       return this.db.prepare(
-        `SELECT
-          CASE
-            WHEN role IN ('left','center','right') THEN '/ref/' || role
-            WHEN role = 'admin' THEN '/admin'
-            WHEN role = 'display' THEN '/display'
-            ELSE '/'
-          END as page,
-          COUNT(*) as count
-        FROM connections
-        WHERE ${where}
+        `SELECT page, SUM(count) as count FROM (
+          SELECT room_id as page, COUNT(*) as count
+          FROM access_logs
+          WHERE event_type = 'page_view' AND room_id IS NOT NULL AND ${whereLog}
+          GROUP BY room_id
+          UNION ALL
+          SELECT
+            CASE
+              WHEN role IN ('left','center','right') THEN '/ref/' || role
+              WHEN role = 'admin' THEN '/admin'
+              WHEN role = 'display' THEN '/display'
+              ELSE '/'
+            END as page,
+            COUNT(*) as count
+          FROM connections
+          WHERE ${whereConn}
+          GROUP BY page
+        )
         GROUP BY page
         ORDER BY count DESC`
       ).all() as Array<{ page: string; count: number }>;

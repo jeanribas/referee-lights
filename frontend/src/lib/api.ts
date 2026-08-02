@@ -237,6 +237,23 @@ export function trackLinkClick(url: string) {
   return postJson<{ ok: true }>('/track/click', { url });
 }
 
+export function trackPageView(path: string): void {
+  // Só o pathname — query string carrega PINs e tokens de sala e nunca
+  // pode sair do navegador em telemetria.
+  const clean = path.split('?')[0].split('#')[0];
+  if (!clean.startsWith('/')) return;
+  try {
+    void fetch(`${getApiBaseUrl()}/track/page`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: clean }),
+      keepalive: true
+    }).catch(() => {});
+  } catch {
+    // telemetria nunca pode quebrar navegação
+  }
+}
+
 export interface MasterInstance {
   instance_id: string;
   platform: string;

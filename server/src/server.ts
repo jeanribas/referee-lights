@@ -7,6 +7,7 @@ import { AnalyticsStore } from './analytics.js';
 import { config } from './config.js';
 import { KeyRelay } from './key-relay.js';
 import { generateMasterToken, validateCredentials, verifyMasterToken } from './master-auth.js';
+import { rateLimitOk } from './rate-limit.js';
 import { RoomManager } from './rooms.js';
 import { Telemetry } from './telemetry.js';
 import {
@@ -472,6 +473,11 @@ export async function createServer() {
   // --- Master Admin Endpoints ---
 
   app.post<{ Body: { user?: string; password?: string } }>('/master/auth', async (request, reply) => {
+    // 10 tentativas por IP a cada 15min — barra brute force de credenciais
+    if (!rateLimitOk(`auth:${extractIp(request)}`, 10, 15 * 60_000)) {
+      reply.code(429);
+      return { error: 'too_many_attempts' };
+    }
     const user = request.body?.user?.trim() ?? '';
     const password = request.body?.password?.trim() ?? '';
     if (!config.MASTER_USER || !config.MASTER_PASSWORD) {
@@ -540,12 +546,38 @@ export async function createServer() {
 
   // --- Telemetry Endpoints (receive from all instances) ---
 
-  app.post('/telemetry/events', async () => {
-    // Receive event batches from instances (fire-and-forget on their side)
-    return { ok: true };
+  app.post('/telemetry/events', async (request, reply) => {
+    if (!rateLimitOk(`tel:${extractIp(request)}`, 60, 60_000)) {
+      reply.code(429);
+      return { error: 'rate_limited' };
+    }
+    const body = request.body as { events?: unknown } | null;
+    const events = Array.isArray(body?.events) ? body.events.slice(0, 100) : [];
+    const valid = events.filter(
+      (e): e is { instanceId: string; event: string; data?: Record<string, unknown>; timestamp?: string } =>
+        typeof e === 'object' &&
+        e !== null &&
+        typeof (e as Record<string, unknown>).instanceId === 'string' &&
+        typeof (e as Record<string, unknown>).event === 'string'
+    );
+    if (valid.length === 0) return { ok: true, stored: 0 };
+    const stored = analyticsStore.recordInstanceEvents(
+      valid.map((e) => ({
+        instanceId: e.instanceId.slice(0, 64),
+        event: e.event.slice(0, 64),
+        roomId: typeof e.data?.roomId === 'string' ? e.data.roomId.slice(0, 16) : undefined,
+        data: e.data,
+        timestamp: typeof e.timestamp === 'string' ? e.timestamp.slice(0, 32) : undefined
+      }))
+    );
+    return { ok: true, stored };
   });
 
   app.post('/telemetry/heartbeat', async (request, reply) => {
+    if (!rateLimitOk(`hb:${extractIp(request)}`, 30, 60_000)) {
+      reply.code(429);
+      return { error: 'rate_limited' };
+    }
     const body = request.body as any;
     if (!body?.instanceId) { reply.code(400); return { error: 'missing_instance_id' }; }
     analyticsStore.upsertHeartbeat({
@@ -565,9 +597,28 @@ export async function createServer() {
   });
 
   app.post<{ Body: { url?: string } }>('/track/click', async (request, reply) => {
-    const url = request.body?.url?.trim() ?? '';
+    if (!rateLimitOk(`click:${extractIp(request)}`, 30, 60_000)) {
+      reply.code(429);
+      return { error: 'rate_limited' };
+    }
+    const url = request.body?.url?.trim().slice(0, 300) ?? '';
     if (!url) { reply.code(400); return { error: 'missing_url' }; }
     analyticsStore.logAccess('link_click', url, extractIp(request));
+    return { ok: true };
+  });
+
+  app.post<{ Body: { path?: string } }>('/track/page', async (request, reply) => {
+    // Page views do site: só o pathname (nunca query string — PINs e tokens
+    // de sala viajam em query e não podem chegar aos logs). IP é hasheado
+    // dentro do logAccess, como nos demais eventos.
+    if (!rateLimitOk(`page:${extractIp(request)}`, 60, 60_000)) {
+      reply.code(429);
+      return { error: 'rate_limited' };
+    }
+    const raw = request.body?.path?.trim() ?? '';
+    const path = raw.split('?')[0].split('#')[0].slice(0, 200);
+    if (!path.startsWith('/')) { reply.code(400); return { error: 'invalid_path' }; }
+    analyticsStore.logAccess('page_view', path, extractIp(request));
     return { ok: true };
   });
 
