@@ -593,6 +593,7 @@ export async function createServer() {
       if (!s?.instanceId || typeof s.instanceId !== 'string') continue;
       analyticsStore.upsertHeartbeat({
         instanceId: s.instanceId.slice(0, 64),
+        appVersion: String(s.appVersion ?? '').slice(0, 32),
         platform: String(s.platform ?? '').slice(0, 32),
         arch: String(s.arch ?? '').slice(0, 16),
         nodeVersion: String(s.nodeVersion ?? '').slice(0, 32),

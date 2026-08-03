@@ -92,7 +92,7 @@ describe('ingestão de telemetria dos filhos', () => {
       url: '/telemetry/heartbeat',
       payload: {
         samples: [
-          { instanceId: INSTANCE, platform: 'win32', arch: 'x64', nodeVersion: 'v22.23.2', uptimeSeconds: 300, timestamp: new Date().toISOString() }
+          { instanceId: INSTANCE, appVersion: '1.2.3', platform: 'win32', arch: 'x64', nodeVersion: 'v22.23.2', uptimeSeconds: 300, timestamp: new Date().toISOString() }
         ]
       }
     });
@@ -134,5 +134,7 @@ describe('leitura pelo master', () => {
     const inst = res.json().instances.find((i: { instance_id: string }) => i.instance_id === INSTANCE);
     expect(inst).toBeDefined();
     expect(inst.total_sessions).toBe(3);
+    // versão veio da amostra nova; a amostra sem stats/versão não a apagou
+    expect(inst.app_version).toBe('1.2.3');
   });
 });

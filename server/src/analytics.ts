@@ -182,6 +182,15 @@ export class AnalyticsStore {
         `);
         console.log('[analytics] migração 2: eventos por sala descartados');
       }
+      // Migração 3: bundles >= 1.2.3 reportam a versão do app no heartbeat —
+      // o master passa a mostrar qual versão cada instalação roda.
+      if (version < 3) {
+        this.db!.exec(`
+          ALTER TABLE instances ADD COLUMN app_version TEXT NOT NULL DEFAULT '';
+          PRAGMA user_version = 3;
+        `);
+        console.log('[analytics] migração 3: coluna app_version em instances');
+      }
       // Retenção: eventos por sala têm valor operacional por meses, não anos.
       // Limpa na inicialização para o banco não crescer sem limite.
       this.db!.exec(`DELETE FROM instance_events WHERE received_at < datetime('now', '-180 days')`);
@@ -492,6 +501,7 @@ export class AnalyticsStore {
 
   upsertHeartbeat(data: {
     instanceId: string;
+    appVersion?: string;
     platform: string;
     arch: string;
     nodeVersion: string;
@@ -507,9 +517,10 @@ export class AnalyticsStore {
       if (data.stats) {
         this.db
           .prepare(
-            `INSERT INTO instances (instance_id, platform, arch, node_version, uptime_seconds, active_rooms, total_sessions, total_connections, unique_ips, first_seen, last_seen)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            `INSERT INTO instances (instance_id, app_version, platform, arch, node_version, uptime_seconds, active_rooms, total_sessions, total_connections, unique_ips, first_seen, last_seen)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
             ON CONFLICT(instance_id) DO UPDATE SET
+              app_version = CASE WHEN excluded.app_version != '' THEN excluded.app_version ELSE instances.app_version END,
               platform = excluded.platform,
               arch = excluded.arch,
               node_version = excluded.node_version,
@@ -522,6 +533,7 @@ export class AnalyticsStore {
           )
           .run(
             data.instanceId,
+            data.appVersion ?? '',
             data.platform,
             data.arch,
             data.nodeVersion,
@@ -534,16 +546,17 @@ export class AnalyticsStore {
       } else {
         this.db
           .prepare(
-            `INSERT INTO instances (instance_id, platform, arch, node_version, uptime_seconds, first_seen, last_seen)
-            VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            `INSERT INTO instances (instance_id, app_version, platform, arch, node_version, uptime_seconds, first_seen, last_seen)
+            VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
             ON CONFLICT(instance_id) DO UPDATE SET
+              app_version = CASE WHEN excluded.app_version != '' THEN excluded.app_version ELSE instances.app_version END,
               platform = excluded.platform,
               arch = excluded.arch,
               node_version = excluded.node_version,
               uptime_seconds = excluded.uptime_seconds,
               last_seen = datetime('now')`
           )
-          .run(data.instanceId, data.platform, data.arch, data.nodeVersion, data.uptimeSeconds);
+          .run(data.instanceId, data.appVersion ?? '', data.platform, data.arch, data.nodeVersion, data.uptimeSeconds);
       }
 
       // A tabela `instances` é upsert: só guarda o estado atual. O histórico
@@ -598,6 +611,7 @@ export class AnalyticsStore {
 
   getInstances(): Array<{
     instance_id: string;
+    app_version: string;
     platform: string;
     arch: string;
     node_version: string;
