@@ -370,8 +370,8 @@ ou de duplo-clique em "Parar.cmd"
 REDE: todos os dispositivos devem estar na mesma rede Wi-Fi.
 Funciona sem internet.
 
-O aplicativo envia estatisticas anonimas de uso e erros para
-melhoria do produto. Para desativar, troque TELEMETRY_ENABLED
+O aplicativo envia estatisticas de uso e erros para melhoria
+do produto. Para desativar, troque TELEMETRY_ENABLED
 para false em "server\\.env" e reinicie.
 
 GitHub: https://github.com/jeanribas/referee-lights
