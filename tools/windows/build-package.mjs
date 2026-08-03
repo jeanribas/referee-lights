@@ -55,6 +55,9 @@ async function buildProjects() {
     env: {
       ...process.env,
       NEXT_DISABLE_ESLINT: '1',
+      // Sem home no pacote: BUNDLE_TARGET liga o redirect / -> /admin no
+      // next.config.js. O usuário cai direto no app de criação de salas.
+      BUNDLE_TARGET: 'windows',
       NEXT_PUBLIC_API_URL: '',
       NEXT_PUBLIC_WS_URL: ''
     }
@@ -320,7 +323,7 @@ echo  ========================================================
 echo   Plataforma rodando!
 echo.
 echo   Acesse no navegador:
-echo   http://localhost:3000
+echo   http://localhost:3000/admin
 if defined LOCAL_IP (
 echo.
 echo   Dispositivos na rede:
@@ -334,7 +337,7 @@ echo   O Key Relay pode ser ativado pelo painel admin.
 echo  ========================================================
 echo.
 
-start "" "http://localhost:3000"
+start "" "http://localhost:3000/admin"
 
 echo  Pressione qualquer tecla para encerrar tudo.
 pause >nul
@@ -358,37 +361,18 @@ timeout /t 2 >nul
 COMO USAR:
 1. Extraia todo o conteudo do ZIP para uma pasta
 2. De duplo-clique em "Iniciar.cmd"
-3. O navegador abrira automaticamente
-4. Crie uma sessao e compartilhe os QR Codes
+3. O navegador abre direto no painel de criacao de salas
+4. Crie uma sessao e compartilhe os QR Codes com os arbitros
 
-Para encerrar: pressione qualquer tecla na janela
-do Iniciar ou de duplo-clique em "Parar.cmd"
+Para encerrar: pressione qualquer tecla na janela do Iniciar
+ou de duplo-clique em "Parar.cmd"
 
-REDE: todos os dispositivos devem estar na mesma rede Wi-Fi
+REDE: todos os dispositivos devem estar na mesma rede Wi-Fi.
+Funciona sem internet.
 
-DADOS E PRIVACIDADE
-O servidor envia estatisticas de uso para os servidores do
-Referee Lights, para sabermos quantas instalacoes existem e
-como o produto e usado.
-
-E enviado:
-  - a cada 5 minutos: um identificador aleatorio desta
-    instalacao (gerado no primeiro uso, nao ligado a nenhuma
-    pessoa), sistema operacional, versao do Node, tempo ligado
-    e contadores (salas ativas, sessoes, conexoes, IPs unicos)
-  - a cada 30 segundos, quando em uso: eventos de sessao criada,
-    conexao e desconexao, com o codigo da sala, o papel
-    (arbitro/admin/telao) e um hash irreversivel do IP local
-
-NAO e enviado: enderecos IP reais, nomes de maquina, nomes de
-atletas ou arbitros, e nenhuma decisao de arbitragem. Os
-resultados das tentativas ficam somente nesta maquina.
-
-PARA DESLIGAR: abra "server\\.env" no Bloco de Notas e troque
-  TELEMETRY_ENABLED=true
-por
-  TELEMETRY_ENABLED=false
-Depois reinicie pelo "Iniciar.cmd". Nada mais sai desta maquina.
+O aplicativo envia estatisticas anonimas de uso e erros para
+melhoria do produto. Para desativar, troque TELEMETRY_ENABLED
+para false em "server\\.env" e reinicie.
 
 GitHub: https://github.com/jeanribas/referee-lights
 Site: https://refereelights.app

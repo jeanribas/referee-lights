@@ -110,6 +110,21 @@ async function checkClientEnvLeak() {
   if (errors.length === start) ok(`Client sem URLs de produção inlinadas (${scanned} chunks verificados).`);
 }
 
+async function checkHomeRedirect() {
+  const start = errors.length;
+  const manifest = path.join(bundleDir, 'frontend', '.next', 'routes-manifest.json');
+  try {
+    const routes = JSON.parse(await readFile(manifest, 'utf8'));
+    const hasRedirect = (routes.redirects ?? []).some(
+      (r) => r.destination === '/admin' && (r.source === '/' || r.source === '{/}' )
+    );
+    if (!hasRedirect) fail('Bundle sem redirect / → /admin (home não pode existir no pacote; BUNDLE_TARGET faltou no build).');
+  } catch {
+    fail(`Não consegui ler ${path.relative(bundleDir, manifest)} para conferir o redirect da home.`);
+  }
+  if (errors.length === start) ok('Home redireciona para /admin (pacote abre direto no app).');
+}
+
 async function checkServerEnv() {
   const start = errors.length;
   const env = await readFile(path.join(bundleDir, 'server', '.env'), 'utf8').catch(() => '');
@@ -138,6 +153,7 @@ async function main() {
   await checkStructure();
   await checkNativeBinaries();
   await checkClientEnvLeak();
+  await checkHomeRedirect();
   await checkServerEnv();
   await checkZip();
 

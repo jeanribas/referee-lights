@@ -24,13 +24,28 @@ const nextConfig = {
       'arbitros.assist.com.br',
       'luzes-ipf.assist.com.br'
     ];
-    return aliasHosts.map((host) => ({
+    const hostRedirects = aliasHosts.map((host) => ({
       source: '/:path*',
       has: [{ type: 'host', value: host }],
       destination: 'https://refereelights.app/:path*',
       permanent: true,
       locale: false
     }));
+    // No pacote Windows não existe home: a raiz vai direto para o app de
+    // criação de salas. Só entra no build do bundle (BUNDLE_TARGET=windows,
+    // setado pelo tools/windows/build-package.mjs) — a web não é afetada.
+    if (process.env.BUNDLE_TARGET === 'windows') {
+      const roots = ['/', '/en-US', '/es-ES'];
+      hostRedirects.push(
+        ...roots.map((source) => ({
+          source,
+          destination: '/admin',
+          permanent: false,
+          locale: false
+        }))
+      );
+    }
+    return hostRedirects;
   },
   async headers() {
     // Telas de app fora do índice: robots.txt Disallow sozinho não desindexa

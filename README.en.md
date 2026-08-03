@@ -79,7 +79,6 @@ Open `http://localhost:3000` and navigate to the desired route.
 | `PORT` | Server port | `3333` |
 | `CORS_ORIGIN` | Allowed origins | — |
 | `LOG_LEVEL` | Log level (debug, info, warn, error) | `info` |
-| `TELEMETRY_ENABLED` | Enable/disable telemetry | `true` |
 | `ANALYTICS_DB_PATH` | Analytics database path | `data/analytics.db` |
 
 ## Admin panel (`/`, also `/admin`)

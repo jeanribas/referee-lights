@@ -54,7 +54,7 @@ pensada contra esta lista:
    disponibilidade.
 
 5. **O pacote roda offline (LAN sem internet).** Nada no client pode depender de
-   rede externa para funcionar: analytics, fonts remotas, telemetria etc.
+   rede externa para funcionar: analytics, fonts remotas etc.
    precisam falhar em silêncio ou ficar fora do build do pacote.
 
 ## Processo de release do bundle (humano ou IA — siga na ordem)

@@ -102,6 +102,11 @@ export class Telemetry {
     this.statsProvider = fn;
   }
 
+  /** Grava a fila em disco de forma síncrona — para handlers de crash. */
+  persistNow(): void {
+    this.saveQueue();
+  }
+
   trackSessionCreated(roomId: string): void {
     this.push('session_created', { roomId });
   }
@@ -113,6 +118,21 @@ export class Telemetry {
 
   trackDisconnection(roomId: string, role: string): void {
     this.push('disconnection', { roomId, role });
+  }
+
+  /** Decisão revelada: contagem agregada de cartões (sem identificar atleta). */
+  trackDecision(roomId: string, counts: { white: number; red: number }): void {
+    this.push('decision', { roomId, white: counts.white, red: counts.red });
+  }
+
+  /** Erro de runtime — essencial para saber onde o app quebra em campo. */
+  trackError(context: string, message: string): void {
+    this.push('error', {
+      context: context.slice(0, 64),
+      message: message.slice(0, 300),
+      appVersion: this.appVersion
+    });
+    void this.flush();
   }
 
   private hashIp(ip: string): string {
