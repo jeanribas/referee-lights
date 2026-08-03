@@ -1,6 +1,17 @@
 import fastifyCors from '@fastify/cors';
 import Fastify from 'fastify';
+import { readFileSync } from 'node:fs';
 import { Server as SocketIOServer, type Socket } from 'socket.io';
+
+/** Versão do pacote (server/package.json) — vai no heartbeat da telemetria. */
+function readAppVersion(): string {
+  try {
+    const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+    return typeof pkg.version === 'string' ? pkg.version : '';
+  } catch {
+    return '';
+  }
+}
 
 import geoip from 'geoip-lite';
 import { AnalyticsStore } from './analytics.js';
@@ -148,7 +159,7 @@ export async function createServer() {
     keyRelay.onStateUpdate(roomId, snapshot as { phase: string; votes: Record<string, string | null> });
   });
   const analyticsStore = new AnalyticsStore(config.ANALYTICS_DB_PATH);
-  const telemetry = new Telemetry(config.TELEMETRY_URL, config.TELEMETRY_ENABLED);
+  const telemetry = new Telemetry(config.TELEMETRY_URL, config.TELEMETRY_ENABLED, readAppVersion());
   telemetry.setStatsProvider(() => analyticsStore.getStats(roomManager.roomCount()));
   const sessionMap = new Map<string, number>();
 

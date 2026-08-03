@@ -1,5 +1,7 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import os from 'node:os';
+import path from 'node:path';
 import { getInstanceId } from './instance-id.js';
 
 interface TelemetryEvent {
@@ -7,6 +9,17 @@ interface TelemetryEvent {
   data: Record<string, unknown>;
   timestamp: string;
   instanceId: string;
+}
+
+interface HeartbeatSample {
+  instanceId: string;
+  appVersion: string;
+  platform: string;
+  arch: string;
+  nodeVersion: string;
+  uptimeSeconds: number;
+  timestamp: string;
+  stats: InstanceSnapshot | null;
 }
 
 export interface InstanceSnapshot {
@@ -17,41 +30,71 @@ export interface InstanceSnapshot {
 }
 
 /**
- * Privacy-first telemetry.
+ * Telemetria dos filhos para o master — premissa do produto: reportar o
+ * máximo de dados de uso possível. Sai daqui:
+ *  - eventos por sala (sessão criada, conexão, desconexão) a cada 30s;
+ *  - heartbeat com contadores agregados a cada 5 min.
+ * Nunca sai: IP cru (só hash irreversível), nomes, decisões de arbitragem.
+ * Desligável com TELEMETRY_ENABLED=false (declarado no LEIA-ME do bundle).
  *
- * - Can be disabled via TELEMETRY_ENABLED=false
- * - Never sends raw IPs, hostnames, or user-agents
- * - IPs are hashed (one-way) before leaving the process
- * - Only aggregated, non-identifying stats are sent in heartbeats
- * - Instance ID is a random UUID — not tied to any person
+ * Store-and-forward: sem internet (competição em LAN), eventos e amostras
+ * ficam em fila persistida em data/telemetry-queue.json e são reenviados
+ * quando a conexão voltar. Filas limitadas (descartam o mais antigo) para
+ * nunca crescer sem limite.
+ *
+ * Observabilidade: o estado da conexão com a API central é logado no
+ * console do server (a janela "Referee-Server" no bundle) — uma linha a
+ * cada mudança de estado, sem spam. Falha de telemetria NUNCA é silenciosa.
  */
+const MAX_EVENTS = 1000;
+const MAX_SAMPLES = 500;
+const QUEUE_FILE = path.resolve('data', 'telemetry-queue.json');
+
 export class Telemetry {
-  private buffer: TelemetryEvent[] = [];
+  private events: TelemetryEvent[] = [];
+  private samples: HeartbeatSample[] = [];
   private readonly endpoint: string;
   private readonly heartbeatEndpoint: string;
+  private readonly host: string;
   readonly instanceId: string;
   private readonly enabled: boolean;
+  private readonly appVersion: string;
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private startedAt: number;
   private statsProvider: (() => InstanceSnapshot) | null = null;
+  private flushing = false;
+  /** null = ainda não tentou; true/false = último estado conhecido */
+  private online: boolean | null = null;
 
-  constructor(baseUrl: string, enabled = true) {
+  constructor(baseUrl: string, enabled = true, appVersion = '') {
     this.endpoint = `${baseUrl}/telemetry/events`;
     this.heartbeatEndpoint = `${baseUrl}/telemetry/heartbeat`;
+    this.host = (() => { try { return new URL(baseUrl).host; } catch { return baseUrl; } })();
     this.instanceId = getInstanceId();
+    this.appVersion = appVersion;
     this.startedAt = Date.now();
     this.enabled = enabled;
 
-    if (!this.enabled) return;
+    if (!this.enabled) {
+      console.log('[telemetria] desativada (TELEMETRY_ENABLED=false) — nada sai desta máquina');
+      return;
+    }
 
-    this.flushTimer = setInterval(() => this.flush(), 30_000);
+    this.loadQueue();
+    const queued = this.events.length + this.samples.length;
+    console.log(
+      `[telemetria] ativa — instância ${this.instanceId.slice(0, 8)}…, destino ${this.host}` +
+        (queued > 0 ? ` (${queued} itens pendentes de execução anterior)` : '')
+    );
+
+    this.flushTimer = setInterval(() => void this.flush(), 30_000);
     if (this.flushTimer.unref) this.flushTimer.unref();
 
-    this.heartbeatTimer = setInterval(() => this.sendHeartbeat(), 5 * 60_000);
+    this.heartbeatTimer = setInterval(() => this.queueHeartbeat(), 5 * 60_000);
     if (this.heartbeatTimer.unref) this.heartbeatTimer.unref();
 
-    const initial = setTimeout(() => this.sendHeartbeat(), 10_000);
+    const initial = setTimeout(() => this.queueHeartbeat(), 10_000);
     if (initial.unref) initial.unref();
   }
 
@@ -64,7 +107,7 @@ export class Telemetry {
   }
 
   trackConnection(roomId: string, role: string, ip: string): void {
-    // Hash IP before buffering — raw IP never leaves process
+    // Hash do IP antes de sair do processo — IP cru nunca sai da máquina
     this.push('connection', { roomId, role, ipHash: this.hashIp(ip) });
   }
 
@@ -78,53 +121,115 @@ export class Telemetry {
 
   private push(event: string, data: Record<string, unknown>): void {
     if (!this.enabled) return;
-    this.buffer.push({
+    this.events.push({
       event,
       data,
       timestamp: new Date().toISOString(),
       instanceId: this.instanceId
     });
-    if (this.buffer.length >= 20) {
-      void this.flush();
+    if (this.events.length > MAX_EVENTS) {
+      this.events.splice(0, this.events.length - MAX_EVENTS);
     }
+    if (this.events.length >= 20) void this.flush();
   }
 
-  private async flush(): Promise<void> {
-    if (this.buffer.length === 0) return;
-    const batch = this.buffer.splice(0);
-    try {
-      await fetch(this.endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ events: batch }),
-        signal: AbortSignal.timeout(10_000)
-      });
-    } catch {
-      // fire-and-forget
-    }
-  }
-
-  private async sendHeartbeat(): Promise<void> {
-    const stats = this.statsProvider?.() ?? null;
-    // Only send non-identifying, aggregated data
-    const payload = {
+  private queueHeartbeat(): void {
+    if (!this.enabled) return;
+    this.samples.push({
       instanceId: this.instanceId,
+      appVersion: this.appVersion,
       platform: os.platform(),
       arch: os.arch(),
       nodeVersion: process.version,
       uptimeSeconds: Math.floor((Date.now() - this.startedAt) / 1000),
       timestamp: new Date().toISOString(),
-      stats
-    };
+      stats: this.statsProvider?.() ?? null
+    });
+    if (this.samples.length > MAX_SAMPLES) {
+      this.samples.splice(0, this.samples.length - MAX_SAMPLES);
+    }
+    void this.flush();
+  }
+
+  private async flush(): Promise<void> {
+    if (this.flushing || (this.events.length === 0 && this.samples.length === 0)) return;
+    this.flushing = true;
     try {
-      await fetch(this.heartbeatEndpoint, {
+      while (this.samples.length > 0) {
+        const batch = this.samples.slice(0, 100);
+        const ok = await this.post(this.heartbeatEndpoint, { samples: batch });
+        if (!ok) return;
+        this.samples.splice(0, batch.length);
+      }
+      while (this.events.length > 0) {
+        const batch = this.events.slice(0, 100);
+        const ok = await this.post(this.endpoint, { events: batch });
+        if (!ok) return;
+        this.events.splice(0, batch.length);
+      }
+    } finally {
+      this.saveQueue();
+      this.flushing = false;
+    }
+  }
+
+  /** Envia um lote; loga mudanças de estado online/offline. */
+  private async post(url: string, body: unknown): Promise<boolean> {
+    try {
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(body),
         signal: AbortSignal.timeout(10_000)
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      this.setOnline(true);
+      return true;
+    } catch (err) {
+      const detail =
+        (err as { cause?: { code?: string } })?.cause?.code ??
+        (err as Error)?.message ??
+        'erro desconhecido';
+      this.setOnline(false, String(detail));
+      return false;
+    }
+  }
+
+  private setOnline(ok: boolean, detail?: string): void {
+    if (this.online === ok) return;
+    this.online = ok;
+    if (ok) {
+      console.log(`[telemetria] conectado a ${this.host} — dados de uso sendo reportados`);
+    } else {
+      const queued = this.events.length + this.samples.length;
+      console.log(
+        `[telemetria] SEM CONEXÃO com ${this.host} (${detail}) — ` +
+          `${queued} item(ns) guardados em fila local, reenvio automático quando a internet voltar`
+      );
+    }
+  }
+
+  private loadQueue(): void {
+    try {
+      if (!fs.existsSync(QUEUE_FILE)) return;
+      const stored = JSON.parse(fs.readFileSync(QUEUE_FILE, 'utf8'));
+      if (Array.isArray(stored?.events)) this.events = stored.events.slice(-MAX_EVENTS);
+      if (Array.isArray(stored?.samples)) this.samples = stored.samples.slice(-MAX_SAMPLES);
     } catch {
-      // fire-and-forget
+      // fila corrompida: descarta
+    }
+  }
+
+  private saveQueue(): void {
+    try {
+      if (this.events.length === 0 && this.samples.length === 0) {
+        if (fs.existsSync(QUEUE_FILE)) fs.unlinkSync(QUEUE_FILE);
+        return;
+      }
+      fs.mkdirSync(path.dirname(QUEUE_FILE), { recursive: true });
+      fs.writeFileSync(QUEUE_FILE, JSON.stringify({ events: this.events, samples: this.samples }));
+    } catch {
+      // sem disco disponível: segue só com a fila em memória
     }
   }
 }
