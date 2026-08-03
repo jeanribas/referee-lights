@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 
 import { useEffect, useState } from 'react';
 import { FooterBadges } from '@/components/FooterBadges';
+import { FaqList } from '@/components/FaqList';
 import { getMessages } from '@/lib/i18n/messages';
 import { APP_LOCALES, type AppLocale } from '@/lib/i18n/config';
 import { Seo } from '@/components/Seo';
@@ -275,21 +276,6 @@ export default function HomePage() {
                 'Docker deployment',
               ],
               inLanguage: ['pt-BR', 'en-US', 'es-ES'],
-            }),
-          }}
-        />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              '@context': 'https://schema.org',
-              '@type': 'FAQPage',
-              inLanguage: locale,
-              mainEntity: t.faqItems.map((item) => ({
-                '@type': 'Question',
-                name: item.q,
-                acceptedAnswer: { '@type': 'Answer', text: item.a },
-              })),
             }),
           }}
         />
@@ -674,7 +660,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ── FAQ ── */}
+        {/* ── FAQ (resumo — a lista completa vive em /faq) ── */}
         <section id="faq" style={{ padding: '64px 24px' }}>
           <div style={{ maxWidth: 720, margin: '0 auto' }}>
             <h2 className="fade-in"
@@ -685,7 +671,7 @@ export default function HomePage() {
                 marginBottom: 12,
               }}
             >
-              {t.faqTitle}
+              {messages.faq.title}
             </h2>
             <p
               style={{
@@ -695,17 +681,24 @@ export default function HomePage() {
                 margin: '0 auto 40px',
               }}
             >
-              {t.faqSubtitle}
+              {messages.faq.subtitle}
             </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {t.faqItems.map((item: { q: string; a: string }) => (
-                <details key={item.q} className="faq-item">
-                  <summary>
-                    <h3>{item.q}</h3>
-                  </summary>
-                  <p>{item.a}</p>
-                </details>
-              ))}
+            {/* Índices em faq.items: 0 o que é, 1 gratuito, 2 app/conta, 8 competições oficiais */}
+            <FaqList items={[0, 1, 2, 8].map((i) => messages.faq.items[i])} />
+            <div style={{ textAlign: 'center', marginTop: 28 }}>
+              <Link
+                href="/faq"
+                style={{
+                  color: '#cbd5e1',
+                  textDecoration: 'none',
+                  fontWeight: 600,
+                  fontSize: '0.9rem',
+                  borderBottom: '1px solid #334155',
+                  paddingBottom: 2,
+                }}
+              >
+                {messages.faq.seeAll} &rarr;
+              </Link>
             </div>
           </div>
         </section>
@@ -762,50 +755,6 @@ export default function HomePage() {
           .grid-3col {
             grid-template-columns: 1fr;
           }
-        }
-
-        /* ── FAQ accordion ── */
-        .faq-item {
-          background: #0f172a;
-          border: 1px solid #1e293b;
-          border-radius: 12px;
-        }
-        .faq-item summary {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-          padding: 18px 24px;
-          cursor: pointer;
-          list-style: none;
-        }
-        .faq-item summary::-webkit-details-marker {
-          display: none;
-        }
-        .faq-item summary h3 {
-          margin: 0;
-          font-size: 0.95rem;
-          font-weight: 600;
-          line-height: 1.4;
-        }
-        .faq-item summary::after {
-          content: '+';
-          flex-shrink: 0;
-          color: #64748b;
-          font-size: 1.3rem;
-          font-weight: 400;
-          line-height: 1;
-          transition: transform 0.2s ease;
-        }
-        .faq-item[open] summary::after {
-          transform: rotate(45deg);
-        }
-        .faq-item > p {
-          margin: 0;
-          padding: 0 24px 20px;
-          color: #94a3b8;
-          font-size: 0.9rem;
-          line-height: 1.65;
         }
 
         /* ── Fade-in on scroll ── */

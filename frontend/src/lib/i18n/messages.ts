@@ -222,11 +222,18 @@ type HomeMessages = {
   screens: { path: string; title: string; desc: string; href: string }[];
   featuresTitle: string;
   features: { icon: string; title: string; desc: string }[];
-  faqTitle: string;
-  faqSubtitle: string;
-  faqItems: { q: string; a: string }[];
   ctaTitle: string;
   ctaDesc: string;
+};
+
+type FaqMessages = {
+  metaTitle: string;
+  metaDescription: string;
+  title: string;
+  subtitle: string;
+  backHome: string;
+  seeAll: string;
+  items: { q: string; a: string }[];
 };
 
 type WindowsMessages = {
@@ -244,6 +251,7 @@ type WindowsMessages = {
 export type Messages = {
   common: CommonMessages;
   home: HomeMessages;
+  faq: FaqMessages;
   windows: WindowsMessages;
   display: DisplayMessages;
   admin: AdminMessages;
@@ -322,9 +330,17 @@ const MESSAGES: Record<AppLocale, Messages> = {
         { icon: '\u{1F512}', title: 'Sessões seguras', desc: 'PIN administrativo + tokens JWT rotativos para cada árbitro.' },
         { icon: '\u{1F30E}', title: '3 idiomas', desc: 'Português, inglês e espanhol com detecção automática.' },
       ],
-      faqTitle: 'Perguntas frequentes',
-      faqSubtitle: 'O que atletas e organizadores de competição costumam perguntar antes do primeiro campeonato.',
-      faqItems: [
+      ctaTitle: 'Pronto para começar?',
+      ctaDesc: 'Crie uma sessão em segundos. Gratuito, sem cadastro e sem instalar nada.',
+    },
+    faq: {
+      metaTitle: 'Perguntas frequentes',
+      metaDescription: 'Respostas às dúvidas mais comuns sobre o Referee Lights: é gratuito, funciona offline, dispositivos compatíveis, regras IPF, transmissão ao vivo e como reportar bugs.',
+      title: 'Perguntas frequentes',
+      subtitle: 'O que atletas e organizadores de competição costumam perguntar antes do primeiro campeonato.',
+      backHome: 'Voltar para a Home',
+      seeAll: 'Ver todas as perguntas',
+      items: [
         {
           q: 'O que é o Referee Lights?',
           a: 'O Referee Lights é um sistema gratuito de luzes de arbitragem para competições de Powerlifting que segue as regras da IPF. Três árbitros votam pelo próprio celular (GOOD LIFT ou NO LIFT) e as luzes aparecem em tempo real no telão da competição — sem painéis físicos e sem instalar aplicativo.',
@@ -378,8 +394,6 @@ const MESSAGES: Record<AppLocale, Messages> = {
           a: 'O Referee Lights é gratuito, roda direto no navegador sem instalar aplicativo, não exige cadastro e tem o código público no GitHub. Ele reúne em uma só plataforma as luzes, os cartões IPF, o cronômetro, o modo offline para Windows e o overlay de chroma key para transmissões — sem hardware dedicado e sem mensalidade.',
         },
       ],
-      ctaTitle: 'Pronto para começar?',
-      ctaDesc: 'Crie uma sessão em segundos. Gratuito, sem cadastro e sem instalar nada.',
     },
     windows: {
       metaTitle: 'Instalar no Windows',
@@ -673,9 +687,17 @@ const MESSAGES: Record<AppLocale, Messages> = {
         { icon: '\u{1F512}', title: 'Secure sessions', desc: 'Admin PIN + rotating JWT tokens for each referee.' },
         { icon: '\u{1F30E}', title: '3 languages', desc: 'Portuguese, English, and Spanish with automatic detection.' },
       ],
-      faqTitle: 'Frequently asked questions',
-      faqSubtitle: 'What athletes and meet organizers usually ask before their first competition.',
-      faqItems: [
+      ctaTitle: 'Ready to get started?',
+      ctaDesc: 'Create a session in seconds. Free, no sign-up, no installation.',
+    },
+    faq: {
+      metaTitle: 'Frequently asked questions',
+      metaDescription: 'Answers to the most common questions about Referee Lights: is it free, offline use, supported devices, IPF rules, live streaming, and how to report bugs.',
+      title: 'Frequently asked questions',
+      subtitle: 'What athletes and meet organizers usually ask before their first competition.',
+      backHome: 'Back to Home',
+      seeAll: 'See all questions',
+      items: [
         {
           q: 'What is Referee Lights?',
           a: 'Referee Lights is a free referee light system for Powerlifting competitions that follows IPF rules. Three referees vote from their own phones (GOOD LIFT or NO LIFT) and the lights appear in real time on the venue display — no physical light panels and no app install required.',
@@ -729,8 +751,6 @@ const MESSAGES: Record<AppLocale, Messages> = {
           a: 'Referee Lights is free, runs directly in the browser with no app install, requires no account, and its code is public on GitHub. It bundles the lights, IPF penalty cards, timer, offline Windows mode, and chroma key broadcast overlay into a single platform — no dedicated hardware and no subscription.',
         },
       ],
-      ctaTitle: 'Ready to get started?',
-      ctaDesc: 'Create a session in seconds. Free, no sign-up, no installation.',
     },
     windows: {
       metaTitle: 'Install on Windows',
@@ -1024,9 +1044,17 @@ const MESSAGES: Record<AppLocale, Messages> = {
         { icon: '\u{1F512}', title: 'Sesiones seguras', desc: 'PIN administrativo + tokens JWT rotativos para cada juez.' },
         { icon: '\u{1F30E}', title: '3 idiomas', desc: 'Portugu\u00e9s, ingl\u00e9s y espa\u00f1ol con detecci\u00f3n autom\u00e1tica.' },
       ],
-      faqTitle: 'Preguntas frecuentes',
-      faqSubtitle: 'Lo que atletas y organizadores suelen preguntar antes de su primera competencia.',
-      faqItems: [
+      ctaTitle: '¿Listo para empezar?',
+      ctaDesc: 'Crea una sesión en segundos. Gratis, sin registro y sin instalar nada.',
+    },
+    faq: {
+      metaTitle: 'Preguntas frecuentes',
+      metaDescription: 'Respuestas a las dudas más comunes sobre Referee Lights: es gratis, uso sin internet, dispositivos compatibles, reglas IPF, transmisión en vivo y cómo reportar errores.',
+      title: 'Preguntas frecuentes',
+      subtitle: 'Lo que atletas y organizadores suelen preguntar antes de su primera competencia.',
+      backHome: 'Volver al Inicio',
+      seeAll: 'Ver todas las preguntas',
+      items: [
         {
           q: '\u00bfQu\u00e9 es Referee Lights?',
           a: 'Referee Lights es un sistema gratuito de luces de arbitraje para competencias de Powerlifting que sigue las reglas de la IPF. Tres jueces votan desde su propio celular (GOOD LIFT o NO LIFT) y las luces aparecen en tiempo real en la pantalla del evento \u2014 sin paneles f\u00edsicos y sin instalar aplicaciones.',
@@ -1080,8 +1108,6 @@ const MESSAGES: Record<AppLocale, Messages> = {
           a: 'Referee Lights es gratuito, funciona directo en el navegador sin instalar aplicaciones, no exige registro y su c\u00f3digo es p\u00fablico en GitHub. Re\u00fane en una sola plataforma las luces, las tarjetas IPF, el cron\u00f3metro, el modo offline para Windows y el overlay de chroma key para transmisiones \u2014 sin hardware dedicado y sin mensualidades.',
         },
       ],
-      ctaTitle: '\u00bfListo para empezar?',
-      ctaDesc: 'Crea una sesi\u00f3n en segundos. Gratis, sin registro y sin instalar nada.',
     },
     windows: {
       metaTitle: 'Instalar en Windows',
