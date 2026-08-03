@@ -26,12 +26,29 @@ export interface RoomAccessPayload {
 
 type RoomStateListener = (roomId: string, snapshot: AppState) => void;
 
+export interface PersistedRoom {
+  roomId: string;
+  adminPin: string;
+  refereeTokens: Record<string, string>;
+  createdAt: number;
+  lastActivityAt: number;
+}
+
 interface RoomManagerOptions {
   /** Sala sem NENHUMA atividade por este tempo é arquivada (código volta ao pool). */
   ttlMs?: number;
   /** Chamado ao arquivar — fecha a sessão no analytics, avisa telemetria etc. */
   onExpire?: (roomId: string) => void;
+  /** Persistência para recuperação pós-restart (salas voltam em até TTL). */
+  store?: {
+    save: (room: PersistedRoom) => void;
+    touch: (roomId: string, lastActivityMs: number) => void;
+    remove: (roomId: string) => void;
+  };
 }
+
+/** Atividade é persistida no máximo a cada 30s — voto/timer não vira I/O por tick. */
+const TOUCH_THROTTLE_MS = 30_000;
 
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 const SWEEP_INTERVAL_MS = 30 * 60 * 1000;
@@ -40,10 +57,13 @@ export class RoomManager {
   private rooms = new Map<string, Room>();
   private readonly ttlMs: number;
   private readonly onExpire?: (roomId: string) => void;
+  private readonly store?: RoomManagerOptions['store'];
+  private lastPersistedTouch = new Map<string, number>();
 
   constructor(private onStateUpdate: RoomStateListener, options: RoomManagerOptions = {}) {
     this.ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
     this.onExpire = options.onExpire;
+    this.store = options.store;
     // Varredura periódica; unref para não segurar o processo vivo.
     const timer = setInterval(() => this.sweepExpired(), SWEEP_INTERVAL_MS);
     if (timer.unref) timer.unref();
@@ -60,6 +80,8 @@ export class RoomManager {
     for (const [roomId, room] of this.rooms) {
       if (now - room.lastActivityAt > this.ttlMs) {
         this.rooms.delete(roomId);
+        this.lastPersistedTouch.delete(roomId);
+        this.store?.remove(roomId);
         expired.push(roomId);
       }
     }
@@ -82,14 +104,47 @@ export class RoomManager {
       lastActivityAt: Date.now()
     };
 
-    state.onSnapshot((snapshot) => {
-      room.lastActivityAt = Date.now();
-      this.onStateUpdate(roomId, snapshot);
-    });
-
+    this.attachActivityTracking(room);
     this.rooms.set(roomId, room);
+    this.store?.save({ roomId, adminPin, refereeTokens, createdAt: room.createdAt, lastActivityAt: room.lastActivityAt });
 
     return this.toRoomAccessPayload(room);
+  }
+
+  /** Religa uma sala persistida (pós-restart) com o MESMO código, PIN e QRs. */
+  restoreRoom(rec: PersistedRoom): boolean {
+    if (this.rooms.has(rec.roomId)) return false;
+    const room: Room = {
+      id: rec.roomId,
+      adminPin: rec.adminPin,
+      refereeTokens: rec.refereeTokens as RefereeTokens,
+      state: new RoomState(),
+      createdAt: rec.createdAt,
+      lastActivityAt: rec.lastActivityAt
+    };
+    this.attachActivityTracking(room);
+    this.rooms.set(room.id, room);
+    return true;
+  }
+
+  private attachActivityTracking(room: Room): void {
+    // onSnapshot emite imediatamente ao assinar — essa emissão inicial não é
+    // atividade (senão restaurar uma sala velha a "rejuvenesceria").
+    let initialEmit = true;
+    room.state.onSnapshot((snapshot) => {
+      if (initialEmit) {
+        initialEmit = false;
+        this.onStateUpdate(room.id, snapshot);
+        return;
+      }
+      room.lastActivityAt = Date.now();
+      const last = this.lastPersistedTouch.get(room.id) ?? 0;
+      if (room.lastActivityAt - last > TOUCH_THROTTLE_MS) {
+        this.lastPersistedTouch.set(room.id, room.lastActivityAt);
+        this.store?.touch(room.id, room.lastActivityAt);
+      }
+      this.onStateUpdate(room.id, snapshot);
+    });
   }
 
   verifyAdminPin(roomId: string, pin?: string) {
@@ -119,6 +174,13 @@ export class RoomManager {
     if (!room) return null;
     room.refereeTokens = this.generateRefereeTokens();
     room.state.setAllConnected(false);
+    this.store?.save({
+      roomId: room.id,
+      adminPin: room.adminPin,
+      refereeTokens: room.refereeTokens,
+      createdAt: room.createdAt,
+      lastActivityAt: room.lastActivityAt
+    });
     return this.toRoomAccessPayload(room);
   }
 

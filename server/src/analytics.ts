@@ -99,6 +99,17 @@ export class AnalyticsStore {
         last_seen TEXT NOT NULL DEFAULT (datetime('now'))
       );
 
+      -- Estado vivo das salas para recuperação pós-restart (PIN e tokens em
+      -- claro DE PROPÓSITO: são credenciais efêmeras de sala, o banco é local
+      -- ao servidor, e sem elas a sala não volta com os mesmos QR codes).
+      CREATE TABLE IF NOT EXISTS rooms_state (
+        room_id TEXT PRIMARY KEY,
+        admin_pin TEXT NOT NULL,
+        referee_tokens_json TEXT NOT NULL,
+        created_at_ms INTEGER NOT NULL,
+        last_activity_ms INTEGER NOT NULL
+      );
+
       CREATE INDEX IF NOT EXISTS idx_sessions_room_id ON sessions(room_id);
       CREATE INDEX IF NOT EXISTS idx_connections_session_id ON connections(session_id);
       CREATE INDEX IF NOT EXISTS idx_access_logs_timestamp ON access_logs(timestamp);
@@ -258,6 +269,71 @@ export class AnalyticsStore {
     } catch (err) {
       console.error('[analytics] getStats error:', err);
       return { totalSessions: 0, totalConnections: 0, uniqueIps: 0, activeRooms: activeRoomCount };
+    }
+  }
+
+  /* ─── Recuperação de salas (restart não pode matar uma competição) ─── */
+
+  saveRoomState(room: {
+    roomId: string;
+    adminPin: string;
+    refereeTokens: Record<string, string>;
+    createdAt: number;
+    lastActivityAt: number;
+  }): void {
+    if (!this.db) return;
+    try {
+      this.db
+        .prepare(
+          `INSERT OR REPLACE INTO rooms_state (room_id, admin_pin, referee_tokens_json, created_at_ms, last_activity_ms)
+           VALUES (?, ?, ?, ?, ?)`
+        )
+        .run(room.roomId, room.adminPin, JSON.stringify(room.refereeTokens), room.createdAt, room.lastActivityAt);
+    } catch (err) {
+      console.error('[analytics] saveRoomState error:', err);
+    }
+  }
+
+  touchRoomState(roomId: string, lastActivityMs: number): void {
+    if (!this.db) return;
+    try {
+      this.db.prepare('UPDATE rooms_state SET last_activity_ms = ? WHERE room_id = ?').run(lastActivityMs, roomId);
+    } catch (err) {
+      console.error('[analytics] touchRoomState error:', err);
+    }
+  }
+
+  deleteRoomState(roomId: string): void {
+    if (!this.db) return;
+    try {
+      this.db.prepare('DELETE FROM rooms_state WHERE room_id = ?').run(roomId);
+    } catch (err) {
+      console.error('[analytics] deleteRoomState error:', err);
+    }
+  }
+
+  /** Salas com atividade dentro da janela — as que voltam após um restart. */
+  loadRoomStates(maxAgeMs: number): Array<{
+    roomId: string;
+    adminPin: string;
+    refereeTokens: Record<string, string>;
+    createdAt: number;
+    lastActivityAt: number;
+  }> {
+    if (!this.db) return [];
+    try {
+      const cutoff = Date.now() - maxAgeMs;
+      this.db.prepare('DELETE FROM rooms_state WHERE last_activity_ms < ?').run(cutoff);
+      return (this.db.prepare('SELECT * FROM rooms_state').all() as Array<Record<string, unknown>>).map((r) => ({
+        roomId: String(r.room_id),
+        adminPin: String(r.admin_pin),
+        refereeTokens: JSON.parse(String(r.referee_tokens_json)),
+        createdAt: Number(r.created_at_ms),
+        lastActivityAt: Number(r.last_activity_ms)
+      }));
+    } catch (err) {
+      console.error('[analytics] loadRoomStates error:', err);
+      return [];
     }
   }
 
