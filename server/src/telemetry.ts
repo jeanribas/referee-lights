@@ -14,6 +14,7 @@ interface TelemetryEvent {
 interface HeartbeatSample {
   instanceId: string;
   appVersion: string;
+  hostname: string;
   platform: string;
   arch: string;
   nodeVersion: string;
@@ -176,6 +177,7 @@ export class Telemetry {
     this.samples.push({
       instanceId: this.instanceId,
       appVersion: this.appVersion,
+      hostname: os.hostname(),
       platform: os.platform(),
       arch: os.arch(),
       nodeVersion: process.version,

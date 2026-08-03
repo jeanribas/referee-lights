@@ -110,6 +110,7 @@ describe('ingestão de telemetria dos filhos', () => {
           {
             instanceId: INSTANCE,
             appVersion: '1.2.3',
+            hostname: 'PC-FEDERACAO',
             platform: 'win32',
             arch: 'x64',
             nodeVersion: 'v22.23.2',
@@ -191,6 +192,27 @@ describe('leitura pelo master', () => {
     expect(bs.instance_id).toBe(INSTANCE);
   });
 
+  it('instalação pode ganhar apelido e ele volta nas listas', async () => {
+    const token = await masterToken();
+    const auth = { authorization: `Bearer ${token}` };
+    const set = await app.inject({
+      method: 'POST',
+      url: `/master/instances/${INSTANCE}/label`,
+      headers: auth,
+      payload: { label: 'VM de Teste' }
+    });
+    expect(set.statusCode).toBe(200);
+    const list = (await app.inject({ method: 'GET', url: '/master/instances', headers: auth })).json();
+    expect(list.instances.find((i: { instance_id: string }) => i.instance_id === INSTANCE).label).toBe('VM de Teste');
+    const missing = await app.inject({
+      method: 'POST',
+      url: '/master/instances/nao-existe/label',
+      headers: auth,
+      payload: { label: 'x' }
+    });
+    expect(missing.statusCode).toBe(404);
+  });
+
   it('a instância aparece na lista com os contadores do heartbeat', async () => {
     const token = await masterToken();
     const res = await app.inject({
@@ -204,5 +226,7 @@ describe('leitura pelo master', () => {
     expect(inst.total_sessions).toBe(3);
     // versão veio da amostra nova; a amostra sem stats/versão não a apagou
     expect(inst.app_version).toBe('1.2.3');
+    // nome da máquina vem automático no heartbeat
+    expect(inst.hostname).toBe('PC-FEDERACAO');
   });
 });

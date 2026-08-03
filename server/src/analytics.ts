@@ -259,6 +259,18 @@ export class AnalyticsStore {
         console.log('[analytics] migração 7: instâncias de diagnóstico expurgadas');
       }
 
+      // Migração 8: identificação legível da instalação. hostname vem
+      // AUTOMÁTICO no heartbeat (nome da máquina); label é override manual
+      // opcional. Sem isso os ids são UUIDs — impossível reconhecer/filtrar.
+      if (version < 8) {
+        this.db!.exec(`
+          ALTER TABLE instances ADD COLUMN label TEXT NOT NULL DEFAULT '';
+          ALTER TABLE instances ADD COLUMN hostname TEXT NOT NULL DEFAULT '';
+          PRAGMA user_version = 8;
+        `);
+        console.log('[analytics] migração 8: colunas label e hostname em instances');
+      }
+
       // Retenção contínua (roda a cada boot): guarda o que é relevante,
       // descarta o que é ruído — o histórico não cresce sem limite.
       //  - eventos e amostras: 180 dias
@@ -657,6 +669,7 @@ export class AnalyticsStore {
   upsertHeartbeat(data: {
     instanceId: string;
     appVersion?: string;
+    hostname?: string;
     platform: string;
     arch: string;
     nodeVersion: string;
@@ -720,6 +733,12 @@ export class AnalyticsStore {
               last_seen = datetime('now')`
           )
           .run(data.instanceId, data.appVersion ?? '', data.platform, data.arch, data.nodeVersion, data.uptimeSeconds);
+      }
+
+      if (data.hostname) {
+        this.db
+          .prepare('UPDATE instances SET hostname = ? WHERE instance_id = ?')
+          .run(data.hostname.slice(0, 60), data.instanceId);
       }
 
       // Salas abertas agora (estado atual, substitui o anterior a cada amostra)
@@ -809,9 +828,25 @@ export class AnalyticsStore {
     }
   }
 
+  /** Apelido operacional da instalação — definido no painel master. */
+  setInstanceLabel(instanceId: string, label: string): boolean {
+    if (!this.db) return false;
+    try {
+      const res = this.db
+        .prepare('UPDATE instances SET label = ? WHERE instance_id = ?')
+        .run(label.slice(0, 60), instanceId);
+      return res.changes > 0;
+    } catch (err) {
+      console.error('[analytics] setInstanceLabel error:', err);
+      return false;
+    }
+  }
+
   /** Instalações com heartbeat nos últimos 10 min — o "ao vivo" dos bundles. */
   getOnlineBundleInstances(excludeInstanceId = ''): Array<{
     instance_id: string;
+    label: string;
+    hostname: string;
     app_version: string;
     platform: string;
     active_rooms: number;
@@ -824,7 +859,7 @@ export class AnalyticsStore {
     try {
       const rows = this.db
         .prepare(
-          `SELECT instance_id, app_version, platform, active_rooms, country, city, last_seen, rooms_json
+          `SELECT instance_id, label, hostname, app_version, platform, active_rooms, country, city, last_seen, rooms_json
            FROM instances WHERE last_seen >= datetime('now', '-10 minutes') AND instance_id != ?
            ORDER BY last_seen DESC`
         )
@@ -989,6 +1024,8 @@ export class AnalyticsStore {
 
   getInstances(): Array<{
     instance_id: string;
+    label: string;
+    hostname: string;
     app_version: string;
     platform: string;
     arch: string;

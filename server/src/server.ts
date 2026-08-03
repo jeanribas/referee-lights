@@ -689,6 +689,7 @@ export async function createServer() {
         ip: extractIp(request),
         instanceId: s.instanceId.slice(0, 64),
         appVersion: String(s.appVersion ?? '').slice(0, 32),
+        hostname: String(s.hostname ?? '').slice(0, 60),
         platform: String(s.platform ?? '').slice(0, 32),
         arch: String(s.arch ?? '').slice(0, 16),
         nodeVersion: String(s.nodeVersion ?? '').slice(0, 32),
@@ -705,6 +706,16 @@ export async function createServer() {
   app.get('/master/instances', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
     return { instances: analyticsStore.getInstances() };
+  });
+
+  app.post<{ Params: { id: string }; Body: { label?: string } }>('/master/instances/:id/label', async (request, reply) => {
+    if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
+    const id = String(request.params.id ?? '').slice(0, 64);
+    const label = String(request.body?.label ?? '').trim().slice(0, 60);
+    if (!id) { reply.code(400); return { error: 'missing_instance_id' }; }
+    const ok = analyticsStore.setInstanceLabel(id, label);
+    if (!ok) { reply.code(404); return { error: 'instance_not_found' }; }
+    return { ok: true, label };
   });
 
   app.get<{ Params: { id: string } }>('/master/instances/:id/activity', async (request, reply) => {
