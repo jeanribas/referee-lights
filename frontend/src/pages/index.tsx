@@ -284,48 +284,12 @@ export default function HomePage() {
             __html: JSON.stringify({
               '@context': 'https://schema.org',
               '@type': 'FAQPage',
-              mainEntity: [
-                {
-                  '@type': 'Question',
-                  name: 'What is Referee Lights?',
-                  acceptedAnswer: {
-                    '@type': 'Answer',
-                    text: 'Referee Lights is a free, open-source, real-time referee light system for IPF Powerlifting competitions. It allows three referees to submit decisions via their phones, with instant synchronization across all connected devices.',
-                  },
-                },
-                {
-                  '@type': 'Question',
-                  name: 'Is Referee Lights free?',
-                  acceptedAnswer: {
-                    '@type': 'Answer',
-                    text: 'Yes, Referee Lights is completely free and open-source. You can use it for any competition without cost.',
-                  },
-                },
-                {
-                  '@type': 'Question',
-                  name: 'Does it work on mobile phones?',
-                  acceptedAnswer: {
-                    '@type': 'Answer',
-                    text: 'Yes. Referee Lights is a Progressive Web App (PWA) that works on any device with a web browser. Referees scan a QR code and vote directly from their phones — no app download needed.',
-                  },
-                },
-                {
-                  '@type': 'Question',
-                  name: 'Can I use it for live streaming?',
-                  acceptedAnswer: {
-                    '@type': 'Answer',
-                    text: 'Yes. Referee Lights includes a chroma key screen that can be captured in OBS Studio or any streaming software, allowing you to overlay referee decisions on your live stream.',
-                  },
-                },
-                {
-                  '@type': 'Question',
-                  name: 'Does it follow IPF rules?',
-                  acceptedAnswer: {
-                    '@type': 'Answer',
-                    text: 'Yes. The system implements the full IPF decision flow with 3 referees, penalty cards (yellow, red, red+yellow), and official timing.',
-                  },
-                },
-              ],
+              inLanguage: locale,
+              mainEntity: t.faqItems.map((item) => ({
+                '@type': 'Question',
+                name: item.q,
+                acceptedAnswer: { '@type': 'Answer', text: item.a },
+              })),
             }),
           }}
         />
@@ -710,6 +674,42 @@ export default function HomePage() {
           </div>
         </section>
 
+        {/* ── FAQ ── */}
+        <section id="faq" style={{ padding: '64px 24px' }}>
+          <div style={{ maxWidth: 720, margin: '0 auto' }}>
+            <h2 className="fade-in"
+              style={{
+                fontSize: 'clamp(1.4rem, 3vw, 2rem)',
+                fontWeight: 700,
+                textAlign: 'center',
+                marginBottom: 12,
+              }}
+            >
+              {t.faqTitle}
+            </h2>
+            <p
+              style={{
+                color: '#94a3b8',
+                textAlign: 'center',
+                maxWidth: 480,
+                margin: '0 auto 40px',
+              }}
+            >
+              {t.faqSubtitle}
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {t.faqItems.map((item: { q: string; a: string }) => (
+                <details key={item.q} className="faq-item">
+                  <summary>
+                    <h3>{item.q}</h3>
+                  </summary>
+                  <p>{item.a}</p>
+                </details>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* ── CTA ── */}
         <section
           style={{
@@ -762,6 +762,50 @@ export default function HomePage() {
           .grid-3col {
             grid-template-columns: 1fr;
           }
+        }
+
+        /* ── FAQ accordion ── */
+        .faq-item {
+          background: #0f172a;
+          border: 1px solid #1e293b;
+          border-radius: 12px;
+        }
+        .faq-item summary {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 18px 24px;
+          cursor: pointer;
+          list-style: none;
+        }
+        .faq-item summary::-webkit-details-marker {
+          display: none;
+        }
+        .faq-item summary h3 {
+          margin: 0;
+          font-size: 0.95rem;
+          font-weight: 600;
+          line-height: 1.4;
+        }
+        .faq-item summary::after {
+          content: '+';
+          flex-shrink: 0;
+          color: #64748b;
+          font-size: 1.3rem;
+          font-weight: 400;
+          line-height: 1;
+          transition: transform 0.2s ease;
+        }
+        .faq-item[open] summary::after {
+          transform: rotate(45deg);
+        }
+        .faq-item > p {
+          margin: 0;
+          padding: 0 24px 20px;
+          color: #94a3b8;
+          font-size: 0.9rem;
+          line-height: 1.65;
         }
 
         /* ── Fade-in on scroll ── */

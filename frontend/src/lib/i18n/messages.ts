@@ -222,6 +222,9 @@ type HomeMessages = {
   screens: { path: string; title: string; desc: string; href: string }[];
   featuresTitle: string;
   features: { icon: string; title: string; desc: string }[];
+  faqTitle: string;
+  faqSubtitle: string;
+  faqItems: { q: string; a: string }[];
   ctaTitle: string;
   ctaDesc: string;
 };
@@ -318,6 +321,62 @@ const MESSAGES: Record<AppLocale, Messages> = {
         { icon: '\u{1F3A5}', title: 'Pronto para live', desc: 'Tela de chroma key para OBS Studio ou qualquer software de streaming.' },
         { icon: '\u{1F512}', title: 'Sessões seguras', desc: 'PIN administrativo + tokens JWT rotativos para cada árbitro.' },
         { icon: '\u{1F30E}', title: '3 idiomas', desc: 'Português, inglês e espanhol com detecção automática.' },
+      ],
+      faqTitle: 'Perguntas frequentes',
+      faqSubtitle: 'O que atletas e organizadores de competição costumam perguntar antes do primeiro campeonato.',
+      faqItems: [
+        {
+          q: 'O que é o Referee Lights?',
+          a: 'O Referee Lights é um sistema gratuito de luzes de arbitragem para competições de Powerlifting que segue as regras da IPF. Três árbitros votam pelo próprio celular (GOOD LIFT ou NO LIFT) e as luzes aparecem em tempo real no telão da competição — sem painéis físicos e sem instalar aplicativo.',
+        },
+        {
+          q: 'É realmente gratuito? Existe versão paga ou limite de uso?',
+          a: 'Sim, o Referee Lights é gratuito, sem cadastro, sem limite de sessões e sem versão premium. O código-fonte é público no GitHub e o uso é livre para atletas, clubes, federações e organizações sem fins lucrativos; apenas o uso comercial (revenda ou oferta como serviço pago) exige autorização do autor.',
+        },
+        {
+          q: 'Preciso instalar algum aplicativo ou criar conta?',
+          a: 'Não. Tudo funciona direto no navegador: o organizador cria uma sessão em refereelights.app e os árbitros entram escaneando um QR Code com a câmera do celular. Não há download de app, cadastro nem configuração.',
+        },
+        {
+          q: 'Funciona offline, sem internet?',
+          a: 'Sim. Além da versão online, existe um pacote portátil para Windows que roda o sistema inteiro na rede Wi-Fi local, sem internet — basta extrair o ZIP e executar. É a opção recomendada para ginásios com conexão instável.',
+        },
+        {
+          q: 'Em quais dispositivos funciona? Quais são os requisitos?',
+          a: 'Funciona em qualquer celular, tablet ou computador com um navegador moderno (como Chrome, Edge ou Firefox). Para o pacote offline, o requisito é um PC com Windows 10 ou superior (64 bits) e uma rede Wi-Fi para conectar os dispositivos dos árbitros.',
+        },
+        {
+          q: 'Como funciona o sistema de luzes branca e vermelha?',
+          a: 'Seguindo as regras da IPF, cada um dos três árbitros vota GOOD LIFT (luz branca) ou NO LIFT (luz vermelha), e as três luzes só são reveladas no display quando todos votaram. O sistema também inclui os cartões de penalidade da IPF (amarelo, vermelho e vermelho+amarelo) e o cronômetro oficial de 1 minuto.',
+        },
+        {
+          q: 'Serve para outras federações além da IPF?',
+          a: 'Sim. O padrão de três árbitros com luzes branca e vermelha é usado pela maioria das federações de powerlifting, então o sistema atende qualquer evento que siga essa convenção. Os cartões de penalidade seguem especificamente o regulamento da IPF.',
+        },
+        {
+          q: 'Quantos dispositivos posso conectar e como funciona a sincronização?',
+          a: 'Cada sessão conecta os três consoles de árbitro (esquerdo, central e direito) mais as telas de apoio: painel admin, display para o telão, cronômetro e overlay de transmissão. Todas compartilham o mesmo estado em tempo real via WebSocket — um voto aparece instantaneamente em todas as telas.',
+        },
+        {
+          q: 'Pode ser usado em competições oficiais?',
+          a: 'O sistema implementa o fluxo completo de arbitragem da IPF: três árbitros, luzes, cartões de penalidade e tempos oficiais. A homologação de equipamentos em campeonatos oficiais, porém, depende de cada federação — consulte a organização do seu evento antes de usar.',
+        },
+        {
+          q: 'Como uso as luzes na transmissão ao vivo (OBS)?',
+          a: 'A tela de Legenda/Chroma Key exibe as luzes e o cronômetro sobre um fundo de cor sólida, pronta para ser capturada no OBS Studio ou em qualquer software de streaming. Adicione a página como fonte de navegador (ou capture a janela) e aplique o filtro de chroma key para sobrepor as decisões na sua live.',
+        },
+        {
+          q: 'Como reporto um bug ou peço uma funcionalidade?',
+          a: 'Abra uma issue no repositório do projeto no GitHub (github.com/jeanribas/referee-lights) descrevendo o problema ou a ideia. O código é público, então sugestões e contribuições são bem-vindas.',
+        },
+        {
+          q: 'Posso instalar o Referee Lights como aplicativo no celular?',
+          a: 'Sim. O Referee Lights é um web app instalável: no menu do navegador, use "Adicionar à tela inicial" (Android/iPhone) ou "Instalar" (Chrome/Edge no computador) e ele abre em janela própria, como um aplicativo, com ícone na tela inicial. Não está nas lojas de apps e continua precisando de conexão com o servidor — pela internet ou pela rede local no modo Windows.',
+        },
+        {
+          q: 'Qual a diferença do Referee Lights para outros sistemas de luzes?',
+          a: 'O Referee Lights é gratuito, roda direto no navegador sem instalar aplicativo, não exige cadastro e tem o código público no GitHub. Ele reúne em uma só plataforma as luzes, os cartões IPF, o cronômetro, o modo offline para Windows e o overlay de chroma key para transmissões — sem hardware dedicado e sem mensalidade.',
+        },
       ],
       ctaTitle: 'Pronto para começar?',
       ctaDesc: 'Crie uma sessão em segundos. Gratuito, sem cadastro e sem instalar nada.',
@@ -614,6 +673,62 @@ const MESSAGES: Record<AppLocale, Messages> = {
         { icon: '\u{1F512}', title: 'Secure sessions', desc: 'Admin PIN + rotating JWT tokens for each referee.' },
         { icon: '\u{1F30E}', title: '3 languages', desc: 'Portuguese, English, and Spanish with automatic detection.' },
       ],
+      faqTitle: 'Frequently asked questions',
+      faqSubtitle: 'What athletes and meet organizers usually ask before their first competition.',
+      faqItems: [
+        {
+          q: 'What is Referee Lights?',
+          a: 'Referee Lights is a free referee light system for Powerlifting competitions that follows IPF rules. Three referees vote from their own phones (GOOD LIFT or NO LIFT) and the lights appear in real time on the venue display — no physical light panels and no app install required.',
+        },
+        {
+          q: 'Is it really free? Is there a paid version or usage limit?',
+          a: 'Yes, Referee Lights is free, with no sign-up, no session limit, and no premium tier. The source code is public on GitHub and free to use for athletes, clubs, federations, and non-profits; only commercial use (reselling it or offering it as a paid service) requires the author’s permission.',
+        },
+        {
+          q: 'Do I need to install an app or create an account?',
+          a: 'No. Everything runs in the browser: the organizer creates a session at refereelights.app and referees join by scanning a QR Code with their phone camera. There is no app download, no registration, and no setup.',
+        },
+        {
+          q: 'Does it work offline, without internet?',
+          a: 'Yes. Besides the online version, there is a portable Windows package that runs the whole system on the local Wi-Fi network with no internet — just extract the ZIP and run it. It is the recommended option for venues with unreliable connections.',
+        },
+        {
+          q: 'Which devices does it support? What are the requirements?',
+          a: 'It works on any phone, tablet, or computer with a modern browser (such as Chrome, Edge, or Firefox). For the offline package, you need a PC running Windows 10 or later (64-bit) and a Wi-Fi network to connect the referees’ devices.',
+        },
+        {
+          q: 'How does the white and red light system work?',
+          a: 'Following IPF rules, each of the three referees votes GOOD LIFT (white light) or NO LIFT (red light), and the three lights are only revealed on the display once everyone has voted. The system also includes IPF penalty cards (yellow, red, and red+yellow) and the official 1-minute attempt clock.',
+        },
+        {
+          q: 'Can I use it with federations other than the IPF?',
+          a: 'Yes. The three-referee, white-and-red light convention is used by most powerlifting federations, so the system works for any event that follows it. The penalty cards specifically follow the IPF rulebook.',
+        },
+        {
+          q: 'How many devices can connect, and how does synchronization work?',
+          a: 'Each session connects the three referee consoles (left, center, right) plus the supporting screens: the admin panel, the main display, the timer, and the broadcast overlay. All of them share the same state in real time over WebSocket — a vote shows up instantly on every screen.',
+        },
+        {
+          q: 'Can it be used in official competitions?',
+          a: 'The system implements the full IPF refereeing flow: three referees, lights, penalty cards, and official timing. Equipment approval for sanctioned championships is up to each federation, though — check with your event’s organizers before using it.',
+        },
+        {
+          q: 'How do I show the lights on a live stream (OBS)?',
+          a: 'The Legend/Chroma Key screen shows the lights and the clock over a solid-color background, ready to be captured in OBS Studio or any streaming software. Add the page as a browser source (or capture the window) and apply a chroma key filter to overlay the decisions on your stream.',
+        },
+        {
+          q: 'How do I report a bug or request a feature?',
+          a: 'Open an issue in the project’s GitHub repository (github.com/jeanribas/referee-lights) describing the problem or the idea. The code is public, so suggestions and contributions are welcome.',
+        },
+        {
+          q: 'Can I install Referee Lights as an app on my phone?',
+          a: 'Yes. Referee Lights is an installable web app: from the browser menu, use "Add to Home Screen" (Android/iPhone) or "Install" (Chrome/Edge on desktop) and it opens in its own window, like a native app, with an icon on your home screen. It is not in the app stores and still needs a connection to the server — over the internet, or over the local network in Windows mode.',
+        },
+        {
+          q: 'How is Referee Lights different from other referee light systems?',
+          a: 'Referee Lights is free, runs directly in the browser with no app install, requires no account, and its code is public on GitHub. It bundles the lights, IPF penalty cards, timer, offline Windows mode, and chroma key broadcast overlay into a single platform — no dedicated hardware and no subscription.',
+        },
+      ],
       ctaTitle: 'Ready to get started?',
       ctaDesc: 'Create a session in seconds. Free, no sign-up, no installation.',
     },
@@ -908,6 +1023,62 @@ const MESSAGES: Record<AppLocale, Messages> = {
         { icon: '\u{1F3A5}', title: 'Listo para streaming', desc: 'Pantalla de chroma key para OBS Studio o cualquier software de streaming.' },
         { icon: '\u{1F512}', title: 'Sesiones seguras', desc: 'PIN administrativo + tokens JWT rotativos para cada juez.' },
         { icon: '\u{1F30E}', title: '3 idiomas', desc: 'Portugu\u00e9s, ingl\u00e9s y espa\u00f1ol con detecci\u00f3n autom\u00e1tica.' },
+      ],
+      faqTitle: 'Preguntas frecuentes',
+      faqSubtitle: 'Lo que atletas y organizadores suelen preguntar antes de su primera competencia.',
+      faqItems: [
+        {
+          q: '\u00bfQu\u00e9 es Referee Lights?',
+          a: 'Referee Lights es un sistema gratuito de luces de arbitraje para competencias de Powerlifting que sigue las reglas de la IPF. Tres jueces votan desde su propio celular (GOOD LIFT o NO LIFT) y las luces aparecen en tiempo real en la pantalla del evento \u2014 sin paneles f\u00edsicos y sin instalar aplicaciones.',
+        },
+        {
+          q: '\u00bfEs realmente gratis? \u00bfHay versi\u00f3n de pago o l\u00edmite de uso?',
+          a: 'S\u00ed, Referee Lights es gratuito, sin registro, sin l\u00edmite de sesiones y sin versi\u00f3n premium. El c\u00f3digo fuente es p\u00fablico en GitHub y su uso es libre para atletas, clubes, federaciones y organizaciones sin fines de lucro; solo el uso comercial (revenderlo u ofrecerlo como servicio de pago) requiere autorizaci\u00f3n del autor.',
+        },
+        {
+          q: '\u00bfNecesito instalar una aplicaci\u00f3n o crear una cuenta?',
+          a: 'No. Todo funciona directo en el navegador: el organizador crea una sesi\u00f3n en refereelights.app y los jueces entran escaneando un c\u00f3digo QR con la c\u00e1mara del celular. No hay descarga de app, ni registro, ni configuraci\u00f3n.',
+        },
+        {
+          q: '\u00bfFunciona sin internet (offline)?',
+          a: 'S\u00ed. Adem\u00e1s de la versi\u00f3n en l\u00ednea, existe un paquete portable para Windows que ejecuta todo el sistema en la red Wi-Fi local sin internet \u2014 solo hay que extraer el ZIP y ejecutarlo. Es la opci\u00f3n recomendada para gimnasios con conexi\u00f3n inestable.',
+        },
+        {
+          q: '\u00bfEn qu\u00e9 dispositivos funciona? \u00bfCu\u00e1les son los requisitos?',
+          a: 'Funciona en cualquier celular, tablet o computadora con un navegador moderno (como Chrome, Edge o Firefox). Para el paquete offline se necesita una PC con Windows 10 o superior (64 bits) y una red Wi-Fi para conectar los dispositivos de los jueces.',
+        },
+        {
+          q: '\u00bfC\u00f3mo funciona el sistema de luces blanca y roja?',
+          a: 'Siguiendo las reglas de la IPF, cada uno de los tres jueces vota GOOD LIFT (luz blanca) o NO LIFT (luz roja), y las tres luces solo se revelan en el display cuando todos han votado. El sistema tambi\u00e9n incluye las tarjetas de penalizaci\u00f3n de la IPF (amarilla, roja y roja+amarilla) y el cron\u00f3metro oficial de 1 minuto.',
+        },
+        {
+          q: '\u00bfSirve para otras federaciones adem\u00e1s de la IPF?',
+          a: 'S\u00ed. El est\u00e1ndar de tres jueces con luces blanca y roja lo usa la mayor\u00eda de las federaciones de powerlifting, as\u00ed que el sistema sirve para cualquier evento que siga esa convenci\u00f3n. Las tarjetas de penalizaci\u00f3n siguen espec\u00edficamente el reglamento de la IPF.',
+        },
+        {
+          q: '\u00bfCu\u00e1ntos dispositivos puedo conectar y c\u00f3mo funciona la sincronizaci\u00f3n?',
+          a: 'Cada sesi\u00f3n conecta las tres consolas de jueces (izquierdo, central y derecho) m\u00e1s las pantallas de apoyo: panel admin, display principal, cron\u00f3metro y overlay de transmisi\u00f3n. Todas comparten el mismo estado en tiempo real v\u00eda WebSocket \u2014 un voto aparece al instante en todas las pantallas.',
+        },
+        {
+          q: '\u00bfSe puede usar en competencias oficiales?',
+          a: 'El sistema implementa el flujo completo de arbitraje de la IPF: tres jueces, luces, tarjetas de penalizaci\u00f3n y tiempos oficiales. Sin embargo, la homologaci\u00f3n del equipamiento en campeonatos oficiales depende de cada federaci\u00f3n \u2014 consulta con la organizaci\u00f3n de tu evento antes de usarlo.',
+        },
+        {
+          q: '\u00bfC\u00f3mo muestro las luces en una transmisi\u00f3n en vivo (OBS)?',
+          a: 'La pantalla de Leyenda/Chroma Key muestra las luces y el cron\u00f3metro sobre un fondo de color s\u00f3lido, lista para capturarse en OBS Studio o cualquier software de streaming. Agrega la p\u00e1gina como fuente de navegador (o captura la ventana) y aplica el filtro de chroma key para superponer las decisiones en tu transmisi\u00f3n.',
+        },
+        {
+          q: '\u00bfC\u00f3mo reporto un error o pido una funcionalidad?',
+          a: 'Abre un issue en el repositorio del proyecto en GitHub (github.com/jeanribas/referee-lights) describiendo el problema o la idea. El c\u00f3digo es p\u00fablico, as\u00ed que las sugerencias y contribuciones son bienvenidas.',
+        },
+        {
+          q: '\u00bfPuedo instalar Referee Lights como aplicaci\u00f3n en el celular?',
+          a: 'S\u00ed. Referee Lights es una web app instalable: desde el men\u00fa del navegador, usa "Agregar a la pantalla de inicio" (Android/iPhone) o "Instalar" (Chrome/Edge en computadora) y se abre en su propia ventana, como una aplicaci\u00f3n, con \u00edcono en la pantalla de inicio. No est\u00e1 en las tiendas de apps y sigue necesitando conexi\u00f3n con el servidor \u2014 por internet o por la red local en el modo Windows.',
+        },
+        {
+          q: '\u00bfEn qu\u00e9 se diferencia Referee Lights de otros sistemas de luces?',
+          a: 'Referee Lights es gratuito, funciona directo en el navegador sin instalar aplicaciones, no exige registro y su c\u00f3digo es p\u00fablico en GitHub. Re\u00fane en una sola plataforma las luces, las tarjetas IPF, el cron\u00f3metro, el modo offline para Windows y el overlay de chroma key para transmisiones \u2014 sin hardware dedicado y sin mensualidades.',
+        },
       ],
       ctaTitle: '\u00bfListo para empezar?',
       ctaDesc: 'Crea una sesi\u00f3n en segundos. Gratis, sin registro y sin instalar nada.',
