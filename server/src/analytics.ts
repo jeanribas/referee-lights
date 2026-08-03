@@ -113,7 +113,19 @@ export class AnalyticsStore {
       CREATE INDEX IF NOT EXISTS idx_connections_session_id ON connections(session_id);
       CREATE INDEX IF NOT EXISTS idx_access_logs_timestamp ON access_logs(timestamp);
       CREATE INDEX IF NOT EXISTS idx_instances_last_seen ON instances(last_seen);
+      CREATE TABLE IF NOT EXISTS instance_samples (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        instance_id TEXT NOT NULL,
+        active_rooms INTEGER DEFAULT 0,
+        total_sessions INTEGER DEFAULT 0,
+        total_connections INTEGER DEFAULT 0,
+        unique_ips INTEGER DEFAULT 0,
+        uptime_seconds INTEGER DEFAULT 0,
+        sampled_at TEXT NOT NULL
+      );
+
       CREATE INDEX IF NOT EXISTS idx_instance_events_instance ON instance_events(instance_id, received_at);
+      CREATE INDEX IF NOT EXISTS idx_instance_samples ON instance_samples(instance_id, sampled_at);
     `);
 
     // Migrate: add host column
@@ -157,6 +169,16 @@ export class AnalyticsStore {
           PRAGMA user_version = 1;
         `);
         console.log('[analytics] migração 1: geo sem coordenadas zerado');
+      }
+      // Migração 2: os eventos por sala (roomId, papel, hash de IP de
+      // competições de terceiros) nunca foram lidos por endpoint nenhum.
+      // Guardar dado que ninguém consulta é só passivo — descarta.
+      if (version < 2) {
+        this.db!.exec(`
+          DELETE FROM instance_events;
+          PRAGMA user_version = 2;
+        `);
+        console.log('[analytics] migração 2: eventos por sala descartados');
       }
     } catch (err) {
       console.error('[analytics] migração user_version falhou:', err);
@@ -470,6 +492,8 @@ export class AnalyticsStore {
     nodeVersion: string;
     uptimeSeconds: number;
     stats: { activeRooms: number; totalSessions: number; totalConnections: number; uniqueIps: number } | null;
+    /** Momento em que a amostra foi tirada na origem (pode chegar atrasada pela fila offline). */
+    sampledAt?: string;
   }): void {
     if (!this.db) return;
     try {
@@ -498,6 +522,24 @@ export class AnalyticsStore {
           data.stats?.totalSessions ?? 0,
           data.stats?.totalConnections ?? 0,
           data.stats?.uniqueIps ?? 0
+        );
+
+      // A tabela `instances` é upsert: só guarda o estado atual. O histórico
+      // vive aqui, e é o que permite responder "quanto esta instalação foi
+      // usada ao longo do tempo" sem tocar em dado de competição alheia.
+      this.db
+        .prepare(
+          `INSERT INTO instance_samples (instance_id, active_rooms, total_sessions, total_connections, unique_ips, uptime_seconds, sampled_at)
+           VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`
+        )
+        .run(
+          data.instanceId,
+          data.stats?.activeRooms ?? 0,
+          data.stats?.totalSessions ?? 0,
+          data.stats?.totalConnections ?? 0,
+          data.stats?.uniqueIps ?? 0,
+          data.uptimeSeconds,
+          data.sampledAt ?? null
         );
     } catch (err) {
       console.error('[analytics] upsertHeartbeat error:', err);

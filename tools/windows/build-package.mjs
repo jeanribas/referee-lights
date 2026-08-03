@@ -344,6 +344,31 @@ do Iniciar ou de duplo-clique em "Parar.cmd"
 
 REDE: todos os dispositivos devem estar na mesma rede Wi-Fi
 
+DADOS E PRIVACIDADE
+O servidor envia estatisticas de uso para api.refereelights.app,
+para sabermos quantas instalacoes existem e como sao usadas.
+
+E enviado a cada 5 minutos:
+  - um identificador aleatorio desta instalacao (nao ligado a
+    nenhuma pessoa, gerado no primeiro uso)
+  - sistema operacional, arquitetura e versao do Node
+  - ha quanto tempo o servidor esta ligado
+  - contadores: salas ativas, total de sessoes, de conexoes
+    e de enderecos IP distintos
+
+NAO e enviado: enderecos IP, nomes de maquina, nomes de
+atletas ou arbitros, e nenhuma decisao de arbitragem. Os
+resultados das tentativas ficam somente nesta maquina.
+
+Sem internet, os dados ficam numa fila local e sao enviados
+quando a conexao voltar.
+
+PARA DESLIGAR: abra "server\\.env" no Bloco de Notas e troque
+  TELEMETRY_ENABLED=true
+por
+  TELEMETRY_ENABLED=false
+Depois reinicie pelo "Iniciar.cmd". Nada mais sai desta maquina.
+
 GitHub: https://github.com/jeanribas/referee-lights
 Site: https://refereelights.app
 Contato: contato@assist.com.br

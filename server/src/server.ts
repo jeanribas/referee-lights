@@ -184,7 +184,6 @@ export async function createServer() {
     const data = roomManager.createRoom();
     const sessionId = analyticsStore.logSessionCreated(data.roomId, data.adminPin);
     if (sessionId !== null) sessionMap.set(data.roomId, sessionId);
-    telemetry.trackSessionCreated(data.roomId);
     analyticsStore.logAccess('room_created', data.roomId, extractIp(request));
     reply.code(201);
     return data;
@@ -306,7 +305,6 @@ export async function createServer() {
         clientHost
       );
       if (connId !== null) socket.data.connectionId = connId;
-      telemetry.trackConnection(payload.roomId, payload.role, socketIp(socket));
 
       ack?.({ ok: true });
       socket.emit('state:update', state.getSnapshot());
@@ -466,7 +464,6 @@ export async function createServer() {
         state?.setConnected(judgeRole, false);
       }
       if (connectionId) analyticsStore.logDisconnection(connectionId);
-      telemetry.trackDisconnection(roomId ?? '', socket.data.role);
     });
   });
 
@@ -547,30 +544,15 @@ export async function createServer() {
   // --- Telemetry Endpoints (receive from all instances) ---
 
   app.post('/telemetry/events', async (request, reply) => {
+    // Compat com bundles anteriores à 1.3.1, que ainda enviam eventos por
+    // sala (roomId, papel, hash de IP). Aceitamos para não encher a fila em
+    // disco deles, mas NÃO gravamos: esse dado identificava competições de
+    // terceiros e nada o consumia. O uso das instalações vem do heartbeat.
     if (!rateLimitOk(`tel:${extractIp(request)}`, 60, 60_000)) {
       reply.code(429);
       return { error: 'rate_limited' };
     }
-    const body = request.body as { events?: unknown } | null;
-    const events = Array.isArray(body?.events) ? body.events.slice(0, 100) : [];
-    const valid = events.filter(
-      (e): e is { instanceId: string; event: string; data?: Record<string, unknown>; timestamp?: string } =>
-        typeof e === 'object' &&
-        e !== null &&
-        typeof (e as Record<string, unknown>).instanceId === 'string' &&
-        typeof (e as Record<string, unknown>).event === 'string'
-    );
-    if (valid.length === 0) return { ok: true, stored: 0 };
-    const stored = analyticsStore.recordInstanceEvents(
-      valid.map((e) => ({
-        instanceId: e.instanceId.slice(0, 64),
-        event: e.event.slice(0, 64),
-        roomId: typeof e.data?.roomId === 'string' ? e.data.roomId.slice(0, 16) : undefined,
-        data: e.data,
-        timestamp: typeof e.timestamp === 'string' ? e.timestamp.slice(0, 32) : undefined
-      }))
-    );
-    return { ok: true, stored };
+    return { ok: true, stored: 0 };
   });
 
   app.post('/telemetry/heartbeat', async (request, reply) => {
@@ -578,17 +560,30 @@ export async function createServer() {
       reply.code(429);
       return { error: 'rate_limited' };
     }
-    const body = request.body as any;
-    if (!body?.instanceId) { reply.code(400); return { error: 'missing_instance_id' }; }
-    analyticsStore.upsertHeartbeat({
-      instanceId: body.instanceId,
-      platform: body.platform ?? '',
-      arch: body.arch ?? '',
-      nodeVersion: body.nodeVersion ?? '',
-      uptimeSeconds: body.uptimeSeconds ?? 0,
-      stats: body.stats ?? null
-    });
-    return { ok: true };
+    const body = request.body as { samples?: unknown } | Record<string, unknown> | null;
+    // Bundles < 1.3.1 mandam UMA amostra no corpo; a partir da 1.3.1 vem
+    // `{samples: [...]}`, porque a fila offline agora carrega heartbeats.
+    const raw = Array.isArray((body as { samples?: unknown })?.samples)
+      ? ((body as { samples: unknown[] }).samples).slice(0, 100)
+      : [body];
+
+    let stored = 0;
+    for (const item of raw) {
+      const s = item as Record<string, any> | null;
+      if (!s?.instanceId || typeof s.instanceId !== 'string') continue;
+      analyticsStore.upsertHeartbeat({
+        instanceId: s.instanceId.slice(0, 64),
+        platform: String(s.platform ?? '').slice(0, 32),
+        arch: String(s.arch ?? '').slice(0, 16),
+        nodeVersion: String(s.nodeVersion ?? '').slice(0, 32),
+        uptimeSeconds: Number(s.uptimeSeconds) || 0,
+        stats: s.stats ?? null,
+        sampledAt: typeof s.timestamp === 'string' ? s.timestamp.slice(0, 32) : undefined
+      });
+      stored++;
+    }
+    if (stored === 0) { reply.code(400); return { error: 'missing_instance_id' }; }
+    return { ok: true, stored };
   });
 
   app.get('/master/instances', async (request, reply) => {

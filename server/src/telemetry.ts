@@ -1,14 +1,17 @@
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { getInstanceId } from './instance-id.js';
 
-interface TelemetryEvent {
-  event: string;
-  data: Record<string, unknown>;
-  timestamp: string;
+/** Uma amostra periódica do estado da instância — nada por sala, nada por pessoa. */
+interface HeartbeatSample {
   instanceId: string;
+  platform: string;
+  arch: string;
+  nodeVersion: string;
+  uptimeSeconds: number;
+  timestamp: string;
+  stats: InstanceSnapshot | null;
 }
 
 export interface InstanceSnapshot {
@@ -22,10 +25,13 @@ export interface InstanceSnapshot {
  * Privacy-first telemetry.
  *
  * - Can be disabled via TELEMETRY_ENABLED=false
- * - Never sends raw IPs, hostnames, or user-agents
- * - IPs are hashed (one-way) before leaving the process
- * - Only aggregated, non-identifying stats are sent in heartbeats
+ * - Only aggregated, non-identifying stats leave the process
  * - Instance ID is a random UUID — not tied to any person
+ *
+ * Desde a 1.3.1 não saem mais eventos por sala (roomId, papel, hash de IP):
+ * eles identificavam competições de terceiros e nada os lia do outro lado.
+ * O que sobe é a amostra periódica de contadores — que responde "esta
+ * instalação está sendo usada, quanto e quando" sem falar de ninguém.
  *
  * Store-and-forward: eventos que falham no envio (bundle offline em LAN)
  * voltam para a fila, são persistidos em data/telemetry-queue.json e
@@ -36,8 +42,7 @@ const MAX_QUEUE = 500;
 const QUEUE_FILE = path.resolve('data', 'telemetry-queue.json');
 
 export class Telemetry {
-  private buffer: TelemetryEvent[] = [];
-  private readonly endpoint: string;
+  private buffer: HeartbeatSample[] = [];
   private readonly heartbeatEndpoint: string;
   readonly instanceId: string;
   private readonly enabled: boolean;
@@ -47,7 +52,6 @@ export class Telemetry {
   private statsProvider: (() => InstanceSnapshot) | null = null;
 
   constructor(baseUrl: string, enabled = true) {
-    this.endpoint = `${baseUrl}/telemetry/events`;
     this.heartbeatEndpoint = `${baseUrl}/telemetry/heartbeat`;
     this.instanceId = getInstanceId();
     this.startedAt = Date.now();
@@ -71,39 +75,6 @@ export class Telemetry {
     this.statsProvider = fn;
   }
 
-  trackSessionCreated(roomId: string): void {
-    this.push('session_created', { roomId });
-  }
-
-  trackConnection(roomId: string, role: string, ip: string): void {
-    // Hash IP before buffering — raw IP never leaves process
-    this.push('connection', { roomId, role, ipHash: this.hashIp(ip) });
-  }
-
-  trackDisconnection(roomId: string, role: string): void {
-    this.push('disconnection', { roomId, role });
-  }
-
-  private hashIp(ip: string): string {
-    return crypto.createHash('sha256').update(ip + 'referee-lights-salt').digest('hex').slice(0, 16);
-  }
-
-  private push(event: string, data: Record<string, unknown>): void {
-    if (!this.enabled) return;
-    this.buffer.push({
-      event,
-      data,
-      timestamp: new Date().toISOString(),
-      instanceId: this.instanceId
-    });
-    if (this.buffer.length > MAX_QUEUE) {
-      this.buffer.splice(0, this.buffer.length - MAX_QUEUE);
-    }
-    if (this.buffer.length >= 20) {
-      void this.flush();
-    }
-  }
-
   private flushing = false;
 
   private async flush(): Promise<void> {
@@ -112,10 +83,10 @@ export class Telemetry {
     // Envia em lotes de até 100 (limite aceito pelo servidor)
     const batch = this.buffer.slice(0, 100);
     try {
-      const res = await fetch(this.endpoint, {
+      const res = await fetch(this.heartbeatEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ events: batch }),
+        body: JSON.stringify({ samples: batch }),
         signal: AbortSignal.timeout(10_000)
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -139,7 +110,7 @@ export class Telemetry {
       if (!fs.existsSync(QUEUE_FILE)) return;
       const stored = JSON.parse(fs.readFileSync(QUEUE_FILE, 'utf8'));
       if (Array.isArray(stored)) {
-        this.buffer = stored.slice(-MAX_QUEUE);
+        this.buffer = stored.slice(-MAX_QUEUE) as HeartbeatSample[];
       }
     } catch {
       // fila corrompida: descarta
@@ -159,27 +130,25 @@ export class Telemetry {
     }
   }
 
-  private async sendHeartbeat(): Promise<void> {
-    const stats = this.statsProvider?.() ?? null;
-    // Only send non-identifying, aggregated data
-    const payload = {
+  /**
+   * Enfileira uma amostra e tenta enviar. Passa pela mesma fila persistente
+   * dos eventos antigos: uma competição rodada em LAN sem internet continua
+   * reportando o uso quando a máquina reconectar.
+   */
+  private sendHeartbeat(): void {
+    if (!this.enabled) return;
+    this.buffer.push({
       instanceId: this.instanceId,
       platform: os.platform(),
       arch: os.arch(),
       nodeVersion: process.version,
       uptimeSeconds: Math.floor((Date.now() - this.startedAt) / 1000),
       timestamp: new Date().toISOString(),
-      stats
-    };
-    try {
-      await fetch(this.heartbeatEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(10_000)
-      });
-    } catch {
-      // fire-and-forget
+      stats: this.statsProvider?.() ?? null
+    });
+    if (this.buffer.length > MAX_QUEUE) {
+      this.buffer.splice(0, this.buffer.length - MAX_QUEUE);
     }
+    void this.flush();
   }
 }
