@@ -213,9 +213,54 @@ export class AnalyticsStore {
         `);
         console.log('[analytics] migração 5: rooms_json em instances');
       }
-      // Retenção: eventos por sala têm valor operacional por meses, não anos.
-      // Limpa na inicialização para o banco não crescer sem limite.
+      // Migração 6: sessões antigas nunca eram fechadas ("em aberto" eterno).
+      // Fecha o backlog usando a última desconexão como fim (ou a própria
+      // criação, quando não houve conexão). Daqui em diante o arquivamento
+      // por TTL fecha as sessões em tempo real.
+      if (version < 6) {
+        this.db!.exec(`
+          UPDATE sessions SET closed_at = COALESCE(
+            (SELECT MAX(c.disconnected_at) FROM connections c WHERE c.session_id = sessions.id),
+            created_at
+          )
+          WHERE closed_at IS NULL AND created_at < datetime('now', '-24 hours');
+          PRAGMA user_version = 6;
+        `);
+        console.log('[analytics] migração 6: backlog de sessões em aberto fechado');
+      }
+      // Migração 7: expurga instâncias sintéticas de diagnóstico (testes de
+      // pipeline feitos em 02-03/ago/2026) e as de macOS (máquina de build).
+      // Dado de diagnóstico não é dado de uso — só polui as métricas.
+      if (version < 7) {
+        this.db!.exec(`
+          CREATE TEMP TABLE junk AS
+            SELECT instance_id FROM instances
+            WHERE platform IN ('diag', 'test', 'darwin')
+               OR instance_id LIKE 'claude-%' OR instance_id LIKE 'marcador%'
+               OR instance_id LIKE 'probe%' OR instance_id LIKE '\_\_probe%' ESCAPE '\'
+               OR instance_id LIKE 'diag%' OR instance_id LIKE 'itest-%';
+          DELETE FROM instance_events WHERE instance_id IN (SELECT instance_id FROM junk);
+          DELETE FROM instance_samples WHERE instance_id IN (SELECT instance_id FROM junk);
+          DELETE FROM instances WHERE instance_id IN (SELECT instance_id FROM junk);
+          DROP TABLE junk;
+          PRAGMA user_version = 7;
+        `);
+        console.log('[analytics] migração 7: instâncias de diagnóstico expurgadas');
+      }
+
+      // Retenção contínua (roda a cada boot): guarda o que é relevante,
+      // descarta o que é ruído — o histórico não cresce sem limite.
+      //  - eventos e amostras: 180 dias
+      //  - instância sumida há 180+ dias: sai por completo
+      //  - instância que nunca teve uso e sumiu há 7+ dias: ruído, sai
       this.db!.exec(`DELETE FROM instance_events WHERE received_at < datetime('now', '-180 days')`);
+      this.db!.exec(`DELETE FROM instance_samples WHERE sampled_at < datetime('now', '-180 days')`);
+      this.db!.exec(`DELETE FROM instances WHERE last_seen < datetime('now', '-180 days')`);
+      this.db!.exec(`
+        DELETE FROM instances
+        WHERE last_seen < datetime('now', '-7 days') AND total_sessions = 0
+          AND instance_id NOT IN (SELECT DISTINCT instance_id FROM instance_events)
+      `);
     } catch (err) {
       console.error('[analytics] migração user_version falhou:', err);
     }
@@ -783,15 +828,36 @@ export class AnalyticsStore {
     }
   }
 
-  /** Sessões criadas dentro dos bundles (com a instância de origem). */
-  getBundleSessions(limit: number, excludeInstanceId = ''): Array<{ room_id: string | null; instance_id: string; created_at: string }> {
+  /** Sessões criadas dentro dos bundles, com sinais de vida: conexões,
+   * decisões, última atividade e se a sala já foi arquivada. */
+  getBundleSessions(limit: number, excludeInstanceId = ''): Array<{
+    room_id: string | null;
+    instance_id: string;
+    created_at: string;
+    connections: number;
+    decisions: number;
+    last_activity: string | null;
+    archived: number;
+  }> {
     if (!this.db) return [];
     try {
       return this.db
         .prepare(
-          `SELECT room_id, instance_id, received_at AS created_at
-           FROM instance_events WHERE event_type = 'session_created' AND instance_id != ?
-           ORDER BY id DESC LIMIT ?`
+          `SELECT e.room_id, e.instance_id, e.received_at AS created_at,
+                  (SELECT COUNT(*) FROM instance_events c
+                    WHERE c.event_type = 'connection' AND c.instance_id = e.instance_id AND c.room_id = e.room_id
+                      AND c.id > e.id) AS connections,
+                  (SELECT COUNT(*) FROM instance_events d
+                    WHERE d.event_type = 'decision' AND d.instance_id = e.instance_id AND d.room_id = e.room_id
+                      AND d.id > e.id) AS decisions,
+                  (SELECT MAX(l.received_at) FROM instance_events l
+                    WHERE l.instance_id = e.instance_id AND l.room_id = e.room_id) AS last_activity,
+                  EXISTS(SELECT 1 FROM instance_events a
+                    WHERE a.event_type = 'room_archived' AND a.instance_id = e.instance_id AND a.room_id = e.room_id
+                      AND a.id > e.id) AS archived
+           FROM instance_events e
+           WHERE e.event_type = 'session_created' AND e.instance_id != ?
+           ORDER BY e.id DESC LIMIT ?`
         )
         .all(excludeInstanceId, Math.min(100, Math.max(1, limit))) as any[];
     } catch (err) {

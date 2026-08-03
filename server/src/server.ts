@@ -550,10 +550,25 @@ export async function createServer() {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
     const limit = Math.min(100, Math.max(1, Number(request.query.limit) || 20));
     const offset = Math.max(0, Number(request.query.offset) || 0);
-    return {
-      sessions: analyticsStore.getRecentSessions(limit, offset),
-      bundleSessions: analyticsStore.getBundleSessions(limit, telemetry.instanceId)
-    };
+    // Estado AO VIVO por cima do histórico: sessão online ativa = sala ainda
+    // na memória; sessão de bundle ativa = sala no rooms_json do último
+    // heartbeat da instalação.
+    const sessions = analyticsStore.getRecentSessions(limit, offset).map((row) => {
+      const state = roomManager.getRoomState(row.room_id);
+      if (!state) return { ...row, live: null };
+      const snap = state.getSnapshot();
+      const connectedJudges = [snap.connected.left, snap.connected.center, snap.connected.right].filter(Boolean).length;
+      return { ...row, live: { connectedJudges } };
+    });
+    const liveRooms = new Map<string, number>();
+    for (const inst of analyticsStore.getOnlineBundleInstances(telemetry.instanceId)) {
+      for (const room of inst.rooms) liveRooms.set(`${inst.instance_id}:${room.id}`, room.connectedJudges);
+    }
+    const bundleSessions = analyticsStore.getBundleSessions(limit, telemetry.instanceId).map((row) => {
+      const judges = row.room_id != null ? liveRooms.get(`${row.instance_id}:${row.room_id}`) : undefined;
+      return { ...row, live: judges === undefined ? null : { connectedJudges: judges } };
+    });
+    return { sessions, bundleSessions };
   });
 
   app.get<{ Querystring: { period?: string } }>('/master/geo', async (request, reply) => {
