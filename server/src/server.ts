@@ -705,7 +705,14 @@ export async function createServer() {
 
   app.get('/master/instances', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
-    return { instances: analyticsStore.getInstances() };
+    // is_self marca o PRÓPRIO servidor central (também se reporta): o painel
+    // o rotula como "Servidor central" para não passar por bundle.
+    return {
+      instances: analyticsStore.getInstances().map((inst) => ({
+        ...inst,
+        is_self: inst.instance_id === telemetry.instanceId
+      }))
+    };
   });
 
   app.post<{ Params: { id: string }; Body: { label?: string } }>('/master/instances/:id/label', async (request, reply) => {
