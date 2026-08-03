@@ -50,7 +50,18 @@ async function buildProjects() {
     // NEXT_PUBLIC_OFFLINE_BUNDLE tira Vercel Analytics e Clarity do build:
     // em LAN sem internet eles não coletam nada, e o import estático do
     // @vercel/analytics quebrava o SSR fora do ambiente de build (v1.3).
-    env: { ...process.env, NEXT_DISABLE_ESLINT: '1', NEXT_PUBLIC_OFFLINE_BUNDLE: '1' }
+    // URLs de API/WS vazias NO BUILD: o client inlina NEXT_PUBLIC_* na
+    // compilação, e um .env.local esquecido (ex.: criado pelo vercel CLI)
+    // já apontou o bundle para a API de produção — sala criada lá, socket
+    // local, 'sala não encontrada'. Vazias, vale o fallback de runtime:
+    // http://<host>:3333, que é o correto no pacote.
+    env: {
+      ...process.env,
+      NEXT_DISABLE_ESLINT: '1',
+      NEXT_PUBLIC_OFFLINE_BUNDLE: '1',
+      NEXT_PUBLIC_API_URL: '',
+      NEXT_PUBLIC_WS_URL: ''
+    }
   });
 }
 

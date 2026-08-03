@@ -315,6 +315,24 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
     }
   }, [router]);
 
+  /**
+   * Máquina dedicada (bundle offline): abrir o /admin sem sessão salva já
+   * cria uma, sem clique. Só no pacote — no site, criar sala é ato explícito
+   * (cada visitante curioso criaria uma). Retry bounded: o Iniciar.cmd sobe
+   * servidor e frontend em paralelo, e a primeira tentativa pode chegar antes
+   * de a porta 3333 abrir.
+   */
+  const autoCreateAttemptsRef = useRef(0);
+  useEffect(() => {
+    if (process.env.NEXT_PUBLIC_OFFLINE_BUNDLE !== '1') return;
+    if (!router.isReady || credentialsReady || roomAccess || mutationLoading) return;
+    if (autoCreateAttemptsRef.current >= 5) return;
+    autoCreateAttemptsRef.current += 1;
+    const delay = autoCreateAttemptsRef.current === 1 ? 300 : 2000;
+    const t = setTimeout(() => { void handleCreateSession(); }, delay);
+    return () => clearTimeout(t);
+  }, [router.isReady, credentialsReady, roomAccess, mutationLoading, handleCreateSession]);
+
   const handleJoinSession = useCallback(
     async (id: string, pin: string) => {
       setMutationLoading(true);
@@ -1104,7 +1122,7 @@ function FullPageMessage({ title, description }: { title: string; description: s
 
 function StatusBanner({ message }: { message: string }) {
   return (
-    <div className="fixed left-1/2 top-6 z-50 -translate-x-1/2 rounded-full border border-white/20 bg-white/15 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white">
+    <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full border border-red-400/40 bg-slate-900/95 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-red-100 shadow-2xl">
       {message}
     </div>
   );
