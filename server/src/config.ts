@@ -9,5 +9,7 @@ export const config = {
   ANALYTICS_DB_PATH: process.env.ANALYTICS_DB_PATH ?? 'data/analytics.db',
   TELEMETRY_URL: process.env.TELEMETRY_URL ?? 'https://api-luzes-ipf.assist.com.br',
   TELEMETRY_ENABLED: (process.env.TELEMETRY_ENABLED ?? 'true') === 'true',
-  KEY_RELAY_AVAILABLE: (process.env.KEY_RELAY_AVAILABLE ?? 'false') === 'true'
+  KEY_RELAY_AVAILABLE: (process.env.KEY_RELAY_AVAILABLE ?? 'false') === 'true',
+  // Sala sem atividade por este tempo é arquivada (código volta ao pool)
+  ROOM_TTL_HOURS: Number(process.env.ROOM_TTL_HOURS ?? 24)
 };

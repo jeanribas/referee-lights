@@ -10,6 +10,8 @@ interface Room {
   refereeTokens: RefereeTokens;
   state: RoomState;
   createdAt: number;
+  /** Última mudança de estado (voto, timer, conexão…) — base do arquivamento. */
+  lastActivityAt: number;
 }
 
 export interface RoomAccessPayload {
@@ -24,10 +26,46 @@ export interface RoomAccessPayload {
 
 type RoomStateListener = (roomId: string, snapshot: AppState) => void;
 
+interface RoomManagerOptions {
+  /** Sala sem NENHUMA atividade por este tempo é arquivada (código volta ao pool). */
+  ttlMs?: number;
+  /** Chamado ao arquivar — fecha a sessão no analytics, avisa telemetria etc. */
+  onExpire?: (roomId: string) => void;
+}
+
+const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
+const SWEEP_INTERVAL_MS = 30 * 60 * 1000;
+
 export class RoomManager {
   private rooms = new Map<string, Room>();
+  private readonly ttlMs: number;
+  private readonly onExpire?: (roomId: string) => void;
 
-  constructor(private onStateUpdate: RoomStateListener) {}
+  constructor(private onStateUpdate: RoomStateListener, options: RoomManagerOptions = {}) {
+    this.ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
+    this.onExpire = options.onExpire;
+    // Varredura periódica; unref para não segurar o processo vivo.
+    const timer = setInterval(() => this.sweepExpired(), SWEEP_INTERVAL_MS);
+    if (timer.unref) timer.unref();
+  }
+
+  /**
+   * Arquiva salas paradas há mais que o TTL. Uma competição não fica um dia
+   * inteiro sem um único voto/timer/conexão — sala nesse estado é lixo de
+   * memória, e arquivar devolve o código de 4 letras ao pool.
+   * Público para testes e para varredura manual.
+   */
+  sweepExpired(now = Date.now()): string[] {
+    const expired: string[] = [];
+    for (const [roomId, room] of this.rooms) {
+      if (now - room.lastActivityAt > this.ttlMs) {
+        this.rooms.delete(roomId);
+        expired.push(roomId);
+      }
+    }
+    for (const roomId of expired) this.onExpire?.(roomId);
+    return expired;
+  }
 
   createRoom(): RoomAccessPayload {
     const roomId = this.generateRoomId();
@@ -35,17 +73,19 @@ export class RoomManager {
     const adminPin = this.generateAdminPin();
     const refereeTokens = this.generateRefereeTokens();
 
-    state.onSnapshot((snapshot) => {
-      this.onStateUpdate(roomId, snapshot);
-    });
-
     const room: Room = {
       id: roomId,
       adminPin,
       refereeTokens,
       state,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      lastActivityAt: Date.now()
     };
+
+    state.onSnapshot((snapshot) => {
+      room.lastActivityAt = Date.now();
+      this.onStateUpdate(roomId, snapshot);
+    });
 
     this.rooms.set(roomId, room);
 
@@ -93,11 +133,11 @@ export class RoomManager {
     return this.rooms.get(roomId)?.state ?? null;
   }
 
-  listRooms(): Array<{ id: string; createdAt: number; connectedJudges: number }> {
+  listRooms(): Array<{ id: string; createdAt: number; connectedJudges: number; phase: string }> {
     return [...this.rooms.values()].map((room) => {
       const snapshot = room.state.getSnapshot();
       const connectedJudges = [snapshot.connected.left, snapshot.connected.center, snapshot.connected.right].filter(Boolean).length;
-      return { id: room.id, createdAt: room.createdAt, connectedJudges };
+      return { id: room.id, createdAt: room.createdAt, connectedJudges, phase: snapshot.phase };
     });
   }
 
@@ -120,7 +160,7 @@ export class RoomManager {
   private readonly alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
   private generateRoomId() {
-    let candidate = '';
+    let candidate: string;
     do {
       candidate = [...crypto.randomBytes(4)]
         .map((value) => this.alphabet[value % this.alphabet.length])

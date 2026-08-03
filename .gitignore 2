@@ -1,0 +1,24 @@
+# Node
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Output
+server/dist
+server/.env
+server/data
+frontend/.env.local
+frontend/.next
+frontend/out
+*.zip
+
+# Editor
+.DS_Store
+.idea
+.vscode
+
+# Logs
+logs
+*.log

@@ -261,6 +261,18 @@ export class AnalyticsStore {
     }
   }
 
+  /** Marca a sessão como encerrada (sala arquivada por inatividade ou fim de uso). */
+  closeSession(sessionId: number): void {
+    if (!this.db) return;
+    try {
+      this.db
+        .prepare(`UPDATE sessions SET closed_at = datetime('now') WHERE id = ? AND closed_at IS NULL`)
+        .run(sessionId);
+    } catch (err) {
+      console.error('[analytics] closeSession error:', err);
+    }
+  }
+
   getRecentSessions(limit: number, offset: number): SessionRow[] {
     if (!this.db) return [];
     try {

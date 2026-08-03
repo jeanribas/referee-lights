@@ -27,6 +27,9 @@ export interface InstanceSnapshot {
   totalSessions: number;
   totalConnections: number;
   uniqueIps: number;
+  /** Salas abertas AGORA (código, árbitros conectados, fase) — dá ao master a
+   * mesma granularidade do online. Limitado a 20 para o payload não crescer. */
+  rooms?: Array<{ id: string; createdAt: number; connectedJudges: number; phase: string }>;
 }
 
 /**
@@ -64,6 +67,7 @@ export class Telemetry {
   private startedAt: number;
   private statsProvider: (() => InstanceSnapshot) | null = null;
   private flushing = false;
+  private lastHeartbeatAt = 0;
   /** null = ainda não tentou; true/false = último estado conhecido */
   private online: boolean | null = null;
 
@@ -91,7 +95,13 @@ export class Telemetry {
     this.flushTimer = setInterval(() => void this.flush(), 30_000);
     if (this.flushTimer.unref) this.flushTimer.unref();
 
-    this.heartbeatTimer = setInterval(() => this.queueHeartbeat(), 5 * 60_000);
+    // Cadência adaptativa: com sala ativa o heartbeat sai a cada 1 min (o
+    // master mostra as salas dos bundles quase ao vivo); parado, a cada 5 min.
+    this.heartbeatTimer = setInterval(() => {
+      const active = (this.statsProvider?.()?.activeRooms ?? 0) > 0;
+      const elapsed = Date.now() - this.lastHeartbeatAt;
+      if (active || elapsed >= 5 * 60_000 - 500) this.queueHeartbeat();
+    }, 60_000);
     if (this.heartbeatTimer.unref) this.heartbeatTimer.unref();
 
     const initial = setTimeout(() => this.queueHeartbeat(), 10_000);
@@ -125,6 +135,11 @@ export class Telemetry {
     this.push('decision', { roomId, white: counts.white, red: counts.red });
   }
 
+  /** Sala arquivada por inatividade — fecha o ciclo de vida no master. */
+  trackRoomArchived(roomId: string): void {
+    this.push('room_archived', { roomId });
+  }
+
   /** Erro de runtime — essencial para saber onde o app quebra em campo. */
   trackError(context: string, message: string): void {
     this.push('error', {
@@ -155,6 +170,9 @@ export class Telemetry {
 
   private queueHeartbeat(): void {
     if (!this.enabled) return;
+    this.lastHeartbeatAt = Date.now();
+    const stats = this.statsProvider?.() ?? null;
+    if (stats?.rooms) stats.rooms = stats.rooms.slice(0, 20);
     this.samples.push({
       instanceId: this.instanceId,
       appVersion: this.appVersion,
@@ -163,7 +181,7 @@ export class Telemetry {
       nodeVersion: process.version,
       uptimeSeconds: Math.floor((Date.now() - this.startedAt) / 1000),
       timestamp: new Date().toISOString(),
-      stats: this.statsProvider?.() ?? null
+      stats
     });
     if (this.samples.length > MAX_SAMPLES) {
       this.samples.splice(0, this.samples.length - MAX_SAMPLES);

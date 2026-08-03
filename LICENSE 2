@@ -1,0 +1,115 @@
+Referee Lights — Custom License
+Version 1.0, March 2026
+
+Copyright (c) 2026 Jean Ribas / assist.com.br
+All rights reserved.
+
+TERMS AND CONDITIONS
+
+1. DEFINITIONS
+
+   "Software" means the Referee Lights source code, documentation,
+   assets, and any associated files in this repository.
+
+   "Author" means Jean Ribas and assist.com.br.
+
+   "You" means any individual or organization using, copying, modifying,
+   or distributing the Software.
+
+   "Derivative Work" means any modification, fork, adaptation, or work
+   based on the Software.
+
+   "Commercial Use" means any use intended for or directed toward
+   monetary gain, including but not limited to: selling the Software or
+   Derivative Works, offering them as a paid service (SaaS), bundling
+   them with paid products, or using them to generate revenue directly
+   or indirectly.
+
+2. GRANT OF LICENSE
+
+   Subject to the terms below, the Author grants You a worldwide,
+   non-exclusive, royalty-free license to use, copy, modify, and
+   distribute the Software and Derivative Works for NON-COMMERCIAL
+   purposes only.
+
+   Permitted uses include, but are not limited to:
+   (a) Personal and educational use;
+   (b) Use by sports federations, clubs, and associations for
+       organizing competitions;
+   (c) Use by non-profit organizations;
+   (d) Self-hosting for non-commercial purposes.
+
+3. CONDITIONS
+
+   Any use, copy, modification, or distribution of the Software or
+   Derivative Works MUST comply with ALL of the following conditions:
+
+   (a) ATTRIBUTION — You must retain all copyright notices and keep
+       visible credit links to the Author in the user interface,
+       including links to:
+       - https://github.com/jeanribas/luzes-de-arbitros-ipf
+       - https://assist.com.br
+       These links must remain visible and functional in all pages
+       where they appear in the original Software.
+
+   (b) TELEMETRY — The anonymous telemetry system included in the
+       Software must remain active in its default configuration.
+       This telemetry collects only non-identifying, aggregated data
+       (instance UUID, platform, architecture, uptime, and usage
+       counters). No personal data, IP addresses, hostnames, or
+       user-agents are collected or transmitted. You may review the
+       telemetry source code to verify this.
+
+   (c) SAME LICENSE — Derivative Works must be distributed under this
+       same license. You may not apply additional restrictions or
+       relicense under different terms.
+
+   (d) NOTICE OF CHANGES — If You modify the Software, You must include
+       prominent notices stating what was changed and the date of
+       the changes.
+
+   (e) NO COMMERCIAL USE — You may not use the Software or Derivative
+       Works for Commercial Use without prior written authorization
+       from the Author. To request a commercial license, contact:
+       contato@assist.com.br
+
+4. TELEMETRY AND PRIVACY
+
+   The Software includes an anonymous telemetry system designed to
+   comply with LGPD (Brazil), GDPR (EU), and equivalent privacy
+   regulations worldwide. The telemetry:
+
+   (a) Does NOT collect personal data;
+   (b) Does NOT collect or store raw IP addresses (IPs are hashed
+       with a one-way function before any storage);
+   (c) Does NOT collect hostnames, user-agents, or browser fingerprints;
+   (d) Uses a randomly generated UUID as instance identifier, not
+       tied to any person;
+   (e) Transmits only aggregated usage counters (sessions, connections,
+       active rooms) and technical metadata (OS platform, architecture,
+       Node.js version);
+   (f) Can be audited in the source code at server/src/telemetry.ts.
+
+5. DISCLAIMER OF WARRANTY
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+   NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+   CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+   CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN
+   CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+   THE SOFTWARE.
+
+6. TERMINATION
+
+   This license is automatically terminated if You violate any of its
+   terms. Upon termination, You must cease all use and destroy all
+   copies of the Software and Derivative Works in your possession.
+
+7. COMMERCIAL LICENSING
+
+   For commercial use, OEM licensing, or custom arrangements, contact:
+   contato@assist.com.br
+
+END OF TERMS AND CONDITIONS

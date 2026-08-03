@@ -169,10 +169,28 @@ export async function createServer() {
       });
     }
     lastPhaseByRoom.set(roomId, snap.phase);
+  }, {
+    ttlMs: config.ROOM_TTL_HOURS * 3600_000,
+    onExpire: (roomId) => {
+      // Arquiva: fecha a sessão no analytics e derruba os sockets restantes —
+      // clientes órfãos recebem room_not_found na próxima ação e recomeçam.
+      const sessionId = sessionMap.get(roomId);
+      if (sessionId != null) {
+        analyticsStore.closeSession(sessionId);
+        sessionMap.delete(roomId);
+      }
+      lastPhaseByRoom.delete(roomId);
+      telemetry.trackRoomArchived(roomId);
+      io.in(roomChannel(roomId)).disconnectSockets(true);
+      app.log.info(`sala ${roomId} arquivada por inatividade`);
+    }
   });
   const analyticsStore = new AnalyticsStore(config.ANALYTICS_DB_PATH);
   const telemetry = new Telemetry(config.TELEMETRY_URL, config.TELEMETRY_ENABLED, readAppVersion());
-  telemetry.setStatsProvider(() => analyticsStore.getStats(roomManager.roomCount()));
+  telemetry.setStatsProvider(() => ({
+    ...analyticsStore.getStats(roomManager.roomCount()),
+    rooms: roomManager.listRooms()
+  }));
   const sessionMap = new Map<string, number>();
 
   function extractIp(request: { ip: string; headers: Record<string, string | string[] | undefined> }): string {
