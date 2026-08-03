@@ -1,10 +1,10 @@
-# Referee Lights 1.3
+# Referee Lights
 
 ![release](https://img.shields.io/github/v/tag/jeanribas/referee-lights?label=release&sort=semver) ![visitors](https://visitor-badge.laobi.icu/badge?page_id=jeanribas.referee-lights) ![license](https://img.shields.io/badge/license-Custom-blue)
 
 [Português](README.md) · English · [Español](README.es.md)
 
-Complete referee light system for Powerlifting competitions following IPF rules. Version **1.3** brings GeoLite2 geolocation, better reliability on offline networks, and the CSS fixes from the Tailwind v4 migration. Five web interfaces share the same real-time state via Socket.IO and can be opened on different devices:
+Complete referee light system for Powerlifting competitions following IPF rules. Works online or on a local network without internet. Five web interfaces share the same real-time state via Socket.IO and can be opened on different devices:
 
 - `/` – admin panel that creates/resumes sessions, generates QR codes, controls the timer, and monitors the platform state
 - `/display` – full-screen display with the three lights, countdown timer, interval alerts, and cooldown badges
@@ -15,13 +15,6 @@ Complete referee light system for Powerlifting competitions following IPF rules.
 > The admin panel remains available at `/admin` for backwards compatibility with older links.
 
 Each session has a `roomId` and an admin PIN. The panel automatically generates referee QR codes and direct links for the display/legend, and it can rotate tokens if needed.
-
-## What's new in 1.3
-
-- **Geolocation via GeoLite2 (MaxMind)** – replaces `geoip-lite`, which misclassified Brazilian IP ranges as other countries. Legacy records without coordinates were cleared, since a country with no lat/lng cannot be verified
-- **Node 22 in the Windows package and Docker** – `better-sqlite3` 12 requires ABI 127
-- **CSS fixes from the Tailwind v4 migration** – palette pinned to the v3 hex values (v4 redefined colors in OKLCH and, on P3 displays, the referee lights rendered oversaturated); button cursor and placeholder color restored; element rules moved into `@layer base`, which brought link colors back
-
 
 ## Screenshots
 
@@ -76,7 +69,6 @@ Open `http://localhost:3000` and navigate to the desired route.
 | `PORT` | Server port | `3333` |
 | `CORS_ORIGIN` | Allowed origins | — |
 | `LOG_LEVEL` | Log level (debug, info, warn, error) | `info` |
-| `ANALYTICS_DB_PATH` | Analytics database path | `data/analytics.db` |
 
 ## Admin panel (`/`, also `/admin`)
 
