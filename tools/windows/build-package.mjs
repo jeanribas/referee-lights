@@ -415,6 +415,9 @@ async function main() {
   await createScripts();
   await createZip();
 
+  console.log('\n🔎 Verificando bundle...');
+  run(`node "${path.join(rootDir, 'tools', 'windows', 'verify-bundle.mjs')}"`);
+
   // Count files and size
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
   console.log(`\n✅ Pacote pronto em ${outputDir}`);
