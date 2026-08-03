@@ -138,6 +138,30 @@ describe('leitura pelo master', () => {
     expect(body.samples.length).toBeGreaterThanOrEqual(2);
   });
 
+  it('todas as abas recebem o lado bundle: stats, online, timeline e sessões', async () => {
+    const token = await masterToken();
+    const auth = { authorization: `Bearer ${token}` };
+
+    const stats = (await app.inject({ method: 'GET', url: '/master/stats', headers: auth })).json();
+    expect(stats.bundle.instances).toBeGreaterThanOrEqual(1);
+    expect(stats.bundle.sessions).toBe(3);
+    expect(stats.bundle.decisions).toBe(1);
+    expect(stats.bundle.errors).toBe(1);
+
+    const online = (await app.inject({ method: 'GET', url: '/master/online', headers: auth })).json();
+    expect(online.bundleCount).toBeGreaterThanOrEqual(1);
+    expect(online.bundleInstances[0].instance_id).toBe(INSTANCE);
+
+    const timeline = (await app.inject({ method: 'GET', url: '/master/timeline?period=today', headers: auth })).json();
+    const today = timeline.bundleTimeline.at(-1);
+    expect(today.sessions).toBe(1);
+    expect(today.decisions).toBe(1);
+
+    const sessions = (await app.inject({ method: 'GET', url: '/master/sessions', headers: auth })).json();
+    const bs = sessions.bundleSessions.find((x: { room_id: string }) => x.room_id === 'ROOM01');
+    expect(bs.instance_id).toBe(INSTANCE);
+  });
+
   it('a instância aparece na lista com os contadores do heartbeat', async () => {
     const token = await masterToken();
     const res = await app.inject({

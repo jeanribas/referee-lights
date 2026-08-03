@@ -191,6 +191,19 @@ export class AnalyticsStore {
         `);
         console.log('[analytics] migração 3: coluna app_version em instances');
       }
+      // Migração 4: geolocalização da INSTALAÇÃO (resolvida do IP público do
+      // heartbeat) — mostra no mapa onde o produto está instalado.
+      if (version < 4) {
+        this.db!.exec(`
+          ALTER TABLE instances ADD COLUMN country TEXT NOT NULL DEFAULT '';
+          ALTER TABLE instances ADD COLUMN region TEXT NOT NULL DEFAULT '';
+          ALTER TABLE instances ADD COLUMN city TEXT NOT NULL DEFAULT '';
+          ALTER TABLE instances ADD COLUMN lat REAL NOT NULL DEFAULT 0;
+          ALTER TABLE instances ADD COLUMN lng REAL NOT NULL DEFAULT 0;
+          PRAGMA user_version = 4;
+        `);
+        console.log('[analytics] migração 4: geo da instalação em instances');
+      }
       // Retenção: eventos por sala têm valor operacional por meses, não anos.
       // Limpa na inicialização para o banco não crescer sem limite.
       this.db!.exec(`DELETE FROM instance_events WHERE received_at < datetime('now', '-180 days')`);
@@ -509,6 +522,8 @@ export class AnalyticsStore {
     stats: { activeRooms: number; totalSessions: number; totalConnections: number; uniqueIps: number } | null;
     /** Momento em que a amostra foi tirada na origem (pode chegar atrasada pela fila offline). */
     sampledAt?: string;
+    /** IP público de origem do heartbeat — vira geo da instalação, nunca é gravado cru. */
+    ip?: string;
   }): void {
     if (!this.db) return;
     try {
@@ -559,6 +574,16 @@ export class AnalyticsStore {
           .run(data.instanceId, data.appVersion ?? '', data.platform, data.arch, data.nodeVersion, data.uptimeSeconds);
       }
 
+      // Geo da instalação a partir do IP de origem (o IP em si não é gravado)
+      if (data.ip) {
+        const geo = this.resolveGeo(data.ip);
+        if (geo.country && (geo.lat !== 0 || geo.lng !== 0)) {
+          this.db
+            .prepare('UPDATE instances SET country = ?, region = ?, city = ?, lat = ?, lng = ? WHERE instance_id = ?')
+            .run(geo.country, geo.region, geo.city, geo.lat, geo.lng, data.instanceId);
+        }
+      }
+
       // A tabela `instances` é upsert: só guarda o estado atual. O histórico
       // vive aqui, e é o que permite responder "quanto esta instalação foi
       // usada ao longo do tempo" sem tocar em dado de competição alheia.
@@ -578,6 +603,121 @@ export class AnalyticsStore {
         );
     } catch (err) {
       console.error('[analytics] upsertHeartbeat error:', err);
+    }
+  }
+
+  /** Resumo agregado das instalações (bundles) — alimenta o split online × bundle. */
+  getBundleSummary(): {
+    instances: number;
+    onlineInstances: number;
+    sessions: number;
+    connections: number;
+    decisions: number;
+    errors: number;
+  } {
+    const zero = { instances: 0, onlineInstances: 0, sessions: 0, connections: 0, decisions: 0, errors: 0 };
+    if (!this.db) return zero;
+    try {
+      const inst = this.db
+        .prepare(
+          `SELECT COUNT(*) AS instances,
+                  COALESCE(SUM(CASE WHEN last_seen >= datetime('now', '-10 minutes') THEN 1 ELSE 0 END), 0) AS onlineInstances,
+                  COALESCE(SUM(total_sessions), 0) AS sessions,
+                  COALESCE(SUM(total_connections), 0) AS connections
+           FROM instances`
+        )
+        .get() as { instances: number; onlineInstances: number; sessions: number; connections: number };
+      const ev = this.db
+        .prepare(
+          `SELECT COALESCE(SUM(CASE WHEN event_type = 'decision' THEN 1 ELSE 0 END), 0) AS decisions,
+                  COALESCE(SUM(CASE WHEN event_type = 'error' THEN 1 ELSE 0 END), 0) AS errors
+           FROM instance_events`
+        )
+        .get() as { decisions: number; errors: number };
+      return { ...inst, ...ev };
+    } catch (err) {
+      console.error('[analytics] getBundleSummary error:', err);
+      return zero;
+    }
+  }
+
+  /** Instalações com heartbeat nos últimos 10 min — o "ao vivo" dos bundles. */
+  getOnlineBundleInstances(): Array<{
+    instance_id: string;
+    app_version: string;
+    platform: string;
+    active_rooms: number;
+    country: string;
+    city: string;
+    last_seen: string;
+  }> {
+    if (!this.db) return [];
+    try {
+      return this.db
+        .prepare(
+          `SELECT instance_id, app_version, platform, active_rooms, country, city, last_seen
+           FROM instances WHERE last_seen >= datetime('now', '-10 minutes')
+           ORDER BY last_seen DESC`
+        )
+        .all() as any[];
+    } catch (err) {
+      console.error('[analytics] getOnlineBundleInstances error:', err);
+      return [];
+    }
+  }
+
+  /** Sessões/conexões/decisões dos bundles por dia — série "bundle" da tendência. */
+  getBundleTimeline(period?: string): Array<{ date: string; sessions: number; connections: number; decisions: number }> {
+    if (!this.db) return [];
+    try {
+      const where = this.periodToSql(period).replaceAll('connected_at', 'received_at');
+      return this.db
+        .prepare(
+          `SELECT date(received_at) AS date,
+                  SUM(CASE WHEN event_type = 'session_created' THEN 1 ELSE 0 END) AS sessions,
+                  SUM(CASE WHEN event_type = 'connection' THEN 1 ELSE 0 END) AS connections,
+                  SUM(CASE WHEN event_type = 'decision' THEN 1 ELSE 0 END) AS decisions
+           FROM instance_events WHERE ${where}
+           GROUP BY date ORDER BY date ASC`
+        )
+        .all() as any[];
+    } catch (err) {
+      console.error('[analytics] getBundleTimeline error:', err);
+      return [];
+    }
+  }
+
+  /** Sessões criadas dentro dos bundles (com a instância de origem). */
+  getBundleSessions(limit: number): Array<{ room_id: string | null; instance_id: string; created_at: string }> {
+    if (!this.db) return [];
+    try {
+      return this.db
+        .prepare(
+          `SELECT room_id, instance_id, received_at AS created_at
+           FROM instance_events WHERE event_type = 'session_created'
+           ORDER BY id DESC LIMIT ?`
+        )
+        .all(Math.min(100, Math.max(1, limit))) as any[];
+    } catch (err) {
+      console.error('[analytics] getBundleSessions error:', err);
+      return [];
+    }
+  }
+
+  /** Instalações por cidade — marcadores "bundle" do mapa. */
+  getInstanceMarkers(): Array<{ city: string; country: string; lat: number; lng: number; count: number }> {
+    if (!this.db) return [];
+    try {
+      return this.db
+        .prepare(
+          `SELECT city, country, AVG(lat) AS lat, AVG(lng) AS lng, COUNT(*) AS count
+           FROM instances WHERE NOT (lat = 0 AND lng = 0)
+           GROUP BY country, city ORDER BY count DESC`
+        )
+        .all() as any[];
+    } catch (err) {
+      console.error('[analytics] getInstanceMarkers error:', err);
+      return [];
     }
   }
 

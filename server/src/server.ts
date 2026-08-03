@@ -522,14 +522,20 @@ export async function createServer() {
 
   app.get<{ Querystring: { period?: string } }>('/master/stats', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
-    return analyticsStore.getStats(roomManager.roomCount(), request.query.period);
+    return {
+      ...analyticsStore.getStats(roomManager.roomCount(), request.query.period),
+      bundle: analyticsStore.getBundleSummary()
+    };
   });
 
   app.get<{ Querystring: { limit?: string; offset?: string } }>('/master/sessions', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
     const limit = Math.min(100, Math.max(1, Number(request.query.limit) || 20));
     const offset = Math.max(0, Number(request.query.offset) || 0);
-    return { sessions: analyticsStore.getRecentSessions(limit, offset) };
+    return {
+      sessions: analyticsStore.getRecentSessions(limit, offset),
+      bundleSessions: analyticsStore.getBundleSessions(limit)
+    };
   });
 
   app.get<{ Querystring: { period?: string } }>('/master/geo', async (request, reply) => {
@@ -539,12 +545,18 @@ export async function createServer() {
 
   app.get<{ Querystring: { period?: string } }>('/master/geo-markers', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
-    return { markers: analyticsStore.getGeoMarkers(request.query.period) };
+    return {
+      markers: analyticsStore.getGeoMarkers(request.query.period),
+      bundleMarkers: analyticsStore.getInstanceMarkers()
+    };
   });
 
   app.get<{ Querystring: { period?: string } }>('/master/timeline', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
-    return { timeline: analyticsStore.getTimeline(request.query.period) };
+    return {
+      timeline: analyticsStore.getTimeline(request.query.period),
+      bundleTimeline: analyticsStore.getBundleTimeline(request.query.period)
+    };
   });
 
   app.get('/master/hourly', async (request, reply) => {
@@ -618,6 +630,7 @@ export async function createServer() {
       const s = item as Record<string, any> | null;
       if (!s?.instanceId || typeof s.instanceId !== 'string') continue;
       analyticsStore.upsertHeartbeat({
+        ip: extractIp(request),
         instanceId: s.instanceId.slice(0, 64),
         appVersion: String(s.appVersion ?? '').slice(0, 32),
         platform: String(s.platform ?? '').slice(0, 32),
@@ -735,7 +748,16 @@ export async function createServer() {
     // Além dos sockets de sala, inclui quem navega no site (page_view nos
     // últimos 5min, um por IP hasheado) — visão "ao vivo" completa.
     const siteVisitors = analyticsStore.getRecentSiteVisitors(5);
-    return { visitors, count: visitors.length, siteVisitors, siteCount: siteVisitors.length };
+    // Bundles "no ar" (heartbeat < 10 min) entram no ao-vivo com rótulo próprio
+    const bundleInstances = analyticsStore.getOnlineBundleInstances();
+    return {
+      visitors,
+      count: visitors.length,
+      siteVisitors,
+      siteCount: siteVisitors.length,
+      bundleInstances,
+      bundleCount: bundleInstances.length
+    };
   });
 
   app.get<{ Querystring: { period?: string } }>('/master/pages', async (request, reply) => {
