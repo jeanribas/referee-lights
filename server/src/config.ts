@@ -17,5 +17,7 @@ export const config = {
   TELEMETRY_ENABLED: (process.env.TELEMETRY_ENABLED ?? 'true') === 'true',
   // GeoLite2 baixa ~70MB no primeiro boot; desligado no bundle Windows (LAN)
   GEO_ENABLED: (process.env.GEO_ENABLED ?? 'true') === 'true',
-  KEY_RELAY_AVAILABLE: (process.env.KEY_RELAY_AVAILABLE ?? 'false') === 'true'
+  KEY_RELAY_AVAILABLE: (process.env.KEY_RELAY_AVAILABLE ?? 'false') === 'true',
+  // Sala sem atividade por este tempo é arquivada (código volta ao pool)
+  ROOM_TTL_HOURS: Number(process.env.ROOM_TTL_HOURS ?? 24)
 };

@@ -107,7 +107,22 @@ describe('ingestão de telemetria dos filhos', () => {
       url: '/telemetry/heartbeat',
       payload: {
         samples: [
-          { instanceId: INSTANCE, appVersion: '1.2.3', platform: 'win32', arch: 'x64', nodeVersion: 'v22.23.2', uptimeSeconds: 300, timestamp: new Date().toISOString() }
+          {
+            instanceId: INSTANCE,
+            appVersion: '1.2.3',
+            platform: 'win32',
+            arch: 'x64',
+            nodeVersion: 'v22.23.2',
+            uptimeSeconds: 300,
+            timestamp: new Date().toISOString(),
+            stats: {
+              activeRooms: 1,
+              totalSessions: 3,
+              totalConnections: 9,
+              uniqueIps: 4,
+              rooms: [{ id: 'VMRM', createdAt: Date.now(), connectedJudges: 2, phase: 'idle' }]
+            }
+          }
         ]
       }
     });
@@ -151,6 +166,10 @@ describe('leitura pelo master', () => {
     const online = (await app.inject({ method: 'GET', url: '/master/online', headers: auth })).json();
     expect(online.bundleCount).toBeGreaterThanOrEqual(1);
     expect(online.bundleInstances[0].instance_id).toBe(INSTANCE);
+    // granularidade por sala: o master vê a sala do bundle como vê as online
+    expect(online.bundleInstances[0].rooms).toEqual([
+      expect.objectContaining({ id: 'VMRM', connectedJudges: 2, phase: 'idle' })
+    ]);
 
     const timeline = (await app.inject({ method: 'GET', url: '/master/timeline?period=today', headers: auth })).json();
     const today = timeline.bundleTimeline.at(-1);

@@ -170,10 +170,28 @@ export async function createServer() {
       });
     }
     lastPhaseByRoom.set(roomId, snap.phase);
+  }, {
+    ttlMs: config.ROOM_TTL_HOURS * 3600_000,
+    onExpire: (roomId) => {
+      // Arquiva: fecha a sessão no analytics e derruba os sockets restantes —
+      // clientes órfãos recebem room_not_found na próxima ação e recomeçam.
+      const sessionId = sessionMap.get(roomId);
+      if (sessionId != null) {
+        analyticsStore.closeSession(sessionId);
+        sessionMap.delete(roomId);
+      }
+      lastPhaseByRoom.delete(roomId);
+      telemetry.trackRoomArchived(roomId);
+      io.in(roomChannel(roomId)).disconnectSockets(true);
+      app.log.info(`sala ${roomId} arquivada por inatividade`);
+    }
   });
   const analyticsStore = new AnalyticsStore(config.ANALYTICS_DB_PATH);
   const telemetry = new Telemetry(config.TELEMETRY_URL, config.TELEMETRY_ENABLED, readAppVersion());
-  telemetry.setStatsProvider(() => analyticsStore.getStats(roomManager.roomCount()));
+  telemetry.setStatsProvider(() => ({
+    ...analyticsStore.getStats(roomManager.roomCount()),
+    rooms: roomManager.listRooms()
+  }));
   const sessionMap = new Map<string, number>();
 
   function extractIp(request: { ip: string; headers: Record<string, string | string[] | undefined> }): string {
@@ -524,7 +542,7 @@ export async function createServer() {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
     return {
       ...analyticsStore.getStats(roomManager.roomCount(), request.query.period),
-      bundle: analyticsStore.getBundleSummary()
+      bundle: analyticsStore.getBundleSummary(telemetry.instanceId)
     };
   });
 
@@ -534,7 +552,7 @@ export async function createServer() {
     const offset = Math.max(0, Number(request.query.offset) || 0);
     return {
       sessions: analyticsStore.getRecentSessions(limit, offset),
-      bundleSessions: analyticsStore.getBundleSessions(limit)
+      bundleSessions: analyticsStore.getBundleSessions(limit, telemetry.instanceId)
     };
   });
 
@@ -547,7 +565,7 @@ export async function createServer() {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
     return {
       markers: analyticsStore.getGeoMarkers(request.query.period),
-      bundleMarkers: analyticsStore.getInstanceMarkers()
+      bundleMarkers: analyticsStore.getInstanceMarkers(telemetry.instanceId)
     };
   });
 
@@ -555,7 +573,7 @@ export async function createServer() {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
     return {
       timeline: analyticsStore.getTimeline(request.query.period),
-      bundleTimeline: analyticsStore.getBundleTimeline(request.query.period)
+      bundleTimeline: analyticsStore.getBundleTimeline(request.query.period, telemetry.instanceId)
     };
   });
 
@@ -749,7 +767,7 @@ export async function createServer() {
     // últimos 5min, um por IP hasheado) — visão "ao vivo" completa.
     const siteVisitors = analyticsStore.getRecentSiteVisitors(5);
     // Bundles "no ar" (heartbeat < 10 min) entram no ao-vivo com rótulo próprio
-    const bundleInstances = analyticsStore.getOnlineBundleInstances();
+    const bundleInstances = analyticsStore.getOnlineBundleInstances(telemetry.instanceId);
     return {
       visitors,
       count: visitors.length,

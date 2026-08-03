@@ -204,6 +204,15 @@ export class AnalyticsStore {
         `);
         console.log('[analytics] migração 4: geo da instalação em instances');
       }
+      // Migração 5: salas abertas agora em cada instalação (JSON do último
+      // heartbeat) — granularidade igual à do online no painel.
+      if (version < 5) {
+        this.db!.exec(`
+          ALTER TABLE instances ADD COLUMN rooms_json TEXT NOT NULL DEFAULT '[]';
+          PRAGMA user_version = 5;
+        `);
+        console.log('[analytics] migração 5: rooms_json em instances');
+      }
       // Retenção: eventos por sala têm valor operacional por meses, não anos.
       // Limpa na inicialização para o banco não crescer sem limite.
       this.db!.exec(`DELETE FROM instance_events WHERE received_at < datetime('now', '-180 days')`);
@@ -388,6 +397,18 @@ export class AnalyticsStore {
     }
   }
 
+  /** Marca a sessão como encerrada (sala arquivada por inatividade ou fim de uso). */
+  closeSession(sessionId: number): void {
+    if (!this.db) return;
+    try {
+      this.db
+        .prepare(`UPDATE sessions SET closed_at = datetime('now') WHERE id = ? AND closed_at IS NULL`)
+        .run(sessionId);
+    } catch (err) {
+      console.error('[analytics] closeSession error:', err);
+    }
+  }
+
   getRecentSessions(limit: number, offset: number): SessionRow[] {
     if (!this.db) return [];
     try {
@@ -519,7 +540,13 @@ export class AnalyticsStore {
     arch: string;
     nodeVersion: string;
     uptimeSeconds: number;
-    stats: { activeRooms: number; totalSessions: number; totalConnections: number; uniqueIps: number } | null;
+    stats: {
+      activeRooms: number;
+      totalSessions: number;
+      totalConnections: number;
+      uniqueIps: number;
+      rooms?: Array<{ id: string; createdAt: number; connectedJudges: number; phase: string }>;
+    } | null;
     /** Momento em que a amostra foi tirada na origem (pode chegar atrasada pela fila offline). */
     sampledAt?: string;
     /** IP público de origem do heartbeat — vira geo da instalação, nunca é gravado cru. */
@@ -574,6 +601,14 @@ export class AnalyticsStore {
           .run(data.instanceId, data.appVersion ?? '', data.platform, data.arch, data.nodeVersion, data.uptimeSeconds);
       }
 
+      // Salas abertas agora (estado atual, substitui o anterior a cada amostra)
+      if (data.stats) {
+        const rooms = Array.isArray(data.stats.rooms) ? data.stats.rooms.slice(0, 20) : [];
+        this.db
+          .prepare('UPDATE instances SET rooms_json = ? WHERE instance_id = ?')
+          .run(JSON.stringify(rooms).slice(0, 4000), data.instanceId);
+      }
+
       // Geo da instalação a partir do IP de origem (o IP em si não é gravado)
       if (data.ip) {
         const geo = this.resolveGeo(data.ip);
@@ -607,7 +642,7 @@ export class AnalyticsStore {
   }
 
   /** Resumo agregado das instalações (bundles) — alimenta o split online × bundle. */
-  getBundleSummary(): {
+  getBundleSummary(excludeInstanceId = ''): {
     instances: number;
     onlineInstances: number;
     sessions: number;
@@ -615,6 +650,9 @@ export class AnalyticsStore {
     decisions: number;
     errors: number;
   } {
+    // excludeInstanceId = a instância do PRÓPRIO servidor central, que também
+    // se reporta — sem excluir, as sessões online seriam contadas de novo
+    // como "bundle".
     const zero = { instances: 0, onlineInstances: 0, sessions: 0, connections: 0, decisions: 0, errors: 0 };
     if (!this.db) return zero;
     try {
@@ -624,16 +662,16 @@ export class AnalyticsStore {
                   COALESCE(SUM(CASE WHEN last_seen >= datetime('now', '-10 minutes') THEN 1 ELSE 0 END), 0) AS onlineInstances,
                   COALESCE(SUM(total_sessions), 0) AS sessions,
                   COALESCE(SUM(total_connections), 0) AS connections
-           FROM instances`
+           FROM instances WHERE instance_id != ?`
         )
-        .get() as { instances: number; onlineInstances: number; sessions: number; connections: number };
+        .get(excludeInstanceId) as { instances: number; onlineInstances: number; sessions: number; connections: number };
       const ev = this.db
         .prepare(
           `SELECT COALESCE(SUM(CASE WHEN event_type = 'decision' THEN 1 ELSE 0 END), 0) AS decisions,
                   COALESCE(SUM(CASE WHEN event_type = 'error' THEN 1 ELSE 0 END), 0) AS errors
-           FROM instance_events`
+           FROM instance_events WHERE instance_id != ?`
         )
-        .get() as { decisions: number; errors: number };
+        .get(excludeInstanceId) as { decisions: number; errors: number };
       return { ...inst, ...ev };
     } catch (err) {
       console.error('[analytics] getBundleSummary error:', err);
@@ -642,7 +680,7 @@ export class AnalyticsStore {
   }
 
   /** Instalações com heartbeat nos últimos 10 min — o "ao vivo" dos bundles. */
-  getOnlineBundleInstances(): Array<{
+  getOnlineBundleInstances(excludeInstanceId = ''): Array<{
     instance_id: string;
     app_version: string;
     platform: string;
@@ -650,16 +688,24 @@ export class AnalyticsStore {
     country: string;
     city: string;
     last_seen: string;
+    rooms: Array<{ id: string; createdAt: number; connectedJudges: number; phase: string }>;
   }> {
     if (!this.db) return [];
     try {
-      return this.db
+      const rows = this.db
         .prepare(
-          `SELECT instance_id, app_version, platform, active_rooms, country, city, last_seen
-           FROM instances WHERE last_seen >= datetime('now', '-10 minutes')
+          `SELECT instance_id, app_version, platform, active_rooms, country, city, last_seen, rooms_json
+           FROM instances WHERE last_seen >= datetime('now', '-10 minutes') AND instance_id != ?
            ORDER BY last_seen DESC`
         )
-        .all() as any[];
+        .all(excludeInstanceId) as Array<Record<string, unknown>>;
+      return rows.map((r) => {
+        let rooms: Array<{ id: string; createdAt: number; connectedJudges: number; phase: string }> = [];
+        try { rooms = JSON.parse(String(r.rooms_json ?? '[]')); } catch { /* json inválido: lista vazia */ }
+        const rest = { ...r };
+        delete rest.rooms_json;
+        return { ...rest, rooms } as any;
+      });
     } catch (err) {
       console.error('[analytics] getOnlineBundleInstances error:', err);
       return [];
@@ -667,7 +713,7 @@ export class AnalyticsStore {
   }
 
   /** Sessões/conexões/decisões dos bundles por dia — série "bundle" da tendência. */
-  getBundleTimeline(period?: string): Array<{ date: string; sessions: number; connections: number; decisions: number }> {
+  getBundleTimeline(period?: string, excludeInstanceId = ''): Array<{ date: string; sessions: number; connections: number; decisions: number }> {
     if (!this.db) return [];
     try {
       const where = this.periodToSql(period).replaceAll('connected_at', 'received_at');
@@ -677,10 +723,10 @@ export class AnalyticsStore {
                   SUM(CASE WHEN event_type = 'session_created' THEN 1 ELSE 0 END) AS sessions,
                   SUM(CASE WHEN event_type = 'connection' THEN 1 ELSE 0 END) AS connections,
                   SUM(CASE WHEN event_type = 'decision' THEN 1 ELSE 0 END) AS decisions
-           FROM instance_events WHERE ${where}
+           FROM instance_events WHERE instance_id != ? AND ${where}
            GROUP BY date ORDER BY date ASC`
         )
-        .all() as any[];
+        .all(excludeInstanceId) as any[];
     } catch (err) {
       console.error('[analytics] getBundleTimeline error:', err);
       return [];
@@ -688,16 +734,16 @@ export class AnalyticsStore {
   }
 
   /** Sessões criadas dentro dos bundles (com a instância de origem). */
-  getBundleSessions(limit: number): Array<{ room_id: string | null; instance_id: string; created_at: string }> {
+  getBundleSessions(limit: number, excludeInstanceId = ''): Array<{ room_id: string | null; instance_id: string; created_at: string }> {
     if (!this.db) return [];
     try {
       return this.db
         .prepare(
           `SELECT room_id, instance_id, received_at AS created_at
-           FROM instance_events WHERE event_type = 'session_created'
+           FROM instance_events WHERE event_type = 'session_created' AND instance_id != ?
            ORDER BY id DESC LIMIT ?`
         )
-        .all(Math.min(100, Math.max(1, limit))) as any[];
+        .all(excludeInstanceId, Math.min(100, Math.max(1, limit))) as any[];
     } catch (err) {
       console.error('[analytics] getBundleSessions error:', err);
       return [];
@@ -705,16 +751,16 @@ export class AnalyticsStore {
   }
 
   /** Instalações por cidade — marcadores "bundle" do mapa. */
-  getInstanceMarkers(): Array<{ city: string; country: string; lat: number; lng: number; count: number }> {
+  getInstanceMarkers(excludeInstanceId = ''): Array<{ city: string; country: string; lat: number; lng: number; count: number }> {
     if (!this.db) return [];
     try {
       return this.db
         .prepare(
           `SELECT city, country, AVG(lat) AS lat, AVG(lng) AS lng, COUNT(*) AS count
-           FROM instances WHERE NOT (lat = 0 AND lng = 0)
+           FROM instances WHERE NOT (lat = 0 AND lng = 0) AND instance_id != ?
            GROUP BY country, city ORDER BY count DESC`
         )
-        .all() as any[];
+        .all(excludeInstanceId) as any[];
     } catch (err) {
       console.error('[analytics] getInstanceMarkers error:', err);
       return [];
