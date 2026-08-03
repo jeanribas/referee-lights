@@ -542,7 +542,7 @@ export async function createServer() {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
     return {
       ...analyticsStore.getStats(roomManager.roomCount(), request.query.period),
-      bundle: analyticsStore.getBundleSummary(telemetry.instanceId)
+      bundle: analyticsStore.getBundleSummary(telemetry.instanceId, request.query.period)
     };
   });
 
@@ -579,12 +579,18 @@ export async function createServer() {
 
   app.get('/master/hourly', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
-    return { hourly: analyticsStore.getHourlyDistribution() };
+    return {
+      hourly: analyticsStore.getHourlyDistribution(),
+      bundleHourly: analyticsStore.getBundleHourly(telemetry.instanceId)
+    };
   });
 
   app.get('/master/roles', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
-    return { roles: analyticsStore.getRoleBreakdown() };
+    return {
+      roles: analyticsStore.getRoleBreakdown(),
+      bundleRoles: analyticsStore.getBundleRoles(telemetry.instanceId)
+    };
   });
 
   app.get<{ Querystring: { period?: string } }>('/master/duration', async (request, reply) => {

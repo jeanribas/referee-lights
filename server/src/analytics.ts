@@ -642,36 +642,45 @@ export class AnalyticsStore {
   }
 
   /** Resumo agregado das instalações (bundles) — alimenta o split online × bundle. */
-  getBundleSummary(excludeInstanceId = ''): {
+  getBundleSummary(excludeInstanceId = '', period?: string): {
     instances: number;
     onlineInstances: number;
     sessions: number;
     connections: number;
     decisions: number;
     errors: number;
+    lifetimeSessions: number;
+    lifetimeConnections: number;
   } {
     // excludeInstanceId = a instância do PRÓPRIO servidor central, que também
     // se reporta — sem excluir, as sessões online seriam contadas de novo
     // como "bundle".
-    const zero = { instances: 0, onlineInstances: 0, sessions: 0, connections: 0, decisions: 0, errors: 0 };
+    const zero = {
+      instances: 0, onlineInstances: 0, sessions: 0, connections: 0,
+      decisions: 0, errors: 0, lifetimeSessions: 0, lifetimeConnections: 0
+    };
     if (!this.db) return zero;
     try {
       const inst = this.db
         .prepare(
           `SELECT COUNT(*) AS instances,
                   COALESCE(SUM(CASE WHEN last_seen >= datetime('now', '-10 minutes') THEN 1 ELSE 0 END), 0) AS onlineInstances,
-                  COALESCE(SUM(total_sessions), 0) AS sessions,
-                  COALESCE(SUM(total_connections), 0) AS connections
+                  COALESCE(SUM(total_sessions), 0) AS lifetimeSessions,
+                  COALESCE(SUM(total_connections), 0) AS lifetimeConnections
            FROM instances WHERE instance_id != ?`
         )
-        .get(excludeInstanceId) as { instances: number; onlineInstances: number; sessions: number; connections: number };
+        .get(excludeInstanceId) as { instances: number; onlineInstances: number; lifetimeSessions: number; lifetimeConnections: number };
+      // Recorte por período vem dos EVENTOS — mesma régua das métricas online
+      const where = this.periodToSql(period).replaceAll('connected_at', 'received_at');
       const ev = this.db
         .prepare(
-          `SELECT COALESCE(SUM(CASE WHEN event_type = 'decision' THEN 1 ELSE 0 END), 0) AS decisions,
+          `SELECT COALESCE(SUM(CASE WHEN event_type = 'session_created' THEN 1 ELSE 0 END), 0) AS sessions,
+                  COALESCE(SUM(CASE WHEN event_type = 'connection' THEN 1 ELSE 0 END), 0) AS connections,
+                  COALESCE(SUM(CASE WHEN event_type = 'decision' THEN 1 ELSE 0 END), 0) AS decisions,
                   COALESCE(SUM(CASE WHEN event_type = 'error' THEN 1 ELSE 0 END), 0) AS errors
-           FROM instance_events WHERE instance_id != ?`
+           FROM instance_events WHERE instance_id != ? AND ${where}`
         )
-        .get(excludeInstanceId) as { decisions: number; errors: number };
+        .get(excludeInstanceId) as { sessions: number; connections: number; decisions: number; errors: number };
       return { ...inst, ...ev };
     } catch (err) {
       console.error('[analytics] getBundleSummary error:', err);
@@ -729,6 +738,47 @@ export class AnalyticsStore {
         .all(excludeInstanceId) as any[];
     } catch (err) {
       console.error('[analytics] getBundleTimeline error:', err);
+      return [];
+    }
+  }
+
+  /** Conexões dos bundles por hora do dia — soma no "horário de pico". */
+  getBundleHourly(excludeInstanceId = ''): Array<{ hour: number; count: number }> {
+    const empty = Array.from({ length: 24 }, (_, i) => ({ hour: i, count: 0 }));
+    if (!this.db) return empty;
+    try {
+      const rows = this.db
+        .prepare(
+          `SELECT CAST(strftime('%H', received_at) AS INTEGER) AS hour, COUNT(*) AS count
+           FROM instance_events
+           WHERE event_type = 'connection' AND instance_id != ?
+             AND received_at >= datetime('now', '-30 days')
+           GROUP BY hour`
+        )
+        .all(excludeInstanceId) as Array<{ hour: number; count: number }>;
+      const map = new Map(rows.map((r) => [r.hour, r.count]));
+      return Array.from({ length: 24 }, (_, i) => ({ hour: i, count: map.get(i) ?? 0 }));
+    } catch (err) {
+      console.error('[analytics] getBundleHourly error:', err);
+      return empty;
+    }
+  }
+
+  /** Papéis conectados nos bundles (role vem do payload do evento). */
+  getBundleRoles(excludeInstanceId = ''): Array<{ role: string; count: number }> {
+    if (!this.db) return [];
+    try {
+      return this.db
+        .prepare(
+          `SELECT json_extract(payload, '$.role') AS role, COUNT(*) AS count
+           FROM instance_events
+           WHERE event_type = 'connection' AND instance_id != ?
+             AND json_extract(payload, '$.role') IS NOT NULL
+           GROUP BY role ORDER BY count DESC`
+        )
+        .all(excludeInstanceId) as Array<{ role: string; count: number }>;
+    } catch (err) {
+      console.error('[analytics] getBundleRoles error:', err);
       return [];
     }
   }

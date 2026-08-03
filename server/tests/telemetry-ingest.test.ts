@@ -157,11 +157,21 @@ describe('leitura pelo master', () => {
     const token = await masterToken();
     const auth = { authorization: `Bearer ${token}` };
 
-    const stats = (await app.inject({ method: 'GET', url: '/master/stats', headers: auth })).json();
+    const stats = (await app.inject({ method: 'GET', url: '/master/stats?period=today', headers: auth })).json();
     expect(stats.bundle.instances).toBeGreaterThanOrEqual(1);
-    expect(stats.bundle.sessions).toBe(3);
+    // recorte por período vem dos eventos; vida inteira vem dos contadores
+    expect(stats.bundle.sessions).toBe(1);
+    expect(stats.bundle.connections).toBe(1);
     expect(stats.bundle.decisions).toBe(1);
     expect(stats.bundle.errors).toBe(1);
+    expect(stats.bundle.lifetimeSessions).toBe(3);
+
+    const hourly = (await app.inject({ method: 'GET', url: '/master/hourly', headers: auth })).json();
+    expect(hourly.bundleHourly).toHaveLength(24);
+    expect(hourly.bundleHourly.reduce((a: number, r: { count: number }) => a + r.count, 0)).toBe(1);
+
+    const roles = (await app.inject({ method: 'GET', url: '/master/roles', headers: auth })).json();
+    expect(roles.bundleRoles).toEqual([{ role: 'judge-left', count: 1 }]);
 
     const online = (await app.inject({ method: 'GET', url: '/master/online', headers: auth })).json();
     expect(online.bundleCount).toBeGreaterThanOrEqual(1);
