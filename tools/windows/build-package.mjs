@@ -45,7 +45,13 @@ async function buildProjects() {
 
   console.log('\n🔨 Buildando frontend (standalone)...');
   run('npm install', { cwd: frontendDir });
-  run('npm run build', { cwd: frontendDir, env: { ...process.env, NEXT_DISABLE_ESLINT: '1' } });
+  run('npm run build', {
+    cwd: frontendDir,
+    // NEXT_PUBLIC_OFFLINE_BUNDLE tira Vercel Analytics e Clarity do build:
+    // em LAN sem internet eles não coletam nada, e o import estático do
+    // @vercel/analytics quebrava o SSR fora do ambiente de build (v1.3).
+    env: { ...process.env, NEXT_DISABLE_ESLINT: '1', NEXT_PUBLIC_OFFLINE_BUNDLE: '1' }
+  });
 }
 
 async function bundleServer() {
