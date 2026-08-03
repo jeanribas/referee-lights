@@ -170,9 +170,11 @@ export class AnalyticsStore {
         `);
         console.log('[analytics] migração 1: geo sem coordenadas zerado');
       }
-      // Migração 2: os eventos por sala (roomId, papel, hash de IP de
-      // competições de terceiros) nunca foram lidos por endpoint nenhum.
-      // Guardar dado que ninguém consulta é só passivo — descarta.
+      // Migração 2 (histórica, 02/ago/2026): apagou os eventos por sala já
+      // coletados. A decisão foi REVERTIDA no mesmo dia — premissa do produto
+      // é que os filhos reportem o máximo de dados de uso e o master consuma
+      // (/master/instances/:id/activity). A migração fica registrada porque
+      // já rodou em produção; num banco novo ela roda vazia.
       if (version < 2) {
         this.db!.exec(`
           DELETE FROM instance_events;
@@ -180,6 +182,9 @@ export class AnalyticsStore {
         `);
         console.log('[analytics] migração 2: eventos por sala descartados');
       }
+      // Retenção: eventos por sala têm valor operacional por meses, não anos.
+      // Limpa na inicialização para o banco não crescer sem limite.
+      this.db!.exec(`DELETE FROM instance_events WHERE received_at < datetime('now', '-180 days')`);
     } catch (err) {
       console.error('[analytics] migração user_version falhou:', err);
     }
@@ -497,32 +502,49 @@ export class AnalyticsStore {
   }): void {
     if (!this.db) return;
     try {
-      this.db
-        .prepare(
-          `INSERT INTO instances (instance_id, platform, arch, node_version, uptime_seconds, active_rooms, total_sessions, total_connections, unique_ips, first_seen, last_seen)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-          ON CONFLICT(instance_id) DO UPDATE SET
-            platform = excluded.platform,
-            arch = excluded.arch,
-            node_version = excluded.node_version,
-            uptime_seconds = excluded.uptime_seconds,
-            active_rooms = excluded.active_rooms,
-            total_sessions = excluded.total_sessions,
-            total_connections = excluded.total_connections,
-            unique_ips = excluded.unique_ips,
-            last_seen = datetime('now')`
-        )
-        .run(
-          data.instanceId,
-          data.platform,
-          data.arch,
-          data.nodeVersion,
-          data.uptimeSeconds,
-          data.stats?.activeRooms ?? 0,
-          data.stats?.totalSessions ?? 0,
-          data.stats?.totalConnections ?? 0,
-          data.stats?.uniqueIps ?? 0
-        );
+      // Amostra sem stats (payload degenerado ou remetente antigo) não pode
+      // ZERAR os contadores já conhecidos — atualiza só metadados e uptime.
+      if (data.stats) {
+        this.db
+          .prepare(
+            `INSERT INTO instances (instance_id, platform, arch, node_version, uptime_seconds, active_rooms, total_sessions, total_connections, unique_ips, first_seen, last_seen)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            ON CONFLICT(instance_id) DO UPDATE SET
+              platform = excluded.platform,
+              arch = excluded.arch,
+              node_version = excluded.node_version,
+              uptime_seconds = excluded.uptime_seconds,
+              active_rooms = excluded.active_rooms,
+              total_sessions = excluded.total_sessions,
+              total_connections = excluded.total_connections,
+              unique_ips = excluded.unique_ips,
+              last_seen = datetime('now')`
+          )
+          .run(
+            data.instanceId,
+            data.platform,
+            data.arch,
+            data.nodeVersion,
+            data.uptimeSeconds,
+            data.stats.activeRooms ?? 0,
+            data.stats.totalSessions ?? 0,
+            data.stats.totalConnections ?? 0,
+            data.stats.uniqueIps ?? 0
+          );
+      } else {
+        this.db
+          .prepare(
+            `INSERT INTO instances (instance_id, platform, arch, node_version, uptime_seconds, first_seen, last_seen)
+            VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            ON CONFLICT(instance_id) DO UPDATE SET
+              platform = excluded.platform,
+              arch = excluded.arch,
+              node_version = excluded.node_version,
+              uptime_seconds = excluded.uptime_seconds,
+              last_seen = datetime('now')`
+          )
+          .run(data.instanceId, data.platform, data.arch, data.nodeVersion, data.uptimeSeconds);
+      }
 
       // A tabela `instances` é upsert: só guarda o estado atual. O histórico
       // vive aqui, e é o que permite responder "quanto esta instalação foi
@@ -543,6 +565,34 @@ export class AnalyticsStore {
         );
     } catch (err) {
       console.error('[analytics] upsertHeartbeat error:', err);
+    }
+  }
+
+  /** Atividade de uma instância: eventos por sala + histórico de heartbeat. */
+  getInstanceActivity(instanceId: string): {
+    events: Array<{ event_type: string; room_id: string | null; event_ts: string | null; received_at: string }>;
+    samples: Array<{ active_rooms: number; total_sessions: number; total_connections: number; unique_ips: number; uptime_seconds: number; sampled_at: string }>;
+  } {
+    if (!this.db) return { events: [], samples: [] };
+    try {
+      const events = this.db
+        .prepare(
+          `SELECT event_type, room_id, event_ts, received_at
+           FROM instance_events WHERE instance_id = ?
+           ORDER BY id DESC LIMIT 200`
+        )
+        .all(instanceId) as any[];
+      const samples = this.db
+        .prepare(
+          `SELECT active_rooms, total_sessions, total_connections, unique_ips, uptime_seconds, sampled_at
+           FROM instance_samples WHERE instance_id = ?
+           ORDER BY id DESC LIMIT 288`
+        )
+        .all(instanceId) as any[];
+      return { events, samples };
+    } catch (err) {
+      console.error('[analytics] getInstanceActivity error:', err);
+      return { events: [], samples: [] };
     }
   }
 

@@ -8,7 +8,8 @@
     "build": "node scripts/build.js",
     "start": "node dist/index.js",
     "lint": "eslint \"src/**/*.ts\" --max-warnings=0",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",
@@ -30,6 +31,7 @@
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.9.6",
     "tsx": "^4.23.1",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
   }
 }

@@ -544,15 +544,35 @@ export async function createServer() {
   // --- Telemetry Endpoints (receive from all instances) ---
 
   app.post('/telemetry/events', async (request, reply) => {
-    // Compat com bundles anteriores à 1.3.1, que ainda enviam eventos por
-    // sala (roomId, papel, hash de IP). Aceitamos para não encher a fila em
-    // disco deles, mas NÃO gravamos: esse dado identificava competições de
-    // terceiros e nada o consumia. O uso das instalações vem do heartbeat.
+    // Premissa do produto: os filhos (bundles) reportam o máximo de dados de
+    // uso possível, e o master consome. Eventos por sala (session_created,
+    // connection, disconnection — com roomId, papel e hash de IP, nunca IP
+    // cru nem nomes) são gravados em instance_events e lidos em
+    // /master/instances/:id/activity.
     if (!rateLimitOk(`tel:${extractIp(request)}`, 60, 60_000)) {
       reply.code(429);
       return { error: 'rate_limited' };
     }
-    return { ok: true, stored: 0 };
+    const body = request.body as { events?: unknown } | null;
+    const events = Array.isArray(body?.events) ? body.events.slice(0, 100) : [];
+    const valid = events.filter(
+      (e): e is { instanceId: string; event: string; data?: Record<string, unknown>; timestamp?: string } =>
+        typeof e === 'object' &&
+        e !== null &&
+        typeof (e as Record<string, unknown>).instanceId === 'string' &&
+        typeof (e as Record<string, unknown>).event === 'string'
+    );
+    if (valid.length === 0) return { ok: true, stored: 0 };
+    const stored = analyticsStore.recordInstanceEvents(
+      valid.map((e) => ({
+        instanceId: e.instanceId.slice(0, 64),
+        event: e.event.slice(0, 64),
+        roomId: typeof e.data?.roomId === 'string' ? e.data.roomId.slice(0, 16) : undefined,
+        data: e.data,
+        timestamp: typeof e.timestamp === 'string' ? e.timestamp.slice(0, 32) : undefined
+      }))
+    );
+    return { ok: true, stored };
   });
 
   app.post('/telemetry/heartbeat', async (request, reply) => {
@@ -589,6 +609,13 @@ export async function createServer() {
   app.get('/master/instances', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
     return { instances: analyticsStore.getInstances() };
+  });
+
+  app.get<{ Params: { id: string } }>('/master/instances/:id/activity', async (request, reply) => {
+    if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
+    const id = String(request.params.id ?? '').slice(0, 64);
+    if (!id) { reply.code(400); return { error: 'missing_instance_id' }; }
+    return analyticsStore.getInstanceActivity(id);
   });
 
   app.post<{ Body: { url?: string } }>('/track/click', async (request, reply) => {
