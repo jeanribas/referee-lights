@@ -1,6 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  // Embute as dependências nos chunks do servidor em vez de externalizá-las.
+  // O runtime do Turbopack resolvia externals por um alias hasheado
+  // (`react-qr-code-<hash>`, `@vercel/analytics-<hash>`) que falhava com
+  // ERR_MODULE_NOT_FOUND no bundle Windows portátil (v1.3/v1.3.1) — o SSR
+  // caía com 500. Com tudo embutido não há resolução em runtime para falhar.
+  bundlePagesRouterDependencies: true,
   i18n: {
     locales: ['pt-BR', 'en-US', 'es-ES'],
     defaultLocale: 'pt-BR'

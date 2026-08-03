@@ -318,7 +318,7 @@ echo   O Key Relay pode ser ativado pelo painel admin.
 echo  ========================================================
 echo.
 
-start "" "http://localhost:3000"
+start "" "http://localhost:3000/admin"
 
 echo  Pressione qualquer tecla para encerrar tudo.
 pause >nul
