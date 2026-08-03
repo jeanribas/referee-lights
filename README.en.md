@@ -4,7 +4,7 @@
 
 [Português](README.md) · English · [Español](README.es.md)
 
-Complete referee light system for Powerlifting competitions following IPF rules. Version **1.3** brings GeoLite2 geolocation, telemetry with an offline queue, and the CSS fixes from the Tailwind v4 migration. Five web interfaces share the same real-time state via Socket.IO and can be opened on different devices:
+Complete referee light system for Powerlifting competitions following IPF rules. Version **1.3** brings GeoLite2 geolocation, better reliability on offline networks, and the CSS fixes from the Tailwind v4 migration. Five web interfaces share the same real-time state via Socket.IO and can be opened on different devices:
 
 - `/` – admin panel that creates/resumes sessions, generates QR codes, controls the timer, and monitors the platform state
 - `/display` – full-screen display with the three lights, countdown timer, interval alerts, and cooldown badges
@@ -19,10 +19,8 @@ Each session has a `roomId` and an admin PIN. The panel automatically generates 
 ## What's new in 1.3
 
 - **Geolocation via GeoLite2 (MaxMind)** – replaces `geoip-lite`, which misclassified Brazilian IP ranges as other countries. Legacy records without coordinates were cleared, since a country with no lat/lng cannot be verified
-- **Telemetry with an offline queue** – events that fail to send are persisted to disk (up to 500) and retried when connectivity returns, so competitions run on an offline LAN no longer lose data. Hardened auth: tokens are now signed with a dedicated key, separate from the password
 - **Node 22 in the Windows package and Docker** – `better-sqlite3` 12 requires ABI 127
 - **CSS fixes from the Tailwind v4 migration** – palette pinned to the v3 hex values (v4 redefined colors in OKLCH and, on P3 displays, the referee lights rendered oversaturated); button cursor and placeholder color restored; element rules moved into `@layer base`, which brought link colors back
-- **Telemetry endpoint moved** to `api.refereelights.app`. The previous address stays live — already-distributed installs have no upgrade path
 
 
 ## Screenshots
@@ -78,7 +76,6 @@ Open `http://localhost:3000` and navigate to the desired route.
 | `PORT` | Server port | `3333` |
 | `CORS_ORIGIN` | Allowed origins | — |
 | `LOG_LEVEL` | Log level (debug, info, warn, error) | `info` |
-| `TELEMETRY_ENABLED` | Enable/disable telemetry | `true` |
 | `ANALYTICS_DB_PATH` | Analytics database path | `data/analytics.db` |
 
 ## Admin panel (`/`, also `/admin`)

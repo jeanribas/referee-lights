@@ -59,6 +59,21 @@ describe('ingestão de telemetria dos filhos', () => {
     expect(res.json()).toMatchObject({ ok: true, stored: 2 });
   });
 
+  it('grava eventos de decisão e de erro (uso e falhas são dados de primeira classe)', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/telemetry/events',
+      payload: {
+        events: [
+          { instanceId: INSTANCE, event: 'decision', data: { roomId: 'ROOM01', white: 2, red: 1 } },
+          { instanceId: INSTANCE, event: 'error', data: { context: 'uncaughtException', message: 'boom' } }
+        ]
+      }
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ ok: true, stored: 2 });
+  });
+
   it('ignora eventos malformados sem derrubar o lote', async () => {
     const res = await app.inject({
       method: 'POST',
@@ -117,7 +132,7 @@ describe('leitura pelo master', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     const types = body.events.map((e: { event_type: string }) => e.event_type).sort();
-    expect(types).toEqual(['connection', 'disconnection', 'session_created']);
+    expect(types).toEqual(['connection', 'decision', 'disconnection', 'error', 'session_created']);
     const withRoom = body.events.find((e: { event_type: string }) => e.event_type === 'session_created');
     expect(withRoom.room_id).toBe('ROOM01');
     expect(body.samples.length).toBeGreaterThanOrEqual(2);

@@ -34,11 +34,6 @@ promover a Latest. Nunca publicar mais de uma versão sem testar a anterior.
   `frontend/src/lib/config.ts`). Um `.env.local` esquecido quebra o pacote.
 - Buildando o bundle do macOS, os binários nativos precisam ser forçados para
   win-x64 (`npm_config_platform/arch/target`) — o script já faz.
-- Telemetria: os filhos (bundles) reportam o máximo de dados de uso — é
-  premissa do produto. Heartbeat a cada 5 min e eventos por sala a cada 30s
-  vão para a API central (`TELEMETRY_URL`), que grava tudo (formatos antigo
-  e novo). Nunca descartar dados dos filhos na ingestão; o que não sai da
-  máquina do usuário: IP cru, nomes e decisões de arbitragem (ver LEIA-ME).
 - `KEY_RELAY_AVAILABLE=true` no `.env` do server é o que exibe o toggle do
   Key Relay no admin.
 

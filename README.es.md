@@ -4,7 +4,7 @@
 
 [Português](README.md) · [English](README.en.md) · Español
 
-Plataforma completa de luces de arbitraje para competiciones de Powerlifting siguiendo las reglas de la IPF. La versión **1.3** incorpora geolocalización con GeoLite2, telemetría con cola sin conexión y las correcciones de CSS de la migración a Tailwind v4. Cinco interfaces web comparten el mismo estado en tiempo real mediante Socket.IO y pueden abrirse en distintos dispositivos:
+Plataforma completa de luces de arbitraje para competiciones de Powerlifting siguiendo las reglas de la IPF. La versión **1.3** incorpora geolocalización con GeoLite2, mayor fiabilidad en redes sin internet y las correcciones de CSS de la migración a Tailwind v4. Cinco interfaces web comparten el mismo estado en tiempo real mediante Socket.IO y pueden abrirse en distintos dispositivos:
 
 - `/` – panel administrativo que crea/recupera sesiones, genera códigos QR, controla el temporizador y sigue el estado de la plataforma
 - `/display` – pantalla a tamaño completo con las tres luces, cronómetro, intervalo y badges de cooldown
@@ -19,10 +19,8 @@ Cada sesión tiene `roomId` y PIN administrativo. El panel genera automáticamen
 ## Novedades de la 1.3
 
 - **Geolocalización con GeoLite2 (MaxMind)** – sustituye a `geoip-lite`, que clasificaba rangos de IP brasileños como otros países. Se limpiaron los registros antiguos sin coordenadas, ya que un país sin lat/lng no es verificable
-- **Telemetría con cola sin conexión** – los eventos que fallan al enviarse se guardan en disco (hasta 500) y se reenvían cuando vuelve la conexión; las competiciones en LAN sin internet ya no pierden datos. Autenticación reforzada: los tokens se firman con una clave dedicada, separada de la contraseña
 - **Node 22 en el paquete Windows y en Docker** – `better-sqlite3` 12 exige ABI 127
 - **Correcciones de CSS de la migración a Tailwind v4** – paleta fijada a los hex de la v3 (la v4 redefinió los colores en OKLCH y, en pantallas P3, las luces de los jueces se renderizaban más saturadas); cursor de botón y color de placeholder restaurados; reglas de elemento movidas a `@layer base`, lo que devolvió el color correcto a los enlaces
-- **Endpoint de telemetría migrado** a `api.refereelights.app`. La dirección anterior sigue activa — las instalaciones ya distribuidas no tienen ruta de actualización
 
 
 ## Capturas
@@ -78,7 +76,6 @@ Ingrese a `http://localhost:3000` y navegue a la ruta deseada.
 | `PORT` | Puerto del servidor | `3333` |
 | `CORS_ORIGIN` | Orígenes permitidos | — |
 | `LOG_LEVEL` | Nivel de log (debug, info, warn, error) | `info` |
-| `TELEMETRY_ENABLED` | Activar/desactivar telemetría | `true` |
 | `ANALYTICS_DB_PATH` | Ruta de la base de datos analítica | `data/analytics.db` |
 
 ## Panel admin (`/`, también `/admin`)

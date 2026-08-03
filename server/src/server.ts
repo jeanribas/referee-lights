@@ -1,5 +1,6 @@
 import fastifyCors from '@fastify/cors';
 import Fastify from 'fastify';
+import { readFileSync } from 'node:fs';
 import { Server as SocketIOServer, type Socket } from 'socket.io';
 
 import { lookupGeo } from './geo.js';
@@ -116,6 +117,16 @@ function isJudge(role: Role): role is Judge {
   return (JUDGE_ROLES as string[]).includes(role);
 }
 
+/** Versão do pacote (server/package.json) — vai no heartbeat da telemetria. */
+function readAppVersion(): string {
+  try {
+    const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+    return typeof pkg.version === 'string' ? pkg.version : '';
+  } catch {
+    return '';
+  }
+}
+
 export async function createServer() {
   const app = Fastify({
     logger: {
@@ -144,12 +155,24 @@ export async function createServer() {
   const keyRelay = new KeyRelay();
   const keyRelayAvailable = config.KEY_RELAY_AVAILABLE;
 
+  const lastPhaseByRoom = new Map<string, string>();
   const roomManager = new RoomManager((roomId, snapshot) => {
     io.to(roomChannel(roomId)).emit('state:update', snapshot);
-    keyRelay.onStateUpdate(roomId, snapshot as { phase: string; votes: Record<string, string | null> });
+    const snap = snapshot as { phase: string; votes: Record<string, string | null> };
+    keyRelay.onStateUpdate(roomId, snap);
+    // Transição para 'revealed' = uma decisão concluída. Conta os cartões de
+    // forma agregada — dado central de uso do produto.
+    if (snap.phase === 'revealed' && lastPhaseByRoom.get(roomId) !== 'revealed') {
+      const values = Object.values(snap.votes ?? {});
+      telemetry.trackDecision(roomId, {
+        white: values.filter((v) => v === 'white').length,
+        red: values.filter((v) => v != null && v !== 'white').length
+      });
+    }
+    lastPhaseByRoom.set(roomId, snap.phase);
   });
   const analyticsStore = new AnalyticsStore(config.ANALYTICS_DB_PATH);
-  const telemetry = new Telemetry(config.TELEMETRY_URL, config.TELEMETRY_ENABLED);
+  const telemetry = new Telemetry(config.TELEMETRY_URL, config.TELEMETRY_ENABLED, readAppVersion());
   telemetry.setStatsProvider(() => analyticsStore.getStats(roomManager.roomCount()));
   const sessionMap = new Map<string, number>();
 
@@ -184,6 +207,7 @@ export async function createServer() {
     const data = roomManager.createRoom();
     const sessionId = analyticsStore.logSessionCreated(data.roomId, data.adminPin);
     if (sessionId !== null) sessionMap.set(data.roomId, sessionId);
+    telemetry.trackSessionCreated(data.roomId);
     analyticsStore.logAccess('room_created', data.roomId, extractIp(request));
     reply.code(201);
     return data;
@@ -305,6 +329,7 @@ export async function createServer() {
         clientHost
       );
       if (connId !== null) socket.data.connectionId = connId;
+      telemetry.trackConnection(payload.roomId, payload.role, socketIp(socket));
 
       ack?.({ ok: true });
       socket.emit('state:update', state.getSnapshot());
@@ -464,6 +489,7 @@ export async function createServer() {
         state?.setConnected(judgeRole, false);
       }
       if (connectionId) analyticsStore.logDisconnection(connectionId);
+      telemetry.trackDisconnection(roomId ?? '', socket.data.role ?? '');
     });
   });
 
@@ -749,6 +775,29 @@ export async function createServer() {
     keyRelay.stop();
     return { ok: true };
   });
+
+  // Erros são dado de primeira classe na telemetria: saber ONDE o app quebra
+  // orienta correções. Rastreia e mantém a resposta padrão do Fastify.
+  app.setErrorHandler((error, request, reply) => {
+    telemetry.trackError(`http ${request.method} ${request.url}`, String((error as Error)?.message ?? error));
+    request.log.error(error);
+    reply.send(error);
+  });
+
+  const g = globalThis as { __rlProcessErrorHooks?: boolean };
+  if (!g.__rlProcessErrorHooks) {
+    g.__rlProcessErrorHooks = true;
+    process.on('uncaughtException', (err) => {
+      telemetry.trackError('uncaughtException', String((err as Error)?.message ?? err));
+      telemetry.persistNow();
+      console.error('[fatal]', err);
+      process.exit(1);
+    });
+    process.on('unhandledRejection', (reason) => {
+      telemetry.trackError('unhandledRejection', String(reason));
+      telemetry.persistNow();
+    });
+  }
 
   return app;
 }

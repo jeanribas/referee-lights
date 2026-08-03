@@ -1,11 +1,19 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { getInstanceId } from './instance-id.js';
 
-/** Uma amostra periódica do estado da instância — nada por sala, nada por pessoa. */
+interface TelemetryEvent {
+  event: string;
+  data: Record<string, unknown>;
+  timestamp: string;
+  instanceId: string;
+}
+
 interface HeartbeatSample {
   instanceId: string;
+  appVersion: string;
   platform: string;
   arch: string;
   nodeVersion: string;
@@ -22,52 +30,71 @@ export interface InstanceSnapshot {
 }
 
 /**
- * Privacy-first telemetry.
+ * Telemetria dos filhos para o master — premissa do produto: reportar o
+ * máximo de dados de uso possível. Sai daqui:
+ *  - eventos por sala (sessão criada, conexão, desconexão) a cada 30s;
+ *  - heartbeat com contadores agregados a cada 5 min.
+ * Nunca sai: IP cru (só hash irreversível), nomes, decisões de arbitragem.
+ * Desligável com TELEMETRY_ENABLED=false (declarado no LEIA-ME do bundle).
  *
- * - Can be disabled via TELEMETRY_ENABLED=false
- * - Only aggregated, non-identifying stats leave the process
- * - Instance ID is a random UUID — not tied to any person
+ * Store-and-forward: sem internet (competição em LAN), eventos e amostras
+ * ficam em fila persistida em data/telemetry-queue.json e são reenviados
+ * quando a conexão voltar. Filas limitadas (descartam o mais antigo) para
+ * nunca crescer sem limite.
  *
- * Desde a 1.3.1 não saem mais eventos por sala (roomId, papel, hash de IP):
- * eles identificavam competições de terceiros e nada os lia do outro lado.
- * O que sobe é a amostra periódica de contadores — que responde "esta
- * instalação está sendo usada, quanto e quando" sem falar de ninguém.
- *
- * Store-and-forward: eventos que falham no envio (bundle offline em LAN)
- * voltam para a fila, são persistidos em data/telemetry-queue.json e
- * reenviados quando a conexão voltar. Fila limitada a MAX_QUEUE eventos
- * (descarta os mais antigos) para nunca crescer sem limite.
+ * Observabilidade: o estado da conexão com a API central é logado no
+ * console do server (a janela "Referee-Server" no bundle) — uma linha a
+ * cada mudança de estado, sem spam. Falha de telemetria NUNCA é silenciosa.
  */
-const MAX_QUEUE = 500;
+const MAX_EVENTS = 1000;
+const MAX_SAMPLES = 500;
 const QUEUE_FILE = path.resolve('data', 'telemetry-queue.json');
 
 export class Telemetry {
-  private buffer: HeartbeatSample[] = [];
+  private events: TelemetryEvent[] = [];
+  private samples: HeartbeatSample[] = [];
+  private readonly endpoint: string;
   private readonly heartbeatEndpoint: string;
+  private readonly host: string;
   readonly instanceId: string;
   private readonly enabled: boolean;
+  private readonly appVersion: string;
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private startedAt: number;
   private statsProvider: (() => InstanceSnapshot) | null = null;
+  private flushing = false;
+  /** null = ainda não tentou; true/false = último estado conhecido */
+  private online: boolean | null = null;
 
-  constructor(baseUrl: string, enabled = true) {
+  constructor(baseUrl: string, enabled = true, appVersion = '') {
+    this.endpoint = `${baseUrl}/telemetry/events`;
     this.heartbeatEndpoint = `${baseUrl}/telemetry/heartbeat`;
+    this.host = (() => { try { return new URL(baseUrl).host; } catch { return baseUrl; } })();
     this.instanceId = getInstanceId();
+    this.appVersion = appVersion;
     this.startedAt = Date.now();
     this.enabled = enabled;
 
-    if (!this.enabled) return;
+    if (!this.enabled) {
+      console.log('[telemetria] desativada (TELEMETRY_ENABLED=false) — nada sai desta máquina');
+      return;
+    }
 
     this.loadQueue();
+    const queued = this.events.length + this.samples.length;
+    console.log(
+      `[telemetria] ativa — instância ${this.instanceId.slice(0, 8)}…, destino ${this.host}` +
+        (queued > 0 ? ` (${queued} itens pendentes de execução anterior)` : '')
+    );
 
-    this.flushTimer = setInterval(() => this.flush(), 30_000);
+    this.flushTimer = setInterval(() => void this.flush(), 30_000);
     if (this.flushTimer.unref) this.flushTimer.unref();
 
-    this.heartbeatTimer = setInterval(() => this.sendHeartbeat(), 5 * 60_000);
+    this.heartbeatTimer = setInterval(() => this.queueHeartbeat(), 5 * 60_000);
     if (this.heartbeatTimer.unref) this.heartbeatTimer.unref();
 
-    const initial = setTimeout(() => this.sendHeartbeat(), 10_000);
+    const initial = setTimeout(() => this.queueHeartbeat(), 10_000);
     if (initial.unref) initial.unref();
   }
 
@@ -75,70 +102,62 @@ export class Telemetry {
     this.statsProvider = fn;
   }
 
-  private flushing = false;
-
-  private async flush(): Promise<void> {
-    if (this.buffer.length === 0 || this.flushing) return;
-    this.flushing = true;
-    // Envia em lotes de até 100 (limite aceito pelo servidor)
-    const batch = this.buffer.slice(0, 100);
-    try {
-      const res = await fetch(this.heartbeatEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ samples: batch }),
-        signal: AbortSignal.timeout(10_000)
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      this.buffer.splice(0, batch.length);
-      this.saveQueue();
-      if (this.buffer.length > 0) {
-        this.flushing = false;
-        return this.flush();
-      }
-    } catch {
-      // Offline ou servidor fora: eventos ficam na fila e vão para o disco;
-      // o timer de 30s tenta de novo quando a conexão voltar.
-      this.saveQueue();
-    } finally {
-      this.flushing = false;
-    }
+  /** Grava a fila em disco de forma síncrona — para handlers de crash. */
+  persistNow(): void {
+    this.saveQueue();
   }
 
-  private loadQueue(): void {
-    try {
-      if (!fs.existsSync(QUEUE_FILE)) return;
-      const stored = JSON.parse(fs.readFileSync(QUEUE_FILE, 'utf8'));
-      if (Array.isArray(stored)) {
-        this.buffer = stored.slice(-MAX_QUEUE) as HeartbeatSample[];
-      }
-    } catch {
-      // fila corrompida: descarta
-    }
+  trackSessionCreated(roomId: string): void {
+    this.push('session_created', { roomId });
   }
 
-  private saveQueue(): void {
-    try {
-      fs.mkdirSync(path.dirname(QUEUE_FILE), { recursive: true });
-      if (this.buffer.length === 0) {
-        if (fs.existsSync(QUEUE_FILE)) fs.unlinkSync(QUEUE_FILE);
-        return;
-      }
-      fs.writeFileSync(QUEUE_FILE, JSON.stringify(this.buffer));
-    } catch {
-      // sem disco disponível: segue só com a fila em memória
-    }
+  trackConnection(roomId: string, role: string, ip: string): void {
+    // Hash do IP antes de sair do processo — IP cru nunca sai da máquina
+    this.push('connection', { roomId, role, ipHash: this.hashIp(ip) });
   }
 
-  /**
-   * Enfileira uma amostra e tenta enviar. Passa pela mesma fila persistente
-   * dos eventos antigos: uma competição rodada em LAN sem internet continua
-   * reportando o uso quando a máquina reconectar.
-   */
-  private sendHeartbeat(): void {
+  trackDisconnection(roomId: string, role: string): void {
+    this.push('disconnection', { roomId, role });
+  }
+
+  /** Decisão revelada: contagem agregada de cartões (sem identificar atleta). */
+  trackDecision(roomId: string, counts: { white: number; red: number }): void {
+    this.push('decision', { roomId, white: counts.white, red: counts.red });
+  }
+
+  /** Erro de runtime — essencial para saber onde o app quebra em campo. */
+  trackError(context: string, message: string): void {
+    this.push('error', {
+      context: context.slice(0, 64),
+      message: message.slice(0, 300),
+      appVersion: this.appVersion
+    });
+    void this.flush();
+  }
+
+  private hashIp(ip: string): string {
+    return crypto.createHash('sha256').update(ip + 'referee-lights-salt').digest('hex').slice(0, 16);
+  }
+
+  private push(event: string, data: Record<string, unknown>): void {
     if (!this.enabled) return;
-    this.buffer.push({
+    this.events.push({
+      event,
+      data,
+      timestamp: new Date().toISOString(),
+      instanceId: this.instanceId
+    });
+    if (this.events.length > MAX_EVENTS) {
+      this.events.splice(0, this.events.length - MAX_EVENTS);
+    }
+    if (this.events.length >= 20) void this.flush();
+  }
+
+  private queueHeartbeat(): void {
+    if (!this.enabled) return;
+    this.samples.push({
       instanceId: this.instanceId,
+      appVersion: this.appVersion,
       platform: os.platform(),
       arch: os.arch(),
       nodeVersion: process.version,
@@ -146,9 +165,91 @@ export class Telemetry {
       timestamp: new Date().toISOString(),
       stats: this.statsProvider?.() ?? null
     });
-    if (this.buffer.length > MAX_QUEUE) {
-      this.buffer.splice(0, this.buffer.length - MAX_QUEUE);
+    if (this.samples.length > MAX_SAMPLES) {
+      this.samples.splice(0, this.samples.length - MAX_SAMPLES);
     }
     void this.flush();
+  }
+
+  private async flush(): Promise<void> {
+    if (this.flushing || (this.events.length === 0 && this.samples.length === 0)) return;
+    this.flushing = true;
+    try {
+      while (this.samples.length > 0) {
+        const batch = this.samples.slice(0, 100);
+        const ok = await this.post(this.heartbeatEndpoint, { samples: batch });
+        if (!ok) return;
+        this.samples.splice(0, batch.length);
+      }
+      while (this.events.length > 0) {
+        const batch = this.events.slice(0, 100);
+        const ok = await this.post(this.endpoint, { events: batch });
+        if (!ok) return;
+        this.events.splice(0, batch.length);
+      }
+    } finally {
+      this.saveQueue();
+      this.flushing = false;
+    }
+  }
+
+  /** Envia um lote; loga mudanças de estado online/offline. */
+  private async post(url: string, body: unknown): Promise<boolean> {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(10_000)
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      this.setOnline(true);
+      return true;
+    } catch (err) {
+      const detail =
+        (err as { cause?: { code?: string } })?.cause?.code ??
+        (err as Error)?.message ??
+        'erro desconhecido';
+      this.setOnline(false, String(detail));
+      return false;
+    }
+  }
+
+  private setOnline(ok: boolean, detail?: string): void {
+    if (this.online === ok) return;
+    this.online = ok;
+    if (ok) {
+      console.log(`[telemetria] conectado a ${this.host} — dados de uso sendo reportados`);
+    } else {
+      const queued = this.events.length + this.samples.length;
+      console.log(
+        `[telemetria] SEM CONEXÃO com ${this.host} (${detail}) — ` +
+          `${queued} item(ns) guardados em fila local, reenvio automático quando a internet voltar`
+      );
+    }
+  }
+
+  private loadQueue(): void {
+    try {
+      if (!fs.existsSync(QUEUE_FILE)) return;
+      const stored = JSON.parse(fs.readFileSync(QUEUE_FILE, 'utf8'));
+      if (Array.isArray(stored?.events)) this.events = stored.events.slice(-MAX_EVENTS);
+      if (Array.isArray(stored?.samples)) this.samples = stored.samples.slice(-MAX_SAMPLES);
+    } catch {
+      // fila corrompida: descarta
+    }
+  }
+
+  private saveQueue(): void {
+    try {
+      if (this.events.length === 0 && this.samples.length === 0) {
+        if (fs.existsSync(QUEUE_FILE)) fs.unlinkSync(QUEUE_FILE);
+        return;
+      }
+      fs.mkdirSync(path.dirname(QUEUE_FILE), { recursive: true });
+      fs.writeFileSync(QUEUE_FILE, JSON.stringify({ events: this.events, samples: this.samples }));
+    } catch {
+      // sem disco disponível: segue só com a fila em memória
+    }
   }
 }
