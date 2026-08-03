@@ -1,7 +1,7 @@
 // Ciclo de vida das salas: sala sem atividade é arquivada após o TTL,
 // o código volta ao pool e o callback de expiração fecha a sessão.
 import { describe, expect, it, vi } from 'vitest';
-import { RoomManager } from '../src/rooms.js';
+import { RoomManager, type PersistedRoom } from '../src/rooms.js';
 
 const HOUR = 3600_000;
 
@@ -43,5 +43,37 @@ describe('arquivamento de salas por inatividade', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('recuperação de salas pós-restart', () => {
+  it('sala persistida volta com o mesmo código, PIN e tokens', () => {
+    const saved: PersistedRoom[] = [];
+    const rm1 = new RoomManager(() => {}, {
+      store: { save: (r) => saved.push(r), touch: () => {}, remove: () => {} }
+    });
+    const created = rm1.createRoom();
+    expect(saved).toHaveLength(1);
+
+    // "restart": novo manager, restaura do que foi persistido
+    const rm2 = new RoomManager(() => {});
+    expect(rm2.restoreRoom(saved[0])).toBe(true);
+    expect(rm2.verifyAdminPin(created.roomId, created.adminPin)).toBe(true);
+    expect(rm2.isValidRefToken(created.roomId, 'left', created.joinQRCodes.left.token)).toBe(true);
+    // código ocupado: não deixa duplicar
+    expect(rm2.restoreRoom(saved[0])).toBe(false);
+  });
+
+  it('sala restaurada com atividade antiga expira na primeira varredura', () => {
+    const HOUR2 = 3600_000;
+    const rm = new RoomManager(() => {}, { ttlMs: 24 * HOUR2 });
+    rm.restoreRoom({
+      roomId: 'VELH',
+      adminPin: '1234',
+      refereeTokens: { left: 'a', center: 'b', right: 'c' },
+      createdAt: Date.now() - 30 * HOUR2,
+      lastActivityAt: Date.now() - 25 * HOUR2
+    });
+    expect(rm.sweepExpired()).toEqual(['VELH']);
   });
 });

@@ -184,6 +184,11 @@ export async function createServer() {
       telemetry.trackRoomArchived(roomId);
       io.in(roomChannel(roomId)).disconnectSockets(true);
       app.log.info(`sala ${roomId} arquivada por inatividade`);
+    },
+    store: {
+      save: (room) => analyticsStore.saveRoomState(room),
+      touch: (roomId, ms) => analyticsStore.touchRoomState(roomId, ms),
+      remove: (roomId) => analyticsStore.deleteRoomState(roomId)
     }
   });
   const analyticsStore = new AnalyticsStore(config.ANALYTICS_DB_PATH);
@@ -193,6 +198,18 @@ export async function createServer() {
     rooms: roomManager.listRooms()
   }));
   const sessionMap = new Map<string, number>();
+
+  // Recuperação pós-restart: salas com atividade nas últimas ROOM_TTL_HOURS
+  // voltam com o mesmo código, PIN e QR codes — reiniciar a máquina no meio
+  // (ou entre blocos) da competição não derruba a sala.
+  {
+    const restored = analyticsStore
+      .loadRoomStates(config.ROOM_TTL_HOURS * 3600_000)
+      .filter((rec) => roomManager.restoreRoom(rec));
+    if (restored.length > 0) {
+      app.log.info(`${restored.length} sala(s) recuperada(s) após restart: ${restored.map((r) => r.roomId).join(', ')}`);
+    }
+  }
 
   function extractIp(request: { ip: string; headers: Record<string, string | string[] | undefined> }): string {
     const forwarded = request.headers['x-forwarded-for'];
