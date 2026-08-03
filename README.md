@@ -1,6 +1,6 @@
 # Referee Lights
 
-![release](https://img.shields.io/github/v/tag/jeanribas/referee-lights?label=release&sort=semver) ![visitors](https://visitor-badge.laobi.icu/badge?page_id=jeanribas.referee-lights) ![license](https://img.shields.io/badge/license-Custom-blue)
+![release](https://img.shields.io/github/v/release/jeanribas/referee-lights?label=release) ![visitors](https://visitor-badge.laobi.icu/badge?page_id=jeanribas.referee-lights) ![license](https://img.shields.io/badge/license-Custom-blue)
 
 Português · [English](README.en.md) · [Español](README.es.md)
 
