@@ -23,9 +23,11 @@ node tools/windows/build-package.mjs   # builda, monta o zip e VERIFICA
 
 A verificação (`tools/windows/verify-bundle.mjs`) reprova binário nativo
 não-Windows, URL de produção inlinada no client, estrutura incompleta e .env
-errado. Publicação: sempre `gh release create --prerelease` → teste manual no
-Windows (criar sessão, 3 árbitros, luzes acendem, Key Relay) → só então
-promover a Latest. Nunca publicar mais de uma versão sem testar a anterior.
+errado. Publicação: builds de teste vão SEMPRE para o pre-release rolante
+`teste` (sem subir versão!) → teste manual no Windows (criar sessão, 3
+árbitros, luzes acendem, Key Relay) → aprovado 100%, aí sim tag de versão
+(seguindo a versão do projeto/web) e release Latest. Número de versão só
+para release 100% funcional.
 
 ## Armadilhas conhecidas
 

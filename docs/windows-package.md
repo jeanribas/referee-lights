@@ -63,46 +63,51 @@ O bundle é publicado a partir da branch **`release/1.2`** (linha estável), NÃ
 do `main`. `main` é a linha da web; só promova mudanças do `main` para a
 `release/*` depois de testadas.
 
+**REGRA DE OURO DO VERSIONAMENTO: número de versão só para release 100%
+funcional, aprovada em teste manual no Windows.** Builds de teste NUNCA sobem
+versão — vão todos para o MESMO pre-release rolante `teste`. A versão do
+bundle acompanha a evolução do projeto (web), não uma linha própria.
+
 ```bash
-# 1. Na branch release/*, faça (ou cherry-picke) a mudança desejada.
-
-# 2. Bump de versão (server e frontend SEMPRE juntos, mesma versão):
-(cd server && npm version 1.2.X --no-git-tag-version)
-(cd frontend && npm version 1.2.X --no-git-tag-version)
-
-# 3. Build + verificação automática (roda verify-bundle.mjs no final):
+# --- Iterando (quantas vezes precisar, SEM subir versão) ---
+# 1. Faça a mudança na branch release/*.
+# 2. Build + verificação automática (roda verify-bundle.mjs no final):
 node tools/windows/build-package.mjs
+# 3. Commit + push (sem tag de versão):
+git add -A && git commit -m "fix(bundle): ..." && git push origin release/1.2
+# 4. Atualize o pre-release rolante de teste (o MESMO, sempre):
+gh release delete teste --yes --cleanup-tag 2>/dev/null
+gh release create teste dist/referee-lights-windows.zip \
+  --prerelease --target release/1.2 --title "Build de teste" \
+  --notes "Build para validação interna. Não usar em competição."
 
-# 4. Se a verificação reprovar, NÃO publique. Corrija e rode de novo.
-
-# 5. Commit + tag + push:
-git add -A && git commit -m "chore(release): 1.2.X"
-git tag v1.2.X && git push origin release/1.2 --tags
-
-# 6. Publique como PRE-RELEASE para teste:
-gh release create v1.2.X dist/referee-lights-windows.zip \
-  --prerelease --title "v1.2.X (teste)" --notes "..."
-
-# 7. TESTE MANUAL NO WINDOWS (obrigatório antes de promover):
-#    - Extrair o zip, Iniciar.cmd
-#    - Criar sessão no admin
-#    - Conectar 3 árbitros (celulares na mesma rede, via QR)
+# --- TESTE MANUAL NO WINDOWS (obrigatório) ---
+#    - Extrair o zip, Iniciar.cmd (deve abrir direto no /admin)
+#    - Criar sessão, conectar 3 árbitros (QR, mesma rede)
 #    - Dar decisões → AS LUZES ACENDEM no display
-#    - Ativar Key Relay no admin e testar tecla física
+#    - Ativar Key Relay e testar
 #    - Parar.cmd encerra tudo
 
-# 8. Só depois do teste: gh release edit v1.2.X --prerelease=false --latest
+# --- Aprovou 100%? SÓ ENTÃO a versão existe ---
+# 5. Confirme que package.json (server e frontend) está na versão do
+#    projeto (a mesma linha do web). Se precisar ajustar, ajuste, rebuilde
+#    e rode o teste de novo — a release é sempre do zip testado.
+# 6. Tag + release estável + promover:
+git tag vX.Y && git push origin vX.Y
+gh release create vX.Y dist/referee-lights-windows.zip \
+  --target release/1.2 --title "vX.Y" --notes "..." --latest
+# 7. Apague o pre-release teste:
+gh release delete teste --yes --cleanup-tag
 ```
 
 ### Regras de versionamento
 
-- **Uma release estável por vez.** Se precisou de 3 patches seguidos no mesmo
-  dia, o que está saindo não é estável — mantenha como pre-release e só promova
-  a versão que passou no teste manual do Windows.
-- Versão nunca pula: `1.2.1 → 1.2.2 → ...`. Minor/major só com mudança real de
-  funcionalidade, testada.
-- A release marcada como **Latest** no GitHub é a que os usuários baixam pelo
-  site. Latest = sempre a última TESTADA no Windows.
+- **Número de versão = compromisso.** Só existe depois do teste manual
+  aprovar 100%. Antes disso, tudo é o pre-release rolante `teste`.
+- **A versão do bundle segue a do projeto (web)** — não existe numeração
+  paralela. Ex.: projeto na 1.3 → próxima release do bundle é v1.3.
+- A release **Latest** no GitHub é a que os usuários baixam pelo site.
+  Latest = sempre a última 100% funcional.
 
 ## Verificação automática
 
