@@ -366,6 +366,30 @@ do Iniciar ou de duplo-clique em "Parar.cmd"
 
 REDE: todos os dispositivos devem estar na mesma rede Wi-Fi
 
+DADOS E PRIVACIDADE
+O servidor envia estatisticas de uso para os servidores do
+Referee Lights, para sabermos quantas instalacoes existem e
+como o produto e usado.
+
+E enviado:
+  - a cada 5 minutos: um identificador aleatorio desta
+    instalacao (gerado no primeiro uso, nao ligado a nenhuma
+    pessoa), sistema operacional, versao do Node, tempo ligado
+    e contadores (salas ativas, sessoes, conexoes, IPs unicos)
+  - a cada 30 segundos, quando em uso: eventos de sessao criada,
+    conexao e desconexao, com o codigo da sala, o papel
+    (arbitro/admin/telao) e um hash irreversivel do IP local
+
+NAO e enviado: enderecos IP reais, nomes de maquina, nomes de
+atletas ou arbitros, e nenhuma decisao de arbitragem. Os
+resultados das tentativas ficam somente nesta maquina.
+
+PARA DESLIGAR: abra "server\\.env" no Bloco de Notas e troque
+  TELEMETRY_ENABLED=true
+por
+  TELEMETRY_ENABLED=false
+Depois reinicie pelo "Iniciar.cmd". Nada mais sai desta maquina.
+
 GitHub: https://github.com/jeanribas/referee-lights
 Site: https://refereelights.app
 Contato: contato@assist.com.br
