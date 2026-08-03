@@ -45,7 +45,20 @@ async function buildProjects() {
 
   console.log('\n🔨 Buildando frontend (standalone)...');
   run('npm install', { cwd: frontendDir });
-  run('npm run build', { cwd: frontendDir, env: { ...process.env, NEXT_DISABLE_ESLINT: '1' } });
+  // URLs de API/WS VAZIAS no build: o client inlina NEXT_PUBLIC_* na
+  // compilação e um .env.local esquecido (ex.: criado pelo vercel CLI)
+  // apontaria o pacote para a API de produção — sala criada lá, socket
+  // local, "sala não encontrada". Vazias, vale o fallback de runtime do
+  // config.ts: http://<host>:3333, que é o correto no pacote.
+  run('npm run build', {
+    cwd: frontendDir,
+    env: {
+      ...process.env,
+      NEXT_DISABLE_ESLINT: '1',
+      NEXT_PUBLIC_API_URL: '',
+      NEXT_PUBLIC_WS_URL: ''
+    }
+  });
 }
 
 async function bundleServer() {
@@ -381,6 +394,9 @@ async function main() {
   await downloadNode();
   await createScripts();
   await createZip();
+
+  console.log('\n🔎 Verificando bundle...');
+  run(`node "${path.join(rootDir, 'tools', 'windows', 'verify-bundle.mjs')}"`);
 
   // Count files and size
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
