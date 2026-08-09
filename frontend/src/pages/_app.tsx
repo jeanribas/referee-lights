@@ -26,6 +26,13 @@ import '@/styles/globals.css';
  */
 const IS_OFFLINE_BUNDLE = process.env.NEXT_PUBLIC_OFFLINE_BUNDLE === '1';
 
+/**
+ * Páginas de marketing: as únicas onde o medidor first-party monta. As telas
+ * de app (/admin, /display, /ref/*, …) ficam de fora — o uso delas já é
+ * coberto pelo fluxo próprio do produto — e no bundle offline nada monta.
+ */
+const MARKETING_ROUTES = ['/', '/faq', '/windows'];
+
 const VercelAnalytics = dynamic(
   () => import('@vercel/analytics/react').then((m) => m.Analytics),
   { ssr: false }
@@ -62,6 +69,9 @@ export default function App({ Component, pageProps }: AppProps) {
       <Seo />
       <Component {...pageProps} />
       {!IS_OFFLINE_BUNDLE && <VercelAnalytics />}
+      {!IS_OFFLINE_BUNDLE && MARKETING_ROUTES.includes(router.pathname) && (
+        <Script src="/_a/s.js" strategy="afterInteractive" data-site="refereelights" data-banner="1" />
+      )}
       {!IS_OFFLINE_BUNDLE && (
         <Script id="microsoft-clarity" strategy="afterInteractive">
           {`(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","w1gy8xnf5m");`}

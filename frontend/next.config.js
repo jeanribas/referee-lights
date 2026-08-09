@@ -15,6 +15,15 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: false
   },
+  async rewrites() {
+    // Métricas first-party do site (stats.assist.com.br) servidas same-origin.
+    // No bundle offline o script nem monta (gate em _app.tsx), então o proxy
+    // nunca é acionado fora da web.
+    return [
+      { source: '/_a/s.js', destination: 'https://stats.assist.com.br/s.js', locale: false },
+      { source: '/_a/e', destination: 'https://stats.assist.com.br/api/collect', locale: false }
+    ];
+  },
   async redirects() {
     // Consolidação de hostname (2026-07-31): o canônico é refereelights.app
     // (domínio próprio do produto). Os subdomínios legados do assist.com.br e o
