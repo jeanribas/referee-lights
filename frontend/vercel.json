@@ -1,6 +1,8 @@
 {
   "rewrites": [
     { "source": "/_a/s.js", "destination": "https://stats.assist.com.br/s.js" },
-    { "source": "/_a/e", "destination": "https://stats.assist.com.br/api/collect" }
+    { "source": "/:locale(pt\\-BR|en\\-US|es\\-ES)/_a/s.js", "destination": "https://stats.assist.com.br/s.js" },
+    { "source": "/_a/e", "destination": "https://stats.assist.com.br/api/collect" },
+    { "source": "/:locale(pt\\-BR|en\\-US|es\\-ES)/_a/e", "destination": "https://stats.assist.com.br/api/collect" }
   ]
 }
