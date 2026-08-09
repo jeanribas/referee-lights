@@ -19,10 +19,17 @@ const nextConfig = {
     // Métricas first-party do site (stats.assist.com.br) servidas same-origin.
     // No bundle offline o script nem monta (gate em _app.tsx), então o proxy
     // nunca é acionado fora da web.
-    return [
-      { source: '/_a/s.js', destination: 'https://stats.assist.com.br/s.js', locale: false },
-      { source: '/_a/e', destination: 'https://stats.assist.com.br/api/collect', locale: false }
-    ];
+    //
+    // beforeFiles é obrigatório aqui: com i18n ativo, um rewrite na fase
+    // padrão (afterFiles) recebe o caminho JÁ prefixado com o locale
+    // (/pt-BR/_a/s.js) e `locale: false` deixa de casar — o resultado era
+    // 404 em produção. Antes do filesystem o caminho ainda está cru.
+    return {
+      beforeFiles: [
+        { source: '/_a/s.js', destination: 'https://stats.assist.com.br/s.js', locale: false },
+        { source: '/_a/e', destination: 'https://stats.assist.com.br/api/collect', locale: false }
+      ]
+    };
   },
   async redirects() {
     // Consolidação de hostname (2026-07-31): o canônico é refereelights.app
