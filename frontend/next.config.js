@@ -15,22 +15,11 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: false
   },
-  async rewrites() {
-    // Métricas first-party do site (stats.assist.com.br) servidas same-origin.
-    // No bundle offline o script nem monta (gate em _app.tsx), então o proxy
-    // nunca é acionado fora da web.
-    //
-    // beforeFiles é obrigatório aqui: com i18n ativo, um rewrite na fase
-    // padrão (afterFiles) recebe o caminho JÁ prefixado com o locale
-    // (/pt-BR/_a/s.js) e `locale: false` deixa de casar — o resultado era
-    // 404 em produção. Antes do filesystem o caminho ainda está cru.
-    return {
-      beforeFiles: [
-        { source: '/_a/s.js', destination: 'https://stats.assist.com.br/s.js', locale: false },
-        { source: '/_a/e', destination: 'https://stats.assist.com.br/api/collect', locale: false }
-      ]
-    };
-  },
+  // Os rewrites do medidor first-party (/_a/* → stats.assist.com.br) vivem no
+  // vercel.json, NÃO aqui: com i18n ativo o router do Next não casou a regra
+  // em produção nem como afterFiles+locale:false nem como beforeFiles (404,
+  // manifest correto — atrito i18n × rewrite externo). No nível da plataforma
+  // o proxy acontece antes do Next e funciona como nos demais sites da rede.
   async redirects() {
     // Consolidação de hostname (2026-07-31): o canônico é refereelights.app
     // (domínio próprio do produto). Os subdomínios legados do assist.com.br e o

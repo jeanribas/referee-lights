@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/_a/s.js", "destination": "https://stats.assist.com.br/s.js" },
+    { "source": "/_a/e", "destination": "https://stats.assist.com.br/api/collect" }
+  ]
+}
