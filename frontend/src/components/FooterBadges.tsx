@@ -44,7 +44,7 @@ export function FooterBadges({ alwaysVisible = false }: { alwaysVisible?: boolea
         {footer.openSource}
       </a>
       <a
-        href="https://assist.com.br"
+        href="https://assist.com.br/?utm_source=refereelights.app&utm_medium=referral"
         target="_blank"
         rel="noopener noreferrer"
         onClick={handleClick('https://assist.com.br')}
