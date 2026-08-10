@@ -1,4 +1,18 @@
 {
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "luzes-ipf.assist.com.br" }],
+      "destination": "https://refereelights.app/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "luzes-ipf.assist.com.br" }],
+      "destination": "https://refereelights.app/",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     { "source": "/_a/s.js", "destination": "https://stats.assist.com.br/s.js" },
     { "source": "/:locale(pt\\-BR|en\\-US|es\\-ES)/_a/s.js", "destination": "https://stats.assist.com.br/s.js" },
