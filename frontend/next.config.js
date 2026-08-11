@@ -24,6 +24,11 @@ const nextConfig = {
     // Consolidação de hostname (2026-07-31): o canônico é refereelights.app
     // (domínio próprio do produto). Os subdomínios legados do assist.com.br e o
     // www dão 301 — Bing exige redirect (não só canonical) para host duplicado.
+    //
+    // statusCode: 301 e NÃO permanent: true (2026-08-11): `permanent` emite 308.
+    // A Mudança de Endereço do Search Console tem um teste obrigatório chamado
+    // "Redirecionamento 301 da página inicial" e reprovava os hosts com 308.
+    // Esta é a única fonte dos redirects de host — não duplicar no vercel.json.
     const aliasHosts = [
       'ipf-ligths.assist.com.br',
       'ligths.assist.com.br',
@@ -37,7 +42,7 @@ const nextConfig = {
       source: '/:path*',
       has: [{ type: 'host', value: host }],
       destination: 'https://refereelights.app/:path*',
-      permanent: true,
+      statusCode: 301,
       locale: false
     }));
   },
