@@ -12,6 +12,39 @@
       "statusCode": 301
     },
     {
+      "source": "/pt-BR",
+      "has": [
+        {
+          "type": "host",
+          "value": "ipf-ligths.assist.com.br"
+        }
+      ],
+      "destination": "https://refereelights.app/",
+      "statusCode": 301
+    },
+    {
+      "source": "/en-US",
+      "has": [
+        {
+          "type": "host",
+          "value": "ipf-ligths.assist.com.br"
+        }
+      ],
+      "destination": "https://refereelights.app/",
+      "statusCode": 301
+    },
+    {
+      "source": "/es-ES",
+      "has": [
+        {
+          "type": "host",
+          "value": "ipf-ligths.assist.com.br"
+        }
+      ],
+      "destination": "https://refereelights.app/",
+      "statusCode": 301
+    },
+    {
       "source": "/:path*",
       "has": [
         {
@@ -34,6 +67,39 @@
       "statusCode": 301
     },
     {
+      "source": "/pt-BR",
+      "has": [
+        {
+          "type": "host",
+          "value": "ligths.assist.com.br"
+        }
+      ],
+      "destination": "https://refereelights.app/",
+      "statusCode": 301
+    },
+    {
+      "source": "/en-US",
+      "has": [
+        {
+          "type": "host",
+          "value": "ligths.assist.com.br"
+        }
+      ],
+      "destination": "https://refereelights.app/",
+      "statusCode": 301
+    },
+    {
+      "source": "/es-ES",
+      "has": [
+        {
+          "type": "host",
+          "value": "ligths.assist.com.br"
+        }
+      ],
+      "destination": "https://refereelights.app/",
+      "statusCode": 301
+    },
+    {
       "source": "/:path*",
       "has": [
         {
@@ -56,6 +122,39 @@
       "statusCode": 301
     },
     {
+      "source": "/pt-BR",
+      "has": [
+        {
+          "type": "host",
+          "value": "referee.assist.com.br"
+        }
+      ],
+      "destination": "https://refereelights.app/",
+      "statusCode": 301
+    },
+    {
+      "source": "/en-US",
+      "has": [
+        {
+          "type": "host",
+          "value": "referee.assist.com.br"
+        }
+      ],
+      "destination": "https://refereelights.app/",
+      "statusCode": 301
+    },
+    {
+      "source": "/es-ES",
+      "has": [
+        {
+          "type": "host",
+          "value": "referee.assist.com.br"
+        }
+      ],
+      "destination": "https://refereelights.app/",
+      "statusCode": 301
+    },
+    {
       "source": "/:path*",
       "has": [
         {
@@ -78,6 +177,39 @@
       "statusCode": 301
     },
     {
+      "source": "/pt-BR",
+      "has": [
+        {
+          "type": "host",
+          "value": "referee-ligths.assist.com.br"
+        }
+      ],
+      "destination": "https://refereelights.app/",
+      "statusCode": 301
+    },
+    {
+      "source": "/en-US",
+      "has": [
+        {
+          "type": "host",
+          "value": "referee-ligths.assist.com.br"
+        }
+      ],
+      "destination": "https://refereelights.app/",
+      "statusCode": 301
+    },
+    {
+      "source": "/es-ES",
+      "has": [
+        {
+          "type": "host",
+          "value": "referee-ligths.assist.com.br"
+        }
+      ],
+      "destination": "https://refereelights.app/",
+      "statusCode": 301
+    },
+    {
       "source": "/:path*",
       "has": [
         {
@@ -100,6 +232,39 @@
       "statusCode": 301
     },
     {
+      "source": "/pt-BR",
+      "has": [
+        {
+          "type": "host",
+          "value": "arbitros.assist.com.br"
+        }
+      ],
+      "destination": "https://refereelights.app/",
+      "statusCode": 301
+    },
+    {
+      "source": "/en-US",
+      "has": [
+        {
+          "type": "host",
+          "value": "arbitros.assist.com.br"
+        }
+      ],
+      "destination": "https://refereelights.app/",
+      "statusCode": 301
+    },
+    {
+      "source": "/es-ES",
+      "has": [
+        {
+          "type": "host",
+          "value": "arbitros.assist.com.br"
+        }
+      ],
+      "destination": "https://refereelights.app/",
+      "statusCode": 301
+    },
+    {
       "source": "/:path*",
       "has": [
         {
@@ -122,6 +287,39 @@
       "statusCode": 301
     },
     {
+      "source": "/pt-BR",
+      "has": [
+        {
+          "type": "host",
+          "value": "luzes-ipf.assist.com.br"
+        }
+      ],
+      "destination": "https://refereelights.app/",
+      "statusCode": 301
+    },
+    {
+      "source": "/en-US",
+      "has": [
+        {
+          "type": "host",
+          "value": "luzes-ipf.assist.com.br"
+        }
+      ],
+      "destination": "https://refereelights.app/",
+      "statusCode": 301
+    },
+    {
+      "source": "/es-ES",
+      "has": [
+        {
+          "type": "host",
+          "value": "luzes-ipf.assist.com.br"
+        }
+      ],
+      "destination": "https://refereelights.app/",
+      "statusCode": 301
+    },
+    {
       "source": "/:path*",
       "has": [
         {
@@ -134,6 +332,39 @@
     },
     {
       "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.refereelights.app"
+        }
+      ],
+      "destination": "https://refereelights.app/",
+      "statusCode": 301
+    },
+    {
+      "source": "/pt-BR",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.refereelights.app"
+        }
+      ],
+      "destination": "https://refereelights.app/",
+      "statusCode": 301
+    },
+    {
+      "source": "/en-US",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.refereelights.app"
+        }
+      ],
+      "destination": "https://refereelights.app/",
+      "statusCode": 301
+    },
+    {
+      "source": "/es-ES",
       "has": [
         {
           "type": "host",
