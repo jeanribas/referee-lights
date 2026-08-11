@@ -2,69 +2,131 @@
   "redirects": [
     {
       "source": "/:path*",
-      "has": [{ "type": "host", "value": "luzes-ipf.assist.com.br" }],
+      "has": [
+        {
+          "type": "host",
+          "value": "luzes-ipf.assist.com.br"
+        }
+      ],
       "destination": "https://refereelights.app/:path*",
-      "permanent": true
+      "statusCode": 301
     },
     {
       "source": "/",
-      "has": [{ "type": "host", "value": "luzes-ipf.assist.com.br" }],
+      "has": [
+        {
+          "type": "host",
+          "value": "luzes-ipf.assist.com.br"
+        }
+      ],
       "destination": "https://refereelights.app/",
-      "permanent": true
+      "statusCode": 301
     },
     {
       "source": "/:path*",
-      "has": [{ "type": "host", "value": "arbitros.assist.com.br" }],
+      "has": [
+        {
+          "type": "host",
+          "value": "arbitros.assist.com.br"
+        }
+      ],
       "destination": "https://refereelights.app/:path*",
-      "permanent": true
+      "statusCode": 301
     },
     {
       "source": "/",
-      "has": [{ "type": "host", "value": "arbitros.assist.com.br" }],
+      "has": [
+        {
+          "type": "host",
+          "value": "arbitros.assist.com.br"
+        }
+      ],
       "destination": "https://refereelights.app/",
-      "permanent": true
+      "statusCode": 301
     },
     {
       "source": "/:path*",
-      "has": [{ "type": "host", "value": "referee.assist.com.br" }],
+      "has": [
+        {
+          "type": "host",
+          "value": "referee.assist.com.br"
+        }
+      ],
       "destination": "https://refereelights.app/:path*",
-      "permanent": true
+      "statusCode": 301
     },
     {
       "source": "/",
-      "has": [{ "type": "host", "value": "referee.assist.com.br" }],
+      "has": [
+        {
+          "type": "host",
+          "value": "referee.assist.com.br"
+        }
+      ],
       "destination": "https://refereelights.app/",
-      "permanent": true
+      "statusCode": 301
     },
     {
       "source": "/:path*",
-      "has": [{ "type": "host", "value": "ipf-ligths.assist.com.br" }],
+      "has": [
+        {
+          "type": "host",
+          "value": "ipf-ligths.assist.com.br"
+        }
+      ],
       "destination": "https://refereelights.app/:path*",
-      "permanent": true
+      "statusCode": 301
     },
     {
       "source": "/",
-      "has": [{ "type": "host", "value": "ipf-ligths.assist.com.br" }],
+      "has": [
+        {
+          "type": "host",
+          "value": "ipf-ligths.assist.com.br"
+        }
+      ],
       "destination": "https://refereelights.app/",
-      "permanent": true
+      "statusCode": 301
     },
     {
       "source": "/:path*",
-      "has": [{ "type": "host", "value": "ligths.assist.com.br" }],
+      "has": [
+        {
+          "type": "host",
+          "value": "ligths.assist.com.br"
+        }
+      ],
       "destination": "https://refereelights.app/:path*",
-      "permanent": true
+      "statusCode": 301
     },
     {
       "source": "/",
-      "has": [{ "type": "host", "value": "ligths.assist.com.br" }],
+      "has": [
+        {
+          "type": "host",
+          "value": "ligths.assist.com.br"
+        }
+      ],
       "destination": "https://refereelights.app/",
-      "permanent": true
+      "statusCode": 301
     }
   ],
   "rewrites": [
-    { "source": "/_a/s.js", "destination": "https://stats.assist.com.br/s.js" },
-    { "source": "/:locale(pt\\-BR|en\\-US|es\\-ES)/_a/s.js", "destination": "https://stats.assist.com.br/s.js" },
-    { "source": "/_a/e", "destination": "https://stats.assist.com.br/api/collect" },
-    { "source": "/:locale(pt\\-BR|en\\-US|es\\-ES)/_a/e", "destination": "https://stats.assist.com.br/api/collect" }
+    {
+      "source": "/_a/s.js",
+      "destination": "https://stats.assist.com.br/s.js"
+    },
+    {
+      "source": "/:locale(pt\\-BR|en\\-US|es\\-ES)/_a/s.js",
+      "destination": "https://stats.assist.com.br/s.js"
+    },
+    {
+      "source": "/_a/e",
+      "destination": "https://stats.assist.com.br/api/collect"
+    },
+    {
+      "source": "/:locale(pt\\-BR|en\\-US|es\\-ES)/_a/e",
+      "destination": "https://stats.assist.com.br/api/collect"
+    }
   ]
 }
