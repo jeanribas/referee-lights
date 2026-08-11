@@ -20,32 +20,20 @@ const nextConfig = {
   // em produção nem como afterFiles+locale:false nem como beforeFiles (404,
   // manifest correto — atrito i18n × rewrite externo). No nível da plataforma
   // o proxy acontece antes do Next e funciona como nos demais sites da rede.
-  async redirects() {
-    // Consolidação de hostname (2026-07-31): o canônico é refereelights.app
-    // (domínio próprio do produto). Os subdomínios legados do assist.com.br e o
-    // www dão 301 — Bing exige redirect (não só canonical) para host duplicado.
-    //
-    // statusCode: 301 e NÃO permanent: true (2026-08-11): `permanent` emite 308.
-    // A Mudança de Endereço do Search Console tem um teste obrigatório chamado
-    // "Redirecionamento 301 da página inicial" e reprovava os hosts com 308.
-    // Esta é a única fonte dos redirects de host — não duplicar no vercel.json.
-    const aliasHosts = [
-      'ipf-ligths.assist.com.br',
-      'ligths.assist.com.br',
-      'referee.assist.com.br',
-      'referee-ligths.assist.com.br',
-      'arbitros.assist.com.br',
-      'luzes-ipf.assist.com.br',
-      'www.refereelights.app'
-    ];
-    return aliasHosts.map((host) => ({
-      source: '/:path*',
-      has: [{ type: 'host', value: host }],
-      destination: 'https://refereelights.app/:path*',
-      statusCode: 301,
-      locale: false
-    }));
-  },
+  // Consolidação de hostname (2026-07-31): o canônico é refereelights.app. Os
+  // redirects dos hosts legados moram no vercel.json, NÃO aqui (mudança de
+  // 2026-08-11) — mesma razão dos rewrites acima, o i18n atrapalha:
+  //
+  //   1. Aqui, `GET /` já chega ao router como `/pt-BR` (o i18n resolve o
+  //      locale antes das regras casarem), então `:path*` captura "pt-BR" e o
+  //      destino vira refereelights.app/pt-BR em vez da raiz. `locale: false`
+  //      não evita isso. A Mudança de Endereço do Search Console quer a home
+  //      antiga apontando para a home nova, limpa.
+  //   2. `permanent: true` emite 308, e o teste obrigatório do Search Console
+  //      ("Redirecionamento 301 da página inicial") é literal quanto ao 301.
+  //
+  // No vercel.json a regra roda na plataforma, antes do Next: `/` casa a raiz
+  // crua e o par `/` + `/:path*` com statusCode 301 entrega o que o GSC pede.
   async headers() {
     // Telas de app fora do índice: robots.txt Disallow sozinho não desindexa
     // (o Bing chegou a listar /admin) — o header noindex exige crawl liberado,
