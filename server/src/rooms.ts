@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 
-import { RoomState, type AppState, type Judge } from './state.js';
+import { RoomState, type AppState, type Judge, type Locale } from './state.js';
 
 type RefereeTokens = Record<Judge, string>;
 
@@ -89,9 +89,9 @@ export class RoomManager {
     return expired;
   }
 
-  createRoom(): RoomAccessPayload {
+  createRoom(locale?: Locale): RoomAccessPayload {
     const roomId = this.generateRoomId();
-    const state = new RoomState();
+    const state = new RoomState(locale);
     const adminPin = this.generateAdminPin();
     const refereeTokens = this.generateRefereeTokens();
 

@@ -72,6 +72,16 @@ export class RoomState {
     legendConfig: { ...DEFAULT_LEGEND_CONFIG }
   };
 
+  /**
+   * A sala nasce no idioma de quem a criou. Sem isso ela sempre nascia em
+   * pt-BR, e o admin que estava com a interface em inglês era jogado para o
+   * português assim que entrava — porque as telas de operação adotam o idioma
+   * da sala (e ainda gravavam NEXT_LOCALE, levando a escolha para o site todo).
+   */
+  constructor(locale: Locale = DEFAULT_LOCALE) {
+    this.state.locale = locale;
+  }
+
   private tickInterval: NodeJS.Timeout | null = null;
   private autoClearTimeout: NodeJS.Timeout | null = null;
   private subscribers = new Set<(snapshot: AppState) => void>();
