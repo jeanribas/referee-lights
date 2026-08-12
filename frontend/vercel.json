@@ -1,16 +1,6 @@
 {
   "redirects": [
     {
-      "source": "/windows",
-      "destination": "/pt-BR/windows",
-      "statusCode": 301
-    },
-    {
-      "source": "/faq",
-      "destination": "/pt-BR/faq",
-      "statusCode": 301
-    },
-    {
       "source": "/",
       "has": [
         {
