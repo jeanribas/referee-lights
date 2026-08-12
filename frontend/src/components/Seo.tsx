@@ -92,11 +92,28 @@ export function Seo({ title, description, canonicalPath, image, noIndex }: SeoPr
   );
 }
 
+/**
+ * Monta a URL pública de uma página num locale.
+ *
+ * O locale padrão sai SEM prefixo (`/windows`, não `/pt-BR/windows`), porque é
+ * assim que o `next/link` gera link interno — e isso não é configurável no
+ * Pages Router. Quando esta função prefixava o pt-BR, o site anunciava
+ * `/pt-BR/windows` em canonical/sitemap/hreflang enquanto a home linkava
+ * `/windows`; o Bing descobria as duas e acusava título e meta duplicados
+ * ("Too many pages with identical titles", ago/2026).
+ *
+ * Redirect não resolve: com i18n ligado o path chega às regras do vercel.json
+ * já com o locale embutido, então `/windows` e `/pt-BR/windows` são
+ * indistinguíveis naquela camada (provado em 12/ago/2026 — a regra
+ * `/:path*` de host legado captura `pt-BR/...`). O que resolve é falar uma
+ * língua só: a forma sem prefixo, que é a que o framework linka. A forma
+ * prefixada continua respondendo, mas fica órfã — sem link, sem sitemap — e
+ * se auto-declara canonical para a versão limpa.
+ */
 function buildLocalizedPath(locale: string, normalizedPath: string) {
-  if (!normalizedPath || normalizedPath === '/') {
-    return `/${locale}`;
-  }
-  return `/${locale}${normalizedPath.startsWith('/') ? normalizedPath : `/${normalizedPath}`}`;
+  const path = !normalizedPath || normalizedPath === '/' ? '' : normalizedPath.startsWith('/') ? normalizedPath : `/${normalizedPath}`;
+  const prefix = locale === DEFAULT_LOCALE ? '' : `/${locale}`;
+  return `${prefix}${path}` || '/';
 }
 
 function pathWithoutLocale(path: string) {

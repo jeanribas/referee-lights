@@ -7,102 +7,107 @@
 
   Cada página aparece uma vez POR LOCALE, e todo bloco repete o conjunto
   completo de alternates, inclusive o auto-referente. O hreflang precisa ser
-  recíproco: se /en-US aponta para /pt-BR e /pt-BR não se declara, o Google
-  descarta o grupo inteiro. pt-BR ser o defaultLocale do Next não isenta — é
-  config de roteamento, o crawler não enxerga.
+  recíproco: se /en-US aponta para a home pt-BR e ela não se declara, o Google
+  descarta o grupo inteiro.
+
+  O pt-BR entra SEM prefixo (/, /faq, /windows). É a forma que o next/link
+  gera para o locale padrão, e o site precisa anunciar a mesma URL que linka —
+  divergir disso foi o que gerou o alerta de título/meta duplicados no Bing.
+  A forma /pt-BR/* continua respondendo, mas fica órfã de propósito. Ver o
+  comentário em src/components/Seo.tsx para o porquê de redirect não servir.
 
   x-default é o fallback para quem não casa com nenhum idioma, não "o idioma
-  padrão"; aponta para pt-BR porque é o que `/` serve nesse caso (com
-  Accept-Language conhecido, `/` redireciona 307 para o locale certo).
+  padrão"; aponta para a raiz, que é exatamente o que serve esse visitante
+  (com Accept-Language conhecido, `/` redireciona 307 para o locale certo).
 -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
-    <loc>https://refereelights.app/pt-BR</loc>
+    <loc>https://refereelights.app/</loc>
     <lastmod>2026-07-31</lastmod>
-    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://refereelights.app/pt-BR" />
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://refereelights.app/" />
     <xhtml:link rel="alternate" hreflang="en-US" href="https://refereelights.app/en-US" />
     <xhtml:link rel="alternate" hreflang="es-ES" href="https://refereelights.app/es-ES" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://refereelights.app/pt-BR" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://refereelights.app/" />
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://refereelights.app/en-US</loc>
     <lastmod>2026-07-31</lastmod>
-    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://refereelights.app/pt-BR" />
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://refereelights.app/" />
     <xhtml:link rel="alternate" hreflang="en-US" href="https://refereelights.app/en-US" />
     <xhtml:link rel="alternate" hreflang="es-ES" href="https://refereelights.app/es-ES" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://refereelights.app/pt-BR" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://refereelights.app/" />
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://refereelights.app/es-ES</loc>
     <lastmod>2026-07-31</lastmod>
-    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://refereelights.app/pt-BR" />
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://refereelights.app/" />
     <xhtml:link rel="alternate" hreflang="en-US" href="https://refereelights.app/en-US" />
     <xhtml:link rel="alternate" hreflang="es-ES" href="https://refereelights.app/es-ES" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://refereelights.app/pt-BR" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://refereelights.app/" />
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://refereelights.app/pt-BR/faq</loc>
+    <loc>https://refereelights.app/faq</loc>
     <lastmod>2026-08-03</lastmod>
-    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://refereelights.app/pt-BR/faq" />
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://refereelights.app/faq" />
     <xhtml:link rel="alternate" hreflang="en-US" href="https://refereelights.app/en-US/faq" />
     <xhtml:link rel="alternate" hreflang="es-ES" href="https://refereelights.app/es-ES/faq" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://refereelights.app/pt-BR/faq" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://refereelights.app/faq" />
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://refereelights.app/en-US/faq</loc>
     <lastmod>2026-08-03</lastmod>
-    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://refereelights.app/pt-BR/faq" />
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://refereelights.app/faq" />
     <xhtml:link rel="alternate" hreflang="en-US" href="https://refereelights.app/en-US/faq" />
     <xhtml:link rel="alternate" hreflang="es-ES" href="https://refereelights.app/es-ES/faq" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://refereelights.app/pt-BR/faq" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://refereelights.app/faq" />
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://refereelights.app/es-ES/faq</loc>
     <lastmod>2026-08-03</lastmod>
-    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://refereelights.app/pt-BR/faq" />
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://refereelights.app/faq" />
     <xhtml:link rel="alternate" hreflang="en-US" href="https://refereelights.app/en-US/faq" />
     <xhtml:link rel="alternate" hreflang="es-ES" href="https://refereelights.app/es-ES/faq" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://refereelights.app/pt-BR/faq" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://refereelights.app/faq" />
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://refereelights.app/pt-BR/windows</loc>
+    <loc>https://refereelights.app/windows</loc>
     <lastmod>2026-07-31</lastmod>
-    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://refereelights.app/pt-BR/windows" />
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://refereelights.app/windows" />
     <xhtml:link rel="alternate" hreflang="en-US" href="https://refereelights.app/en-US/windows" />
     <xhtml:link rel="alternate" hreflang="es-ES" href="https://refereelights.app/es-ES/windows" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://refereelights.app/pt-BR/windows" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://refereelights.app/windows" />
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://refereelights.app/en-US/windows</loc>
     <lastmod>2026-07-31</lastmod>
-    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://refereelights.app/pt-BR/windows" />
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://refereelights.app/windows" />
     <xhtml:link rel="alternate" hreflang="en-US" href="https://refereelights.app/en-US/windows" />
     <xhtml:link rel="alternate" hreflang="es-ES" href="https://refereelights.app/es-ES/windows" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://refereelights.app/pt-BR/windows" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://refereelights.app/windows" />
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://refereelights.app/es-ES/windows</loc>
     <lastmod>2026-07-31</lastmod>
-    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://refereelights.app/pt-BR/windows" />
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://refereelights.app/windows" />
     <xhtml:link rel="alternate" hreflang="en-US" href="https://refereelights.app/en-US/windows" />
     <xhtml:link rel="alternate" hreflang="es-ES" href="https://refereelights.app/es-ES/windows" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://refereelights.app/pt-BR/windows" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://refereelights.app/windows" />
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
