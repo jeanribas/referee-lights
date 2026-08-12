@@ -5,6 +5,7 @@ import Script from 'next/script';
 import { useRouter } from 'next/router';
 import dynamic from 'next/dynamic';
 
+import { CookieConsent } from '@/components/CookieConsent';
 import { Seo } from '@/components/Seo';
 import { trackPageView } from '@/lib/api';
 
@@ -70,7 +71,14 @@ export default function App({ Component, pageProps }: AppProps) {
       <Component {...pageProps} />
       {!IS_OFFLINE_BUNDLE && <VercelAnalytics />}
       {!IS_OFFLINE_BUNDLE && MARKETING_ROUTES.includes(router.pathname) && (
-        <Script src="/_a/s.js" strategy="afterInteractive" data-site="refereelights" data-banner="1" />
+        <>
+          {/* data-banner="0": o banner de fallback do tracker tem texto fixo em
+              português e nenhum atributo de idioma. Num site trilíngue quem
+              exibe é o CookieConsent, que lê o mesmo estado pela API do
+              tracker. */}
+          <Script src="/_a/s.js" strategy="afterInteractive" data-site="refereelights" data-banner="0" />
+          <CookieConsent />
+        </>
       )}
       {!IS_OFFLINE_BUNDLE && (
         <Script id="microsoft-clarity" strategy="afterInteractive">

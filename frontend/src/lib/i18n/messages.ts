@@ -248,8 +248,23 @@ type WindowsMessages = {
   cta: string;
 };
 
+/**
+ * Barra de consentimento. O texto vive aqui, e não no tracker: o `s.js` do
+ * stats.assist.com.br traz um banner de fallback com texto fixo em português
+ * ("só microsites, sem consent conhecido", diz o próprio script), sem opção de
+ * idioma. Este site é trilíngue, então desligamos o dele (data-banner="0") e
+ * montamos o nosso — ver components/CookieConsent.tsx.
+ */
+type ConsentMessages = {
+  ariaLabel: string;
+  text: string;
+  accept: string;
+  reject: string;
+};
+
 export type Messages = {
   common: CommonMessages;
+  consent: ConsentMessages;
   home: HomeMessages;
   faq: FaqMessages;
   windows: WindowsMessages;
@@ -261,6 +276,12 @@ export type Messages = {
 
 const MESSAGES: Record<AppLocale, Messages> = {
   'pt-BR': {
+    consent: {
+      ariaLabel: 'Aviso de privacidade',
+      text: 'Medimos o uso do site de forma anônima, para saber o que ajuda. Sem cookies e sem registrar seu IP.',
+      accept: 'Aceitar',
+      reject: 'Somente essenciais'
+    },
     common: {
       labels: {
         room: 'Sala',
@@ -618,6 +639,12 @@ const MESSAGES: Record<AppLocale, Messages> = {
     },
   },
   'en-US': {
+    consent: {
+      ariaLabel: 'Privacy notice',
+      text: 'We measure site usage anonymously, to learn what helps. No cookies, and your IP is never logged.',
+      accept: 'Accept',
+      reject: 'Essential only'
+    },
     common: {
       labels: {
         room: 'Room',
@@ -975,6 +1002,12 @@ const MESSAGES: Record<AppLocale, Messages> = {
     },
   },
   'es-ES': {
+    consent: {
+      ariaLabel: 'Aviso de privacidad',
+      text: 'Medimos el uso del sitio de forma anónima, para saber qué ayuda. Sin cookies y sin registrar tu IP.',
+      accept: 'Aceptar',
+      reject: 'Solo esenciales'
+    },
     common: {
       labels: {
         room: 'Sala',
