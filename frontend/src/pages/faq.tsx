@@ -27,7 +27,11 @@ function LanguageSelector() {
       {APP_LOCALES.map((loc) => (
         <button
           key={loc}
-          onClick={() => router.push(router.asPath, undefined, { locale: loc })}
+          onClick={() => {
+            // Ver comentário em index.tsx: sem o cookie a escolha não persiste.
+            document.cookie = `NEXT_LOCALE=${loc}; path=/; max-age=31536000`;
+            void router.push(router.asPath, undefined, { locale: loc });
+          }}
           style={{
             padding: compact ? '4px 8px' : '4px 10px',
             border: 'none',

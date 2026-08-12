@@ -134,7 +134,13 @@ function LanguageSelector() {
       {APP_LOCALES.map((loc) => (
         <button
           key={loc}
-          onClick={() => router.push(router.asPath, undefined, { locale: loc })}
+          onClick={() => {
+            // Sem o cookie o Next volta a decidir pelo Accept-Language na raiz
+            // e desfaz a escolha na próxima visita. As telas de operação já
+            // gravam o mesmo cookie; as páginas públicas tinham ficado de fora.
+            document.cookie = `NEXT_LOCALE=${loc}; path=/; max-age=31536000`;
+            void router.push(router.asPath, undefined, { locale: loc });
+          }}
           style={{
             padding: compact ? '4px 8px' : '4px 10px',
             border: 'none',
