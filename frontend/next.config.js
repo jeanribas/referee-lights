@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',
+  // standalone existe para o bundle Windows (tools/windows/build-package.mjs
+  // copia .next/standalone). Na Vercel ele conflita com o trace do adaptador
+  // no Next 16.3 (ENOENT next-server.js.nft.json) — e lá é desnecessário.
+  output: process.env.VERCEL ? undefined : 'standalone',
   // Embute as dependências nos chunks do servidor em vez de externalizá-las.
   // O runtime do Turbopack resolvia externals por um alias hasheado
   // (`react-qr-code-<hash>`, `@vercel/analytics-<hash>`) que falhava com
