@@ -1,8 +1,8 @@
 /**
  * Rate limiter em memória por chave (IP, instanceId...).
  * Janela fixa: `limit` requisições a cada `windowMs`. Sem dependências —
- * suficiente para endpoints públicos de baixo volume (/track, /telemetry,
- * /master/auth). O Map é podado a cada varredura para não crescer sem limite.
+ * suficiente para endpoints públicos de baixo volume (login e similares).
+ * O Map é podado a cada varredura para não crescer sem limite.
  */
 const buckets = new Map<string, { count: number; resetAt: number }>();
 const MAX_KEYS = 10_000;
