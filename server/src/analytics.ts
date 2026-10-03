@@ -34,6 +34,18 @@ export interface GeoDistribution {
   cities: Array<{ city: string; country: string; count: number }>;
 }
 
+/**
+ * No pacote o server é um único .js (esbuild) sem node_modules: o binário
+ * do better-sqlite3 fica ao lado dele e é apontado por BETTER_SQLITE3_BINDING
+ * (relativo à pasta do script). Fora do pacote vale a resolução padrão.
+ */
+function nativeBindingOptions(): Database.Options | undefined {
+  const binding = process.env.BETTER_SQLITE3_BINDING;
+  if (!binding) return undefined;
+  const base = process.argv[1] ? path.dirname(path.resolve(process.argv[1])) : process.cwd();
+  return { nativeBinding: path.resolve(base, binding) };
+}
+
 export class AnalyticsStore {
   private db: Database.Database | null = null;
 
@@ -41,7 +53,7 @@ export class AnalyticsStore {
     try {
       const dir = path.dirname(dbPath);
       fs.mkdirSync(dir, { recursive: true });
-      this.db = new Database(dbPath);
+      this.db = new Database(dbPath, nativeBindingOptions());
       this.db.pragma('journal_mode = WAL');
       this.createTables();
     } catch (err) {

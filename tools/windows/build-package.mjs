@@ -1,13 +1,23 @@
 #!/usr/bin/env node
-import { execSync } from 'node:child_process';
-import { cp, mkdir, rm, writeFile, readdir } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+// Monta o pacote Windows portátil (dist/windows-bundle + zip).
+//
+// Regras (ver docs/windows-package.md):
+// - só roda numa branch release/* (o pacote NUNCA sai do main);
+// - instala com `npm ci` e falha se algum package-lock.json mudar;
+// - server vira UM arquivo JS (esbuild) + o binário win-x64 do better-sqlite3:
+//   nada de node_modules do server no pacote (era ~3.200 arquivos);
+// - frontend = standalone do Next (dependências decididas pelo trace do
+//   próprio Next) + .next/static + public. Nenhuma remoção por nome de pasta.
+import { execSync, execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { cp, mkdir, rm, writeFile, readFile, readdir, stat } from 'node:fs/promises';
+import { existsSync, createWriteStream } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import https from 'node:https';
 import http from 'node:http';
-import { createWriteStream } from 'node:fs';
 
 const NODE_VERSION = '20.18.1';
 const NODE_ZIP_URL = `https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-win-x64.zip`;
@@ -16,35 +26,80 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..',
 const serverDir = path.join(rootDir, 'server');
 const frontendDir = path.join(rootDir, 'frontend');
 const outputDir = path.join(rootDir, 'dist', 'windows-bundle');
+const cacheDir = path.join(rootDir, 'dist', '.cache');
+const LOCKFILES = [path.join(serverDir, 'package-lock.json'), path.join(frontendDir, 'package-lock.json')];
 
 function run(command, options = {}) {
   execSync(command, { stdio: 'inherit', ...options });
 }
 
+function die(msg) {
+  console.error(`❌ ${msg}`);
+  process.exit(1);
+}
+
+function readHeadBranch() {
+  try {
+    let gitDir = path.join(rootDir, '.git');
+    const { statSync, readFileSync } = createRequire(import.meta.url)('node:fs');
+    if (statSync(gitDir).isFile()) {
+      gitDir = path.resolve(rootDir, readFileSync(gitDir, 'utf8').replace(/^gitdir:\s*/, '').trim());
+    }
+    const head = readFileSync(path.join(gitDir, 'HEAD'), 'utf8').trim();
+    return head.startsWith('ref: refs/heads/') ? head.slice('ref: refs/heads/'.length) : 'HEAD';
+  } catch {
+    return '';
+  }
+}
+
+/** O pacote sai SÓ de release/* (docs/windows-package.md, armadilha 1). */
+function assertReleaseBranch() {
+  let branch = '';
+  try {
+    branch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: rootDir, encoding: 'utf8' }).trim();
+  } catch {
+    // git indisponível/quebrado: lê o HEAD direto (funciona em worktree)
+    branch = readHeadBranch();
+  }
+  // Checkout destacado (CI): o GitHub informa a branch em GITHUB_REF_NAME
+  if ((!branch || branch === 'HEAD') && process.env.GITHUB_REF_NAME) branch = process.env.GITHUB_REF_NAME;
+  if (!/^release\/[\w.-]+$/.test(branch)) {
+    die(`O pacote Windows só é gerado de uma branch release/* (atual: "${branch || 'desconhecida'}"). Veja docs/windows-package.md.`);
+  }
+  console.log(`🌿 Branch ${branch}`);
+}
+
+async function lockHashes() {
+  const out = {};
+  for (const f of LOCKFILES) out[f] = createHash('sha256').update(await readFile(f)).digest('hex');
+  return out;
+}
+
+async function assertLocksUnchanged(before) {
+  const after = await lockHashes();
+  const changed = LOCKFILES.filter((f) => before[f] !== after[f]);
+  if (changed.length) die(`Build alterou lockfile(s): ${changed.map((f) => path.relative(rootDir, f)).join(', ')}. Use npm ci e comite o lock certo.`);
+  console.log('🔒 Lockfiles intactos.');
+}
+
 async function prepare() {
   console.log('\n📦 Limpando bundle anterior...');
-  // Preserva o runtime Node já baixado para não repetir o download de ~30MB
-  const nodeDir = path.join(outputDir, 'node');
-  const nodeBackup = path.join(rootDir, 'dist', '.node-runtime-keep');
-  if (existsSync(path.join(nodeDir, 'node.exe'))) {
-    await rm(nodeBackup, { recursive: true, force: true });
-    await cp(nodeDir, nodeBackup, { recursive: true });
-  }
+  // Runtime Node já baixado fica no cache (com marcador de versão)
   await rm(outputDir, { recursive: true, force: true });
   await mkdir(outputDir, { recursive: true });
-  if (existsSync(path.join(nodeBackup, 'node.exe'))) {
-    await cp(nodeBackup, nodeDir, { recursive: true });
-    await rm(nodeBackup, { recursive: true, force: true });
-  }
+  await mkdir(cacheDir, { recursive: true });
 }
 
 async function buildProjects() {
   console.log('\n🔨 Buildando server...');
-  run('npm install', { cwd: serverDir });
+  run('npm ci', { cwd: serverDir });
+  // dist velho pode carregar .js de arquivos já apagados do src
+  await rm(path.join(serverDir, 'dist'), { recursive: true, force: true });
   run('npm run build', { cwd: serverDir });
 
   console.log('\n🔨 Buildando frontend (standalone)...');
-  run('npm install', { cwd: frontendDir });
+  run('npm ci', { cwd: frontendDir });
+  await rm(path.join(frontendDir, '.next'), { recursive: true, force: true });
   // URLs de API/WS VAZIAS no build: o client inlina NEXT_PUBLIC_* na
   // compilação e um .env.local esquecido (ex.: criado pelo vercel CLI)
   // apontaria o pacote para a API de produção — sala criada lá, socket
@@ -64,81 +119,90 @@ async function buildProjects() {
   });
 }
 
+/**
+ * Binário win-x64 do better-sqlite3, na versão travada no lock, para a ABI do
+ * Node do pacote. Baixado com o prebuild-install do próprio better-sqlite3
+ * (não depende de install scripts do npm, que o npm 11 não roda por padrão).
+ */
+async function fetchWindowsSqliteBinary() {
+  const pkgDir = path.join(serverDir, 'node_modules', 'better-sqlite3');
+  const { version } = JSON.parse(await readFile(path.join(pkgDir, 'package.json'), 'utf8'));
+  const cached = path.join(cacheDir, `better_sqlite3-${version}-node${NODE_VERSION}-win32-x64.node`);
+  if (existsSync(cached)) {
+    console.log(`✅ better_sqlite3.node ${version} win-x64 (cache).`);
+    return cached;
+  }
+  console.log(`📥 Baixando better_sqlite3.node ${version} win-x64 (Node ${NODE_VERSION})...`);
+  const tmp = path.join(cacheDir, 'sqlite-win-tmp');
+  await rm(tmp, { recursive: true, force: true });
+  await mkdir(tmp, { recursive: true });
+  await cp(path.join(pkgDir, 'package.json'), path.join(tmp, 'package.json'));
+  const prebuild = path.join(serverDir, 'node_modules', 'prebuild-install', 'bin.js');
+  run(`node "${prebuild}" --platform win32 --arch x64 --runtime node --target ${NODE_VERSION} --verbose`, { cwd: tmp });
+  const out = path.join(tmp, 'build', 'Release', 'better_sqlite3.node');
+  await assertWindowsBinary(out);
+  await cp(out, cached);
+  await rm(tmp, { recursive: true, force: true });
+  return cached;
+}
+
 async function bundleServer() {
   const dest = path.join(outputDir, 'server');
-  await mkdir(dest, { recursive: true });
+  const distDest = path.join(dest, 'dist');
+  await mkdir(distDest, { recursive: true });
 
-  // Copy built dist
-  await cp(path.join(serverDir, 'dist'), path.join(dest, 'dist'), { recursive: true });
-  await cp(path.join(serverDir, 'package.json'), path.join(dest, 'package.json'));
-  await cp(path.join(serverDir, 'package-lock.json'), path.join(dest, 'package-lock.json'));
+  // Um único arquivo: dependências JS embutidas pelo esbuild. O único módulo
+  // nativo (better-sqlite3) é carregado pelo caminho explícito
+  // BETTER_SQLITE3_BINDING (nativeBinding) — sem `bindings`, sem node_modules.
+  // geoip-lite vira stub: ~150MB de base geo sem uso na rede local.
+  console.log('📦 Empacotando server em um único arquivo (esbuild)...');
+  const requireFromServer = createRequire(path.join(serverDir, 'package.json'));
+  const esbuild = requireFromServer('esbuild');
+  const result = await esbuild.build({
+    entryPoints: [path.join(serverDir, 'src', 'index.ts')],
+    outfile: path.join(distDest, 'index.js'),
+    bundle: true,
+    platform: 'node',
+    target: 'node20',
+    format: 'esm',
+    minify: true,
+    sourcemap: false,
+    legalComments: 'none',
+    metafile: true,
+    logLevel: 'warning',
+    alias: { 'geoip-lite': path.join(rootDir, 'tools', 'windows', 'geoip-lite-stub.cjs') },
+    // Opcionais do ws (aceleradores nativos), carregados em try/catch
+    external: ['bufferutil', 'utf-8-validate'],
+    // Dependências CJS fazem require() de módulos do Node: num bundle ESM o
+    // `require` precisa existir.
+    banner: { js: "import{createRequire as __rlCreateRequire}from'node:module';const require=__rlCreateRequire(import.meta.url);" }
+  });
+  const inputs = Object.keys(result.metafile.inputs);
+  if (inputs.some((f) => f.includes('node_modules/geoip-lite/'))) die('geoip-lite real entrou no bundle do server.');
 
-  // Create .env
+  await cp(await fetchWindowsSqliteBinary(), path.join(distDest, 'better_sqlite3.node'));
+
+  // package.json mínimo: o server lê a versão dele; "type: module" para o .js ESM.
+  const pkg = JSON.parse(await readFile(path.join(serverDir, 'package.json'), 'utf8'));
+  await writeFile(path.join(dest, 'package.json'), JSON.stringify({
+    name: pkg.name, version: pkg.version, private: true, type: 'module'
+  }, null, 2) + '\n', 'utf8');
+
   await writeFile(path.join(dest, '.env'), `PORT=3333
 CORS_ORIGIN=*
 LOG_LEVEL=info
 ANALYTICS_DB_PATH=data/analytics.db
 TELEMETRY_ENABLED=true
 KEY_RELAY_AVAILABLE=true
+BETTER_SQLITE3_BINDING=better_sqlite3.node
 `, 'utf8');
-
-  // Install prod deps forçando binários Windows x64 para o Node do bundle,
-  // mesmo empacotando a partir de macOS/Linux (prebuild-install respeita
-  // npm_config_platform/arch/target ao baixar o .node do better-sqlite3).
-  console.log('📥 Instalando deps de produção do server (win-x64)...');
-  run('npm ci --omit=dev --ignore-scripts=false', {
-    cwd: dest,
-    env: {
-      ...process.env,
-      npm_config_platform: 'win32',
-      npm_config_arch: 'x64',
-      npm_config_target: NODE_VERSION
-    }
-  });
-
-  await assertWindowsBinary(path.join(dest, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'));
-
-  // geoip-lite carrega ~150MB de dados só para geolocalizar IPs na telemetria —
-  // irrelevante rodando offline/rede local. Substitui por stub compatível
-  // (lookup() → null, mesmo retorno de IP privado/desconhecido).
-  console.log('🌍 Substituindo geoip-lite por stub (economiza ~150MB)...');
-  const geoipDir = path.join(dest, 'node_modules', 'geoip-lite');
-  await rm(geoipDir, { recursive: true, force: true });
-  await mkdir(geoipDir, { recursive: true });
-  await writeFile(path.join(geoipDir, 'package.json'), JSON.stringify({
-    name: 'geoip-lite',
-    version: '0.0.0-stub',
-    description: 'Stub offline do geoip-lite para o bundle Windows (sem base de dados geo)',
-    main: 'index.js'
-  }, null, 2), 'utf8');
-  await writeFile(path.join(geoipDir, 'index.js'), `// Stub do geoip-lite para o bundle portátil: rede local não precisa de geolocalização.
-// Mesma interface pública; lookup() devolve null como faria com IP privado.
-module.exports = {
-  lookup: () => null,
-  pretty: (ip) => String(ip),
-  startWatchingDataUpdate: () => {},
-  stopWatchingDataUpdate: () => {}
-};
-`, 'utf8');
-
-  // Remove unnecessary files from node_modules to reduce size
-  console.log('🧹 Limpando node_modules do server...');
-  await pruneNodeModules(path.join(dest, 'node_modules'));
 }
 
 /** Garante que o binário nativo é PE (Windows). Sai com erro se vier Mach-O/ELF. */
 async function assertWindowsBinary(binaryPath) {
-  if (!existsSync(binaryPath)) {
-    console.error(`❌ Binário nativo não encontrado: ${binaryPath}`);
-    process.exit(1);
-  }
-  const { readFile } = await import('node:fs/promises');
+  if (!existsSync(binaryPath)) die(`Binário nativo não encontrado: ${binaryPath}`);
   const head = (await readFile(binaryPath)).subarray(0, 2).toString('latin1');
-  if (head !== 'MZ') {
-    console.error(`❌ ${path.basename(binaryPath)} não é um binário Windows (PE). O prebuild win-x64 não foi baixado.`);
-    console.error('   Rode novamente com rede liberada ou copie manualmente o .node de um bundle que funcionava.');
-    process.exit(1);
-  }
+  if (head !== 'MZ') die(`${path.basename(binaryPath)} não é um binário Windows (PE).`);
   console.log('✅ better_sqlite3.node é PE/Windows x64.');
 }
 
@@ -146,19 +210,14 @@ async function bundleFrontend() {
   const dest = path.join(outputDir, 'frontend');
   const standaloneSrc = path.join(frontendDir, '.next', 'standalone');
 
-  if (!existsSync(standaloneSrc)) {
-    console.error('❌ Standalone build não encontrado. Verifique output: "standalone" no next.config.js');
-    process.exit(1);
-  }
+  if (!existsSync(standaloneSrc)) die('Standalone build não encontrado. Verifique output: "standalone" no next.config.js');
 
-  // Copy standalone output (includes node_modules already traced)
+  // Standalone = só o que o trace do Next (nft) marcou como necessário em
+  // runtime. Nada é removido por nome: foi isso que quebrou pacotes antes.
   await cp(standaloneSrc, dest, { recursive: true });
-
-  // Copy static assets and public
   await cp(path.join(frontendDir, '.next', 'static'), path.join(dest, '.next', 'static'), { recursive: true });
   await cp(path.join(frontendDir, 'public'), path.join(dest, 'public'), { recursive: true });
 
-  // Create .env.local
   await writeFile(path.join(dest, '.env.local'), `NEXT_PUBLIC_WS_URL=http://localhost:3333
 NEXT_PUBLIC_API_URL=http://localhost:3333
 `, 'utf8');
@@ -166,45 +225,30 @@ NEXT_PUBLIC_API_URL=http://localhost:3333
 
 async function downloadNode() {
   const nodeDir = path.join(outputDir, 'node');
-  if (existsSync(path.join(nodeDir, 'node.exe'))) {
-    console.log('✅ Node.js já presente.');
-    return;
+  const cachedExe = path.join(cacheDir, `node-v${NODE_VERSION}-win-x64.exe`);
+  // Cache nomeado pela versão: um node.exe de outra versão (outra ABI) com o
+  // better_sqlite3.node desta quebraria o pacote na inicialização.
+  if (!existsSync(cachedExe)) {
+    console.log(`\n⬇️  Baixando Node.js v${NODE_VERSION}...`);
+    const zipPath = path.join(cacheDir, 'node-tmp.zip');
+    const tmp = path.join(cacheDir, 'node-tmp');
+    await downloadFile(NODE_ZIP_URL, zipPath);
+    await rm(tmp, { recursive: true, force: true });
+    await mkdir(tmp, { recursive: true });
+    run(`tar -xf "${zipPath}" -C "${tmp}"`, { stdio: 'pipe' });
+    const exe = path.join(tmp, `node-v${NODE_VERSION}-win-x64`, 'node.exe');
+    if (!existsSync(exe)) die('node.exe não encontrado no zip do Node.');
+    await cp(exe, cachedExe);
+    await rm(tmp, { recursive: true, force: true });
+    await rm(zipPath, { force: true });
+  } else {
+    console.log(`✅ Node.js v${NODE_VERSION} (cache).`);
   }
-
-  console.log(`\n⬇️  Baixando Node.js v${NODE_VERSION}...`);
-  const zipPath = path.join(outputDir, 'node-tmp.zip');
-  await downloadFile(NODE_ZIP_URL, zipPath);
-
-  console.log('📂 Extraindo Node.js...');
+  // Só o node.exe: npm/npx/corepack, docs e node_modules do zip oficial não
+  // são usados pelo Iniciar.cmd.
   await mkdir(nodeDir, { recursive: true });
-  try {
-    run(`tar -xf "${zipPath}" -C "${nodeDir}" --strip-components=1`, { stdio: 'pipe' });
-  } catch {
-    try {
-      run(`unzip -qo "${zipPath}" -d "${outputDir}"`, { stdio: 'pipe' });
-      const extracted = `node-v${NODE_VERSION}-win-x64`;
-      await cp(path.join(outputDir, extracted), nodeDir, { recursive: true });
-      await rm(path.join(outputDir, extracted), { recursive: true, force: true });
-    } catch {
-      console.error('❌ Não foi possível extrair Node.js.');
-    }
-  }
-  await rm(zipPath, { force: true });
-
-  // Remove unnecessary Node files to save space
-  const nodeNpmDir = path.join(nodeDir, 'node_modules');
-  if (existsSync(nodeNpmDir)) await rm(nodeNpmDir, { recursive: true, force: true });
-  for (const f of ['npx', 'npx.cmd', 'npm', 'npm.cmd', 'corepack', 'corepack.cmd']) {
-    const fp = path.join(nodeDir, f);
-    if (existsSync(fp)) await rm(fp, { force: true });
-  }
-  // Remove docs, changelogs etc
-  for (const f of ['CHANGELOG.md', 'README.md', 'LICENSE']) {
-    const fp = path.join(nodeDir, f);
-    if (existsSync(fp)) await rm(fp, { force: true });
-  }
-
-  console.log('✅ Node.js pronto.');
+  await cp(cachedExe, path.join(nodeDir, 'node.exe'));
+  await writeFile(path.join(nodeDir, '.node-version'), NODE_VERSION, 'utf8');
 }
 
 function downloadFile(url, dest) {
@@ -221,38 +265,6 @@ function downloadFile(url, dest) {
       file.on('error', reject);
     }).on('error', reject);
   });
-}
-
-/** Remove docs, tests, source maps, ts files from node_modules */
-async function pruneNodeModules(nmDir) {
-  if (!existsSync(nmDir)) return;
-  const PRUNE_PATTERNS = [
-    'README.md', 'readme.md', 'CHANGELOG.md', 'changelog.md', 'HISTORY.md',
-    'LICENSE.md', 'license.md', 'LICENSE.txt', 'license.txt',
-    '.npmignore', '.eslintrc', '.eslintrc.json', '.eslintrc.js',
-    '.prettierrc', '.travis.yml', '.github', 'test', 'tests', '__tests__',
-    'docs', 'doc', 'example', 'examples', '.tsbuildinfo'
-  ];
-  let removed = 0;
-
-  async function walk(dir) {
-    let entries;
-    try { entries = await readdir(dir, { withFileTypes: true }); } catch { return; }
-    for (const entry of entries) {
-      const full = path.join(dir, entry.name);
-      if (PRUNE_PATTERNS.includes(entry.name)) {
-        await rm(full, { recursive: true, force: true });
-        removed++;
-      } else if (entry.isDirectory()) {
-        await walk(full);
-      } else if (entry.name.endsWith('.map') || entry.name.endsWith('.ts') && !entry.name.endsWith('.d.ts')) {
-        await rm(full, { force: true });
-        removed++;
-      }
-    }
-  }
-  await walk(nmDir);
-  console.log(`   Removidos ${removed} arquivos desnecessários`);
 }
 
 async function createScripts() {
@@ -384,15 +396,41 @@ async function createZip() {
   const zipPath = path.join(rootDir, 'dist', 'referee-lights-windows.zip');
   console.log('\n🗜️  Gerando referee-lights-windows.zip...');
   await rm(zipPath, { force: true });
-  // -X: sem atributos extras de macOS; exclui lixo de SO
-  run(`zip -qryX "${zipPath}" . -x "*.DS_Store" -x "__MACOSX/*"`, { cwd: outputDir });
-  const { statSync } = await import('node:fs');
-  console.log(`   ${(statSync(zipPath).size / 1024 / 1024).toFixed(1)} MB → ${zipPath}`);
+  const entries = (await readdir(outputDir)).filter((n) => n !== '.DS_Store');
+  if (process.platform === 'win32') {
+    // Runner Windows (CI) não tem `zip`; o bsdtar nativo (Win10+) gera zip
+    // deflate com nomes UTF-8. Entradas explícitas: sem prefixo "./".
+    run(`tar -a -c -f "${zipPath}" ${entries.map((e) => `"${e}"`).join(' ')}`, { cwd: outputDir });
+  } else {
+    // -X: sem atributos extras de macOS; deflate padrão (-6): tamanho x
+    // velocidade de extração equilibrados
+    run(`zip -qryX "${zipPath}" ${entries.map((e) => `"${e}"`).join(' ')} -x "*.DS_Store" -x "__MACOSX/*"`, { cwd: outputDir });
+  }
+  console.log(`   ${((await stat(zipPath)).size / 1024 / 1024).toFixed(1)} MB → ${zipPath}`);
+}
+
+async function countFiles(dir) {
+  let files = 0;
+  let bytes = 0;
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      const sub = await countFiles(full);
+      files += sub.files;
+      bytes += sub.bytes;
+    } else {
+      files += 1;
+      bytes += (await stat(full)).size;
+    }
+  }
+  return { files, bytes };
 }
 
 async function main() {
   const startTime = Date.now();
 
+  assertReleaseBranch();
+  const locks = await lockHashes();
   await prepare();
   await buildProjects();
 
@@ -402,11 +440,14 @@ async function main() {
   await downloadNode();
   await createScripts();
   await createZip();
+  await assertLocksUnchanged(locks);
+
+  const { files, bytes } = await countFiles(outputDir);
+  console.log(`   ${files} arquivos, ${(bytes / 1024 / 1024).toFixed(1)} MB extraído`);
 
   console.log('\n🔎 Verificando bundle...');
   run(`node "${path.join(rootDir, 'tools', 'windows', 'verify-bundle.mjs')}"`);
 
-  // Count files and size
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
   console.log(`\n✅ Pacote pronto em ${outputDir}`);
   console.log(`   Tempo: ${elapsed}s`);

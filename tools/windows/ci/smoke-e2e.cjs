@@ -2,7 +2,10 @@
 // votos, revelação no display. Usa o socket.io-client que JÁ vem dentro do
 // standalone do frontend — testa o pacote como ele é, sem instalar nada.
 //
-// Uso: node smoke-e2e.cjs <pastaDoFrontendDoPacote> [apiBase] [--malformed]
+// Uso: node smoke-e2e.cjs <pastaDoFrontendDoPacote> [apiBase] [--full] [--malformed]
+//   --full: depois da decisão, exercita timer (set/start/stop/reset),
+//   intervalo (set/show/start/stop/hide), troca de idioma e legend:config,
+//   conferindo o estado que chega no display.
 //   --malformed: depois do fluxo, manda um payload/ack malformado sem
 //   autenticar e confere que o server CONTINUA vivo (regressão do crash
 //   "ack is not a function" que derrubava o processo inteiro).
@@ -11,6 +14,7 @@ const path = require('path');
 const frontendDir = process.argv[2];
 const API = process.argv[3] && !process.argv[3].startsWith('--') ? process.argv[3] : 'http://127.0.0.1:3333';
 const checkMalformed = process.argv.includes('--malformed');
+const checkFull = process.argv.includes('--full');
 const { io } = require(path.join(path.resolve(frontendDir), 'node_modules', 'socket.io-client'));
 const ROLES = ['left', 'center', 'right'];
 
@@ -71,6 +75,50 @@ async function health() {
   }
   if ((last.cards.right || []).join() !== '1') throw new Error(`cartão do voto vermelho não registrado: ${JSON.stringify(last.cards)}`);
   console.log('OK cartão após revelação não altera luz branca');
+
+  if (checkFull) {
+    const until = (pred, label) =>
+      new Promise((res, rej) => {
+        if (pred(last)) return res(last);
+        const t = setTimeout(() => rej(new Error(`display não recebeu: ${label}`)), 6000);
+        const h = (st) => { if (pred(st)) { clearTimeout(t); display.off('state:update', h); res(st); } };
+        display.on('state:update', h);
+      });
+    await ack(admin, 'admin:clear');
+    await until((st) => st.phase === 'idle' && st.votes.left === null, 'clear');
+    await ack(admin, 'timer:command', { action: 'set', seconds: 90 });
+    await until((st) => st.running && st.timerMs > 80_000 && st.timerMs <= 90_000, 'timer set 90s rodando');
+    await ack(admin, 'timer:command', { action: 'stop' });
+    await until((st) => !st.running, 'timer parado');
+    await ack(refs[1], 'timer:command', { action: 'start' }); // árbitro central controla o timer
+    await until((st) => st.running, 'timer retomado pelo árbitro central');
+    await ack(admin, 'timer:command', { action: 'reset' });
+    await until((st) => !st.running, 'timer reset');
+    const badTimer = await new Promise((r) => admin.emit('timer:command', { action: 'set', seconds: 'abc' }, r));
+    if (badTimer?.error !== 'invalid_payload') throw new Error(`timer com seconds inválido aceito: ${JSON.stringify(badTimer)}`);
+    await ack(admin, 'interval:command', { action: 'set', seconds: 600 });
+    await until((st) => st.intervalConfiguredMs === 600_000, 'intervalo configurado 10min');
+    await ack(admin, 'interval:command', { action: 'show' });
+    await ack(admin, 'interval:command', { action: 'start' });
+    await until((st) => st.intervalVisible && st.intervalRunning, 'intervalo visível e rodando');
+    await ack(admin, 'interval:command', { action: 'stop' });
+    await ack(admin, 'interval:command', { action: 'hide' });
+    await until((st) => !st.intervalVisible && !st.intervalRunning, 'intervalo parado e oculto');
+    const localeEvt = new Promise((res, rej) => {
+      const t = setTimeout(() => rej(new Error('display não recebeu locale:change')), 6000);
+      display.once('locale:change', (l) => { clearTimeout(t); res(l); });
+    });
+    await ack(admin, 'locale:change', { locale: 'en-US' });
+    if ((await localeEvt) !== 'en-US') throw new Error('locale:change com valor errado');
+    await until((st) => st.locale === 'en-US', 'locale en-US no estado');
+    const legend = { bgColor: '#00ff00', timerColor: '#ffffff', digitMode: 'mmss', showPlaceholders: true, showDashedFrame: false, keepAwake: true };
+    await ack(admin, 'legend:config', { config: legend });
+    await until((st) => st.legendConfig && st.legendConfig.bgColor === '#00ff00' && st.legendConfig.showDashedFrame === false, 'legend:config aplicado');
+    await ack(admin, 'locale:change', { locale: 'pt-BR' });
+    const kr = await (await fetch(`${API}/key-relay/status`)).json();
+    if (typeof kr.available !== 'boolean' || kr.roomId !== null) throw new Error(`key-relay/status inesperado: ${JSON.stringify(kr)}`);
+    console.log('OK timer, intervalo, idioma, legenda e key-relay/status');
+  }
   for (const x of [admin, display, ...refs]) x.close();
 
   if (checkMalformed) {
