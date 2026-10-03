@@ -59,6 +59,18 @@ async function health() {
     throw new Error(`votos revelados inesperados: ${JSON.stringify(v)}`);
   }
   console.log(`OK fluxo completo na sala ${room.roomId}: ${JSON.stringify(v)}`);
+  // Cartão depois da revelação: quem votou vermelho completa o cartão; quem
+  // votou branco NÃO pode virar a luz já exibida para vermelho.
+  let last = s;
+  display.on('state:update', (st) => { last = st; });
+  await ack(refs[2], 'ref:card', { card: 1 });
+  await ack(refs[0], 'ref:card', { card: 3 });
+  await new Promise((r) => setTimeout(r, 400));
+  if (last.votes.left !== 'white' || (last.cards.left || []).length !== 0) {
+    throw new Error(`cartão após revelação alterou luz branca: ${JSON.stringify({ v: last.votes, c: last.cards })}`);
+  }
+  if ((last.cards.right || []).join() !== '1') throw new Error(`cartão do voto vermelho não registrado: ${JSON.stringify(last.cards)}`);
+  console.log('OK cartão após revelação não altera luz branca');
   for (const x of [admin, display, ...refs]) x.close();
 
   if (checkMalformed) {

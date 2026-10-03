@@ -133,6 +133,11 @@ export class RoomState {
   }
 
   setCard(judge: Judge, card: CardValue) {
+    // Com a decisão já exibida, só quem votou vermelho ajusta cartões (o
+    // console manda voto e cartão em sequência, e o voto revela antes do
+    // cartão chegar). Antes, um cartão de quem deu branco virava a luz
+    // revelada para vermelho — setVote já bloqueava, setCard não.
+    if (this.state.phase === 'revealed' && this.state.votes[judge] !== 'red') return;
     if (card === null) {
       this.state.cards[judge] = [];
       this.notify();
