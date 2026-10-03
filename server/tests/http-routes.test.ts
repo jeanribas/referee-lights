@@ -13,6 +13,8 @@ process.env.LOG_LEVEL = 'silent';
 process.env.MASTER_USER = 'test-user';
 process.env.MASTER_PASSWORD = 'test-password';
 process.env.MASTER_TOKEN_SECRET = 'test-secret';
+// Simula o Traefik da produção: o X-Forwarded-For de um valor só é o IP real.
+process.env.TRUST_PROXY_HOPS = '1';
 
 const dataDir = mkdtempSync(path.join(tmpdir(), 'rl-http-'));
 process.env.ANALYTICS_DB_PATH = path.join(dataDir, 'analytics.db');

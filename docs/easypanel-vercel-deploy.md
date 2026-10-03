@@ -51,6 +51,13 @@ Obrigatórias:
 - `PORT=3333`
 - `CORS_ORIGIN=https://seu-frontend.vercel.app`
 - `LOG_LEVEL=info`
+- `TRUST_PROXY_HOPS=1` quando a API fica atrás de UM reverse proxy (Traefik do
+  Easypanel/Dokploy). É o número de proxies seus na frente da API: o IP do
+  cliente passa a ser o valor mais à direita do `X-Forwarded-For` (o que o
+  proxy escreveu), e os limites de tentativas deixam de ser burláveis com
+  header forjado. Padrão `0` = sem proxy (rede local): o header é ignorado.
+  Sem essa variável atrás de proxy, todos os clientes aparecem com o IP do
+  proxy e dividem os mesmos limites.
 
 Depois do deploy, valide:
 

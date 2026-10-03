@@ -1,5 +1,7 @@
 import { config as loadEnv } from 'dotenv';
 
+import { parseTrustProxyHops } from './client-ip.js';
+
 // dotenv 17 loga uma dica de runtime a cada boot; quiet mantém o stdout limpo.
 loadEnv({ quiet: true });
 
@@ -19,5 +21,8 @@ export const config = {
   GEO_ENABLED: (process.env.GEO_ENABLED ?? 'true') === 'true',
   KEY_RELAY_AVAILABLE: (process.env.KEY_RELAY_AVAILABLE ?? 'false') === 'true',
   // Sala sem atividade por este tempo é arquivada (código volta ao pool)
-  ROOM_TTL_HOURS: Number(process.env.ROOM_TTL_HOURS ?? 24)
+  ROOM_TTL_HOURS: Number(process.env.ROOM_TTL_HOURS ?? 24),
+  // Quantos proxies NOSSOS ficam na frente da API (Traefik/Dokploy = 1).
+  // 0 = sem proxy (bundle na LAN): X-Forwarded-For é ignorado.
+  TRUST_PROXY_HOPS: parseTrustProxyHops(process.env.TRUST_PROXY_HOPS)
 };

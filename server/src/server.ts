@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 import { readFileSync } from 'node:fs';
 import { Server as SocketIOServer, type Socket } from 'socket.io';
 
+import { resolveClientIp } from './client-ip.js';
 import { lookupGeo } from './geo.js';
 import { AnalyticsStore } from './analytics.js';
 import { config } from './config.js';
@@ -211,16 +212,12 @@ export async function createServer() {
     }
   }
 
-  function extractIp(request: { ip: string; headers: Record<string, string | string[] | undefined> }): string {
-    const forwarded = request.headers['x-forwarded-for'];
-    if (typeof forwarded === 'string') return forwarded.split(',')[0].trim();
-    return request.ip ?? '';
+  function extractIp(request: { socket?: { remoteAddress?: string }; ip: string; headers: Record<string, string | string[] | undefined> }): string {
+    return resolveClientIp(request.socket?.remoteAddress ?? request.ip, request.headers['x-forwarded-for'], config.TRUST_PROXY_HOPS);
   }
 
   function socketIp(socket: AppSocket): string {
-    const forwarded = socket.handshake.headers['x-forwarded-for'];
-    if (typeof forwarded === 'string') return forwarded.split(',')[0].trim();
-    return socket.handshake.address ?? '';
+    return resolveClientIp(socket.handshake.address, socket.handshake.headers['x-forwarded-for'], config.TRUST_PROXY_HOPS);
   }
 
   function socketHost(socket: AppSocket): string {
