@@ -143,13 +143,26 @@ export default function LegendPage() {
     if (appliedRemoteConfigKeyRef.current === remoteLegendConfigKey) return;
 
     appliedRemoteConfigKeyRef.current = remoteLegendConfigKey;
-    setBgColor(remoteLegendConfig.bgColor);
-    setTimerColor(remoteLegendConfig.timerColor);
-    setDigitMode(remoteLegendConfig.digitMode);
-    setShowPlaceholders(remoteLegendConfig.showPlaceholders);
-    setShowDashedFrame(remoteLegendConfig.showDashedFrame);
+    // No link de compartilhamento, o que veio explícito na URL manda: antes a
+    // config da sala chegava pelo socket logo após conectar e sobrescrevia
+    // legendBg/legendTimer/legendDigits/..., tornando os parâmetros inúteis.
+    const fromUrl = (value: string | undefined) => isShareView && value !== undefined;
+    if (!fromUrl(legendBgQuery)) setBgColor(remoteLegendConfig.bgColor);
+    if (!fromUrl(legendTimerQuery)) setTimerColor(remoteLegendConfig.timerColor);
+    if (!fromUrl(legendDigitsQuery)) setDigitMode(remoteLegendConfig.digitMode);
+    if (!fromUrl(legendPlaceholdersQuery)) setShowPlaceholders(remoteLegendConfig.showPlaceholders);
+    if (!fromUrl(legendFrameQuery)) setShowDashedFrame(remoteLegendConfig.showDashedFrame);
     setKeepAwake(remoteLegendConfig.keepAwake);
-  }, [remoteLegendConfig, remoteLegendConfigKey]);
+  }, [
+    remoteLegendConfig,
+    remoteLegendConfigKey,
+    isShareView,
+    legendBgQuery,
+    legendTimerQuery,
+    legendDigitsQuery,
+    legendPlaceholdersQuery,
+    legendFrameQuery
+  ]);
 
   useEffect(() => {
     if (!hydrated || typeof window === 'undefined' || isShareView) return;
