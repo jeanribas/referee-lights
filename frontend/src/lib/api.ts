@@ -123,13 +123,13 @@ export function getKeyRelayStatus() {
   return getJson<KeyRelayStatus>('/key-relay/status');
 }
 
-export function startKeyRelay(roomId: string, validKey = 'F1', invalidKey = 'F10') {
+export function startKeyRelay(roomId: string, adminPin: string, validKey = 'F1', invalidKey = 'F10') {
   return postJson<{ ok: true; roomId: string; keys: { valid: string; invalid: string } }>(
     '/key-relay/start',
-    { roomId, validKey, invalidKey }
+    { roomId, adminPin, validKey, invalidKey }
   );
 }
 
-export function stopKeyRelay() {
-  return postJson<{ ok: true }>('/key-relay/stop');
+export function stopKeyRelay(roomId: string, adminPin: string) {
+  return postJson<{ ok: true }>('/key-relay/stop', { roomId, adminPin });
 }

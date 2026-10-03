@@ -26,6 +26,18 @@ const FUNCTION_KEYS: Record<string, KeyDefinition> = {
 
 const TRIGGER_DELAY_MS = 1600;
 
+/**
+ * Combinação aceita: até 3 modificadores conhecidos + F1–F12 ou UMA letra/
+ * dígito. A tecla vai interpolada em comandos do PowerShell (SendKeys) e do
+ * AppleScript: sem essa lista branca, uma "tecla" como `x');Start-Process
+ * calc;('` executava comando arbitrário na máquina do bundle.
+ */
+const KEY_COMBO_RE = /^(?:(?:ctrl|shift|alt|meta)\+){0,3}(?:f(?:[1-9]|1[0-2])|[a-z0-9])$/i;
+
+export function isValidKeyCombo(combo: unknown): combo is string {
+  return typeof combo === 'string' && combo.length <= 32 && KEY_COMBO_RE.test(combo.replace(/\s+/g, ''));
+}
+
 export class KeyRelay {
   private active = false;
   private roomId: string | null = null;
@@ -39,6 +51,11 @@ export class KeyRelay {
   get keys() { return { valid: this.validKey, invalid: this.invalidKey }; }
 
   start(roomId: string, validKey = 'F1', invalidKey = 'F10') {
+    if (!isValidKeyCombo(validKey) || !isValidKeyCombo(invalidKey)) {
+      throw new Error('invalid_key');
+    }
+    validKey = validKey.replace(/\s+/g, '');
+    invalidKey = invalidKey.replace(/\s+/g, '');
     this.roomId = roomId;
     this.validKey = validKey;
     this.invalidKey = invalidKey;

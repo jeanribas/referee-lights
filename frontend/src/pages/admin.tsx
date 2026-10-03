@@ -121,19 +121,19 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
   }, []);
 
   const handleKeyRelayToggle = useCallback(async () => {
-    if (!roomId) return;
+    if (!roomId || !adminPin) return;
     try {
       if (keyRelayStatus?.active) {
-        await stopKeyRelay();
+        await stopKeyRelay(roomId, adminPin);
       } else {
-        await startKeyRelay(roomId, krValidKey, krInvalidKey);
+        await startKeyRelay(roomId, adminPin, krValidKey, krInvalidKey);
       }
       const s = await getKeyRelayStatus();
       setKeyRelayStatus(s);
     } catch (err) {
       console.error('Key relay toggle error:', err);
     }
-  }, [keyRelayStatus, roomId, krValidKey, krInvalidKey]);
+  }, [keyRelayStatus, roomId, adminPin, krValidKey, krInvalidKey]);
 
   useEffect(() => {
     if (!credentialsReady) {

@@ -4,7 +4,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { io as ioClient } from 'socket.io-client';
 
 import { parseTrustProxyHops, resolveClientIp } from '../src/client-ip.js';
 
@@ -88,28 +87,5 @@ describe('rate limit do login com X-Forwarded-For forjado', () => {
   });
 });
 
-describe('socket.io usa a mesma regra', () => {
-  it('handshake com X-Forwarded-For forjado grava o IP do socket (hops=0)', async () => {
-    cfg.TRUST_PROXY_HOPS = 0;
-    await app.listen({ port: 0, host: '127.0.0.1' });
-    const addr = app.server.address();
-    if (!addr || typeof addr === 'string') throw new Error('sem endereço');
-    const socket = ioClient(`http://127.0.0.1:${addr.port}`, {
-      transports: ['websocket'],
-      forceNew: true,
-      reconnection: false,
-      extraHeaders: { 'x-forwarded-for': '6.6.6.6' }
-    });
-    await new Promise<void>((resolve, reject) => {
-      socket.once('connect', () => resolve());
-      socket.once('connect_error', reject);
-    });
-    const [server] = await app.io.fetchSockets();
-    const { resolveClientIp: resolve } = await import('../src/client-ip.js');
-    expect(server.handshake.headers['x-forwarded-for']).toBe('6.6.6.6');
-    expect(resolve(server.handshake.address, server.handshake.headers['x-forwarded-for'], cfg.TRUST_PROXY_HOPS)).not.toBe(
-      '6.6.6.6'
-    );
-    socket.disconnect();
-  });
-});
+// O caminho do socket.io (handshake) é coberto em security.test.ts:
+// força bruta via socket com X-Forwarded-For forjado continua bloqueada.

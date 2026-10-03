@@ -365,7 +365,9 @@ describe('key relay', () => {
     const start = await app.inject({ method: 'POST', url: '/key-relay/start', payload: {} });
     expect(start.statusCode).toBe(400);
     expect(start.json()).toEqual({ error: 'missing_room_id' });
+    // KEY_RELAY_AVAILABLE=false (servidor web): stop também é recusado
     const stop = await app.inject({ method: 'POST', url: '/key-relay/stop' });
-    expect(stop.statusCode).toBe(200);
+    expect(stop.statusCode).toBe(403);
+    expect(stop.json()).toEqual({ error: 'key_relay_unavailable' });
   });
 });
