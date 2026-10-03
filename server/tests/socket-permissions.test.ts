@@ -133,6 +133,18 @@ describe('client:register', () => {
     });
   });
 
+  it('papel viewer (removido) é recusado e não entra no canal da sala', async () => {
+    const room = await createRoom();
+    const s = await connect();
+    expect(await emitAck(s, 'client:register', { role: 'viewer', roomId: room.roomId })).toEqual({
+      error: 'invalid_payload'
+    });
+    const { socket: admin } = await register('admin', room);
+    expect(await emitAck(admin, 'admin:ready')).toEqual({ ok: true });
+    await new Promise((r) => setTimeout(r, 150));
+    expect((s as Socket & { last?: Snapshot }).last).toBeUndefined();
+  });
+
   it('PIN de outra sala não abre esta', async () => {
     const a = await createRoom();
     const b = await createRoom();

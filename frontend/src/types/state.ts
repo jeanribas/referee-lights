@@ -29,4 +29,4 @@ export interface AppState {
   legendConfig: LegendConfig;
 }
 
-export type ClientRole = 'admin' | 'display' | Judge | 'viewer';
+export type ClientRole = 'admin' | 'display' | Judge;

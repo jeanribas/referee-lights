@@ -56,7 +56,7 @@ After registering, each client joins `room:<roomId>` and receives `state:update`
 
 - `admin` and `display` require valid room PIN (`pin`).
 - `left`, `center`, `right` require valid referee token (`token`).
-- `viewer` only needs `roomId`.
+- Any other role is rejected with `invalid_payload`.
 
 ## ACK errors
 
