@@ -76,7 +76,7 @@ fi
 step "subindo API (:${API_PORT}) e frontend (:${WEB_PORT})"
 (cd "$ROOT/server" && PORT="$API_PORT" exec node dist/index.js) >"$LOG_DIR/api.log" 2>&1 &
 PIDS+=($!)
-(cd "$ROOT/frontend" && PORT="$WEB_PORT" exec npx next start -p "$WEB_PORT") >"$LOG_DIR/web.log" 2>&1 &
+(cd "$ROOT/frontend" && PORT="$WEB_PORT" exec ./node_modules/.bin/next start -p "$WEB_PORT") >"$LOG_DIR/web.log" 2>&1 &
 PIDS+=($!)
 wait_http "${API_URL}/health" api
 wait_http "http://localhost:${WEB_PORT}/" web
