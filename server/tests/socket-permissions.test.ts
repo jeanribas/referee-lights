@@ -127,6 +127,10 @@ describe('client:register', () => {
     const s = await connect();
     expect(await emitAck(s, 'client:register', {})).toEqual({ error: 'invalid_payload' });
     expect(await emitAck(s, 'client:register', null)).toEqual({ error: 'invalid_payload' });
+    // papel desconhecido não pode entrar no canal da sala sem credencial
+    expect(await emitAck(s, 'client:register', { role: 'superadmin', roomId: room.roomId })).toEqual({
+      error: 'invalid_payload'
+    });
   });
 
   it('PIN de outra sala não abre esta', async () => {

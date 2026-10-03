@@ -309,8 +309,24 @@ export async function createServer() {
   io.on('connection', (socket: AppSocket) => {
     socket.data = { role: VIEWER_ROLE };
 
-    socket.on('client:register', (payload, ack) => {
-      if (!payload || !payload.roomId || !payload.role) {
+    // Rede de segurança: payload e ack vêm de qualquer cliente anônimo. Uma
+    // exceção síncrona num handler virava uncaughtException → process.exit(1),
+    // derrubando todas as salas. Aqui ela vira erro registrado e o socket segue.
+    const on = (event: keyof ClientToServerEvents, handler: (...args: unknown[]) => void) => {
+      socket.on(event, ((...args: unknown[]) => {
+        try {
+          handler(...args);
+        } catch (error) {
+          telemetry.trackError(`socket ${event}`, String((error as Error)?.message ?? error));
+          app.log.error({ err: error, event }, 'socket_handler_error');
+        }
+      }) as never);
+    };
+
+    on('client:register', (rawPayload, rawAck) => {
+      const ack = toAck(rawAck);
+      const payload = parseRegistration(rawPayload);
+      if (!payload) {
         ack?.({ error: 'invalid_payload' });
         return;
       }
@@ -374,27 +390,40 @@ export async function createServer() {
       socket.emit('state:update', state.getSnapshot());
     });
 
-    socket.on('ref:vote', (payload, ack) => {
+    on('ref:vote', (payload, rawAck) => {
+      const ack = toAck(rawAck);
       const judgeContext = ensureJudgeContext(socket, roomManager);
       if (!judgeContext.ok) {
         ack?.({ error: judgeContext.error });
         return;
       }
-      judgeContext.state.setVote(judgeContext.judge, payload.vote);
+      const parsed = parseVote(payload);
+      if (!parsed.ok) {
+        ack?.({ error: 'invalid_payload' });
+        return;
+      }
+      judgeContext.state.setVote(judgeContext.judge, parsed.vote);
       ack?.({ ok: true });
     });
 
-    socket.on('ref:card', (payload, ack) => {
+    on('ref:card', (payload, rawAck) => {
+      const ack = toAck(rawAck);
       const judgeContext = ensureJudgeContext(socket, roomManager);
       if (!judgeContext.ok) {
         ack?.({ error: judgeContext.error });
         return;
       }
-      judgeContext.state.setCard(judgeContext.judge, payload.card);
+      const parsed = parseCard(payload);
+      if (!parsed.ok) {
+        ack?.({ error: 'invalid_payload' });
+        return;
+      }
+      judgeContext.state.setCard(judgeContext.judge, parsed.card);
       ack?.({ ok: true });
     });
 
-    socket.on('admin:ready', (ack) => {
+    on('admin:ready', (rawAck) => {
+      const ack = toAck(rawAck);
       const adminContext = ensureAdminContext(socket, roomManager);
       if (!adminContext.ok) {
         ack?.({ error: adminContext.error });
@@ -404,7 +433,8 @@ export async function createServer() {
       ack?.({ ok: true });
     });
 
-    socket.on('admin:release', (ack) => {
+    on('admin:release', (rawAck) => {
+      const ack = toAck(rawAck);
       const adminContext = ensureAdminContext(socket, roomManager);
       if (!adminContext.ok) {
         ack?.({ error: adminContext.error });
@@ -414,7 +444,8 @@ export async function createServer() {
       ack?.({ ok: true });
     });
 
-    socket.on('admin:clear', (ack) => {
+    on('admin:clear', (rawAck) => {
+      const ack = toAck(rawAck);
       const adminContext = ensureAdminContext(socket, roomManager);
       if (!adminContext.ok) {
         ack?.({ error: adminContext.error });
@@ -424,14 +455,21 @@ export async function createServer() {
       ack?.({ ok: true });
     });
 
-    socket.on('timer:command', (payload, ack) => {
+    on('timer:command', (payload, rawAck) => {
+      const ack = toAck(rawAck);
       const timerContext = ensureTimerControllerContext(socket, roomManager);
       if (!timerContext.ok) {
         ack?.({ error: timerContext.error });
         return;
       }
 
-      switch (payload.action) {
+      const command = parseTimedCommand(payload, ['start', 'stop', 'reset', 'set'] as const);
+      if (!command.ok) {
+        ack?.({ error: command.error });
+        return;
+      }
+
+      switch (command.action) {
         case 'start':
           timerContext.state.startTimer();
           break;
@@ -442,7 +480,7 @@ export async function createServer() {
           timerContext.state.resetTimer();
           break;
         case 'set':
-          timerContext.state.startTimerWithSeconds(payload.seconds ?? 60);
+          timerContext.state.startTimerWithSeconds(command.seconds ?? 60);
           break;
         default:
           ack?.({ error: 'unknown_action' });
@@ -452,14 +490,21 @@ export async function createServer() {
       ack?.({ ok: true });
     });
 
-    socket.on('interval:command', (payload, ack) => {
+    on('interval:command', (payload, rawAck) => {
+      const ack = toAck(rawAck);
       const adminContext = ensureAdminContext(socket, roomManager);
       if (!adminContext.ok) {
         ack?.({ error: adminContext.error });
         return;
       }
 
-      switch (payload.action) {
+      const command = parseTimedCommand(payload, ['start', 'stop', 'reset', 'set', 'show', 'hide'] as const);
+      if (!command.ok) {
+        ack?.({ error: command.error });
+        return;
+      }
+
+      switch (command.action) {
         case 'start':
           adminContext.state.startInterval();
           break;
@@ -470,7 +515,7 @@ export async function createServer() {
           adminContext.state.resetInterval();
           break;
         case 'set':
-          adminContext.state.configureInterval(payload.seconds ?? 0);
+          adminContext.state.configureInterval(command.seconds ?? 0);
           break;
         case 'show':
           adminContext.state.setIntervalVisible(true);
@@ -486,31 +531,34 @@ export async function createServer() {
       ack?.({ ok: true });
     });
 
-    socket.on('locale:change', (payload, ack) => {
+    on('locale:change', (payload, rawAck) => {
+      const ack = toAck(rawAck);
       const adminContext = ensureAdminContext(socket, roomManager);
       if (!adminContext.ok) {
         ack?.({ error: adminContext.error });
         return;
       }
 
-      if (!payload || !SUPPORTED_LOCALES.includes(payload.locale)) {
+      const locale = isRecord(payload) ? SUPPORTED_LOCALES.find((code) => code === payload.locale) : undefined;
+      if (!locale) {
         ack?.({ error: 'invalid_payload' });
         return;
       }
 
-      adminContext.state.setLocale(payload.locale);
-      io.to(roomChannel(adminContext.roomId)).emit('locale:change', payload.locale);
+      adminContext.state.setLocale(locale);
+      io.to(roomChannel(adminContext.roomId)).emit('locale:change', locale);
       ack?.({ ok: true });
     });
 
-    socket.on('legend:config', (payload, ack) => {
+    on('legend:config', (payload, rawAck) => {
+      const ack = toAck(rawAck);
       const adminContext = ensureAdminContext(socket, roomManager);
       if (!adminContext.ok) {
         ack?.({ error: adminContext.error });
         return;
       }
 
-      const nextConfig = parseLegendConfig(payload?.config);
+      const nextConfig = parseLegendConfig(isRecord(payload) ? payload.config : undefined);
       if (!nextConfig) {
         ack?.({ error: 'invalid_payload' });
         return;
@@ -990,3 +1038,71 @@ function isHexColor(value: unknown): value is string {
   return typeof value === 'string' && /^#[0-9A-Fa-f]{6}$/.test(value);
 }
 
+
+type AckFn = (response: AckResponse) => void;
+
+/**
+ * O "ack" vem do cliente: qualquer um pode mandar um não-função no lugar do
+ * callback. `ack?.()` só protege contra null/undefined — com uma string a
+ * chamada lançava TypeError e derrubava o processo inteiro.
+ */
+function toAck(ack: unknown): AckFn | undefined {
+  return typeof ack === 'function' ? (ack as AckFn) : undefined;
+}
+
+const VOTE_VALUES: ReadonlyArray<VoteValue> = ['white', 'red', null];
+const CARD_VALUES: ReadonlyArray<CardValue> = [1, 2, 3, null];
+/** Teto de 24h para timer/intervalo: acima disso é payload inválido. */
+const KNOWN_ROLES: ReadonlyArray<Role> = [ADMIN_ROLE, DISPLAY_ROLE, VIEWER_ROLE, ...JUDGE_ROLES];
+
+/** Papel desconhecido não entra: antes qualquer string caía no canal da sala. */
+function parseRegistration(input: unknown): RegistrationPayload | null {
+  if (!isRecord(input)) return null;
+  const { role, roomId, pin, token, host } = input;
+  if (typeof roomId !== 'string' || !roomId) return null;
+  if (typeof role !== 'string' || !KNOWN_ROLES.includes(role as Role)) return null;
+  return {
+    role: role as Role,
+    roomId,
+    pin: typeof pin === 'string' ? pin : undefined,
+    token: typeof token === 'string' ? token : undefined,
+    host: typeof host === 'string' ? host.slice(0, 255) : undefined
+  };
+}
+
+const MAX_TIMER_SECONDS = 24 * 3600;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parseVote(payload: unknown): { ok: true; vote: VoteValue } | { ok: false } {
+  if (!isRecord(payload) || !VOTE_VALUES.includes(payload.vote as VoteValue)) return { ok: false };
+  return { ok: true, vote: payload.vote as VoteValue };
+}
+
+function parseCard(payload: unknown): { ok: true; card: CardValue } | { ok: false } {
+  if (!isRecord(payload) || !CARD_VALUES.includes(payload.card as CardValue)) return { ok: false };
+  return { ok: true, card: payload.card as CardValue };
+}
+
+/**
+ * Comando de timer/intervalo: `seconds` é opcional, mas se vier precisa ser
+ * número finito entre 0 e 24h — string ou NaN deixavam o timer em NaN em
+ * todas as telas da sala.
+ */
+function parseTimedCommand<A extends string>(
+  payload: unknown,
+  actions: ReadonlyArray<A>
+): { ok: true; action: A; seconds?: number } | { ok: false; error: string } {
+  if (!isRecord(payload) || typeof payload.action !== 'string') return { ok: false, error: 'invalid_payload' };
+  if (!actions.includes(payload.action as A)) return { ok: false, error: 'unknown_action' };
+  const { seconds } = payload;
+  if (seconds !== undefined && seconds !== null) {
+    if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds < 0 || seconds > MAX_TIMER_SECONDS) {
+      return { ok: false, error: 'invalid_payload' };
+    }
+    return { ok: true, action: payload.action as A, seconds };
+  }
+  return { ok: true, action: payload.action as A };
+}
