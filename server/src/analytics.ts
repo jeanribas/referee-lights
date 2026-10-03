@@ -539,6 +539,7 @@ export class AnalyticsStore {
     try {
       return this.db
         .prepare('SELECT * FROM instances ORDER BY last_seen DESC')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .all() as any[];
     } catch (err) {
       console.error('[analytics] getInstances error:', err);

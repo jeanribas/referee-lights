@@ -244,7 +244,7 @@ export async function createServer() {
     return '';
   }
 
-  function mapRoleToPage(role: string, judgeRole?: string): string {
+  function mapRoleToPage(role: string): string {
     if (role === 'admin') return '/admin';
     if (role === 'display') return '/display';
     if (role === 'left' || role === 'center' || role === 'right') return `/ref/${role}`;
@@ -712,12 +712,13 @@ export async function createServer() {
 
   // --- Telemetry Endpoints (receive from all instances) ---
 
-  app.post('/telemetry/events', async (request, reply) => {
+  app.post('/telemetry/events', async () => {
     // Receive event batches from instances (fire-and-forget on their side)
     return { ok: true };
   });
 
   app.post('/telemetry/heartbeat', async (request, reply) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const body = request.body as any;
     if (!body?.instanceId) { reply.code(400); return { error: 'missing_instance_id' }; }
     analyticsStore.upsertHeartbeat({
@@ -773,10 +774,11 @@ export async function createServer() {
       visitors.push({
         role: data.role ?? '',
         roomId: data.roomId,
-        page: mapRoleToPage(data.role ?? '', data.judgeRole),
+        page: mapRoleToPage(data.role ?? ''),
         host,
         country: geo?.country ?? '',
         city: geo?.city ?? '',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         connectedAt: (socket as any).handshake?.time ?? new Date().toISOString()
       });
     }
