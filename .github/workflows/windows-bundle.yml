@@ -1,0 +1,233 @@
+# Bundle Windows: build NATIVO no Windows + teste automatizado do zip.
+# Linha do bundle = release/* (hoje release/1.3; nunca main).
+#
+#  - push/PR em release/**  -> checks + build + testes (artefato fica 14 dias)
+#  - workflow_dispatch       -> idem; com publish_teste=true atualiza o
+#                               pre-release ROLANTE `teste` (sem versão nova).
+#  Tag de versão / Latest continua MANUAL, só após teste humano aprovar.
+name: windows-bundle
+
+on:
+  push:
+    branches: ['release/**']
+    paths: ['server/**', 'frontend/**', 'tools/windows/**', '.github/workflows/windows-bundle.yml']
+  pull_request:
+    branches: ['release/**']
+  workflow_dispatch:
+    inputs:
+      publish_teste:
+        description: 'Publicar o zip testado no pre-release rolante "teste"'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-bundle-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # CI nunca fala com serviços de produção
+  TELEMETRY_ENABLED: 'false'
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Server — typecheck, lint, checagens
+        working-directory: server
+        run: |
+          npm ci
+          npm run typecheck
+          npm run lint
+          npx tsx scripts/check-key-relay.ts
+          npx tsx scripts/check-client-ip.ts
+      - name: Frontend — lint e typecheck
+        working-directory: frontend
+        run: |
+          npm ci
+          npx tsc --noEmit
+          npm run lint
+
+  build:
+    needs: checks
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # O Node do BUILD usa a mesma versão do Node embutido no pacote
+      # (NODE_VERSION do build-package.mjs).
+      - name: Ler NODE_VERSION do build-package.mjs
+        id: nodever
+        shell: bash
+        run: echo "v=$(grep -oP "NODE_VERSION = '\K[0-9.]+" tools/windows/build-package.mjs)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ steps.nodever.outputs.v }}
+
+      - name: Guard — só release/*
+        shell: bash
+        run: |
+          case "$GITHUB_REF_NAME" in release/*) ;; *)
+            # PR: a branch alvo precisa ser release/*
+            case "$GITHUB_BASE_REF" in release/*) ;; *) echo "::error::Bundle só sai de release/* (rodado em $GITHUB_REF_NAME)"; exit 1;; esac;;
+          esac
+
+      - name: Build do pacote (npm ci + verify-bundle estático/redirect)
+        shell: bash
+        env:
+          # Nenhuma URL de produção pode existir no ambiente do build.
+          NEXT_PUBLIC_API_URL: ''
+          NEXT_PUBLIC_WS_URL: ''
+          # Em PR o checkout é um merge ref: o nome da branch vem do alvo
+          GITHUB_REF_NAME: ${{ github.event_name == 'pull_request' && github.base_ref || github.ref_name }}
+          BUNDLE_VERIFY_RUNTIME: '0'
+        run: node tools/windows/build-package.mjs
+
+      - name: Lockfiles intactos (build não pode reescrever dependências)
+        shell: bash
+        run: git diff --exit-code -- server/package-lock.json frontend/package-lock.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: referee-lights-windows
+          path: dist/referee-lights-windows.zip
+          retention-days: 14
+
+  test:
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      # Pasta com espaço + acento, como "C:\Users\José\Área de Trabalho".
+      BUNDLE_DIR: 'C:\Testes Árbitro\Área de Trabalho\Referee Lights'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Playwright (só para os testes; não entra no pacote)
+        working-directory: frontend
+        shell: pwsh
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install chromium
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: referee-lights-windows
+          path: dist
+
+      # Extrai o zip numa pasta com espaço e acento e executa o pacote com o
+      # node.exe embutido: todas as telas, fluxo completo, timer/intervalo/
+      # idioma/legenda, Key Relay, restart com recuperação (SQLite), fila
+      # local com destino offline, CSS inline + tags de sessão,
+      # abuso, e logs sem "Cannot find module"/ENOENT.
+      - name: verify-bundle (zip extraído + execução completa)
+        shell: pwsh
+        run: node tools/windows/verify-bundle.mjs
+
+      - name: Extrair como o usuário faria (Expand-Archive + Mark of the Web)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path $env:BUNDLE_DIR | Out-Null
+          $t = Measure-Command { Expand-Archive -LiteralPath dist/referee-lights-windows.zip -DestinationPath $env:BUNDLE_DIR -Force }
+          $n = (Get-ChildItem -LiteralPath $env:BUNDLE_DIR -Recurse -File).Count
+          Write-Host ("Extraído em {0:N1}s, {1} arquivos" -f $t.TotalSeconds, $n)
+          # Simula o "Mark of the Web" de um zip baixado do GitHub
+          Get-ChildItem -LiteralPath $env:BUNDLE_DIR -Recurse -File | ForEach-Object {
+            Set-Content -LiteralPath $_.FullName -Stream Zone.Identifier -Value "[ZoneTransfer]`r`nZoneId=3" }
+          # Exercita o desligamento do LEIA-ME (e garante zero tráfego para produção)
+          $envFile = Join-Path $env:BUNDLE_DIR 'server\.env'
+          (Get-Content -LiteralPath $envFile) -replace '^TELEMETRY_ENABLED=.*','TELEMETRY_ENABLED=false' | Set-Content -LiteralPath $envFile
+
+      - name: Módulo nativo carrega no node.exe embutido (ABI certa)
+        shell: pwsh
+        run: |
+          Push-Location (Join-Path $env:BUNDLE_DIR 'server\dist')
+          & ..\..\node\node.exe -e "const m={exports:{}}; process.dlopen(m, require('path').resolve('better_sqlite3.node')); console.log('better_sqlite3 ok, abi', process.versions.modules)"
+          if ($LASTEXITCODE -ne 0) { throw 'better_sqlite3.node não carrega no node.exe do pacote' }
+          Pop-Location
+
+      - name: Subir como o Iniciar.cmd (headless)
+        shell: pwsh
+        run: ./tools/windows/ci/headless-launch.ps1 -BundleDir $env:BUNDLE_DIR
+
+      - name: Smoke e2e (fluxo completo) pelo Iniciar.cmd
+        shell: pwsh
+        run: |
+          & (Join-Path $env:BUNDLE_DIR 'node\node.exe') tools/windows/ci/smoke-e2e.cjs (Join-Path $env:BUNDLE_DIR 'frontend') http://127.0.0.1:3333 --full
+          if ($LASTEXITCODE -ne 0) { throw 'smoke e2e falhou' }
+
+      - name: Resiliência — payload malformado não derruba o server
+        shell: pwsh
+        run: |
+          & (Join-Path $env:BUNDLE_DIR 'node\node.exe') tools/windows/ci/smoke-e2e.cjs (Join-Path $env:BUNDLE_DIR 'frontend') http://127.0.0.1:3333 --malformed
+          if ($LASTEXITCODE -ne 0) { throw 'payload malformado derrubou o server' }
+
+      - name: UI pelo IP da LAN (Chromium) — telas, CSS inline, tags de sessão
+        shell: pwsh
+        run: |
+          $ip = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } | Select-Object -First 1).IPAddress
+          Write-Host "IP da LAN: $ip"
+          # O QR do admin precisa apontar para um IP privado da máquina, não localhost
+          $html = (Invoke-WebRequest "http://${ip}:3000/admin" -UseBasicParsing).Content
+          if ($html -notmatch '"networkIps":\[\s*"') { throw 'admin sem networkIps — QR sairia com localhost' }
+          node tools/windows/ci/ui-smoke.mjs "http://${ip}:3000" (Join-Path $env:BUNDLE_DIR 'frontend')
+          if ($LASTEXITCODE -ne 0) { throw 'UI smoke falhou' }
+
+      - name: Recuperação pós-restart via Parar.cmd/Iniciar.cmd (mesma sala volta)
+        shell: pwsh
+        run: |
+          $room = Invoke-RestMethod -Method Post http://127.0.0.1:3333/rooms
+          Start-Sleep 2
+          & (Join-Path $env:BUNDLE_DIR 'Parar.cmd')
+          Start-Sleep 3
+          ./tools/windows/ci/headless-launch.ps1 -BundleDir $env:BUNDLE_DIR
+          $body = @{ adminPin = $room.adminPin } | ConvertTo-Json
+          Invoke-RestMethod -Method Post -ContentType 'application/json' -Body $body "http://127.0.0.1:3333/rooms/$($room.roomId)/access" | Out-Null
+          Write-Host "Sala $($room.roomId) recuperada após restart"
+
+      - name: Parar.cmd encerra tudo (portas livres)
+        if: always()
+        shell: pwsh
+        run: |
+          & (Join-Path $env:BUNDLE_DIR 'Parar.cmd')
+          Start-Sleep 3
+          $busy = Get-NetTCPConnection -State Listen -LocalPort 3000,3333 -ErrorAction SilentlyContinue
+          if ($busy) { $busy | Format-Table; throw 'Parar.cmd deixou processos escutando' }
+
+      - name: Dados do server em caso de falha
+        if: failure()
+        shell: pwsh
+        run: Get-ChildItem -LiteralPath (Join-Path $env:BUNDLE_DIR 'server\data') -ErrorAction SilentlyContinue
+
+  publish-teste:
+    # Só manualmente, só release/*, só depois do teste passar. Nunca versão.
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_teste && startsWith(github.ref_name, 'release/')
+    needs: [build, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: referee-lights-windows
+      - name: Atualizar pre-release rolante "teste"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete teste --yes --cleanup-tag -R "$GITHUB_REPOSITORY" 2>/dev/null || true
+          gh release create teste referee-lights-windows.zip -R "$GITHUB_REPOSITORY" \
+            --prerelease --target "$GITHUB_SHA" --title "Build de teste" \
+            --notes "Build ${GITHUB_SHA::7} de ${GITHUB_REF_NAME}, aprovado nos testes automáticos no Windows. Validação interna — não usar em competição."

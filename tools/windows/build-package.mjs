@@ -446,7 +446,10 @@ async function main() {
   console.log(`   ${files} arquivos, ${(bytes / 1024 / 1024).toFixed(1)} MB extraído`);
 
   console.log('\n🔎 Verificando bundle...');
-  run(`node "${path.join(rootDir, 'tools', 'windows', 'verify-bundle.mjs')}"`);
+  // No CI o job de build só faz as checagens estáticas + redirect; a execução
+  // completa do pacote roda no job de teste, numa máquina limpa.
+  const verifyArgs = process.env.BUNDLE_VERIFY_RUNTIME === '0' ? ' --no-runtime' : '';
+  run(`node "${path.join(rootDir, 'tools', 'windows', 'verify-bundle.mjs')}"${verifyArgs}`);
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
   console.log(`\n✅ Pacote pronto em ${outputDir}`);
