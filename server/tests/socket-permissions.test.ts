@@ -272,6 +272,26 @@ describe('fluxo de decisão', () => {
     await waitFor(admin, (s) => s.phase === 'idle' && s.votes.left === null);
   });
 
+  it('depois da revelação um cartão não transforma luz branca em vermelha', async () => {
+    const room = await createRoom();
+    const admin = (await register('admin', room)).socket as Socket & { last?: Snapshot };
+    const left = (await register('left', room)).socket;
+    const center = (await register('center', room)).socket;
+    const right = (await register('right', room)).socket;
+    await emitAck(left, 'ref:vote', { vote: 'white' });
+    await emitAck(center, 'ref:vote', { vote: 'white' });
+    await emitAck(right, 'ref:vote', { vote: 'red' });
+    await waitFor(admin, (s) => s.phase === 'revealed');
+    // o juiz que deu vermelho ainda completa o cartão (UI manda voto e cartão em sequência)
+    await emitAck(right, 'ref:card', { card: 1 });
+    await waitFor(admin, (s) => s.cards.right.join() === '1');
+    // mas quem deu branco não pode virar vermelho com a decisão já exibida
+    await emitAck(left, 'ref:card', { card: 3 });
+    await new Promise((r) => setTimeout(r, 150));
+    expect(admin.last?.votes.left).toBe('white');
+    expect(admin.last?.cards.left).toEqual([]);
+  });
+
   it('cartão alterna (toggle) e no máximo 3', async () => {
     const room = await createRoom();
     const left = (await register('left', room)).socket as Socket & { last?: Snapshot };
