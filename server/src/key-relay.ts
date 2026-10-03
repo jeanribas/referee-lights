@@ -26,6 +26,43 @@ const FUNCTION_KEYS: Record<string, KeyDefinition> = {
 
 const TRIGGER_DELAY_MS = 1600;
 
+/**
+ * Combinação aceita: até 3 modificadores conhecidos + F1–F12 ou UMA letra/
+ * dígito. A tecla vai para comandos do PowerShell (SendKeys) e do
+ * AppleScript: sem essa lista branca, uma "tecla" como `x');Start-Process
+ * calc;('` executava comando arbitrário na máquina do bundle.
+ */
+const KEY_COMBO_RE = /^(?:(?:ctrl|shift|alt|meta)\+){0,3}(?:f(?:[1-9]|1[0-2])|[a-z0-9])$/i;
+
+export function isValidKeyCombo(combo: unknown): combo is string {
+  return typeof combo === 'string' && combo.length <= 32 && KEY_COMBO_RE.test(combo.replace(/\s+/g, ''));
+}
+
+/** Combo validado → tokens normalizados (modificadores minúsculos + tecla). */
+export function parseKeyCombo(combo: string): { modifiers: Array<'ctrl' | 'shift' | 'alt' | 'meta'>; key: string } | null {
+  if (!isValidKeyCombo(combo)) return null;
+  const parts = combo.replace(/\s+/g, '').split('+');
+  const last = parts[parts.length - 1];
+  const key = /^f\d+$/i.test(last) ? last.toUpperCase() : last.toLowerCase();
+  const modifiers = parts.slice(0, -1).map((m) => m.toLowerCase() as 'ctrl' | 'shift' | 'alt' | 'meta');
+  return { modifiers, key };
+}
+
+/** Sequência do WScript.Shell.SendKeys montada só a partir dos tokens validados. */
+export function toWinSendKeys(combo: string): string | null {
+  const parsed = parseKeyCombo(combo);
+  if (!parsed) return null;
+  let seq = '';
+  for (const m of parsed.modifiers) {
+    if (m === 'ctrl') seq += '^';
+    else if (m === 'shift') seq += '+';
+    else if (m === 'alt') seq += '%';
+  }
+  const fk = FUNCTION_KEYS[parsed.key];
+  seq += fk ? fk.winSequence : parsed.key;
+  return seq;
+}
+
 export class KeyRelay {
   private active = false;
   private roomId: string | null = null;
@@ -39,6 +76,11 @@ export class KeyRelay {
   get keys() { return { valid: this.validKey, invalid: this.invalidKey }; }
 
   start(roomId: string, validKey = 'F1', invalidKey = 'F10') {
+    if (!isValidKeyCombo(validKey) || !isValidKeyCombo(invalidKey)) {
+      throw new Error('invalid_key');
+    }
+    validKey = validKey.replace(/\s+/g, '');
+    invalidKey = invalidKey.replace(/\s+/g, '');
     this.roomId = roomId;
     this.validKey = validKey;
     this.invalidKey = invalidKey;
@@ -104,22 +146,19 @@ export class KeyRelay {
   }
 }
 
-/** Parse combo like "Ctrl+Shift+F1" and send via OS */
+/** Parse combo like "Ctrl+Shift+F1" and send via OS (só tokens validados) */
 async function sendKeyCombo(combo: string): Promise<void> {
-  // Try simple function key first
-  const simpleDef = FUNCTION_KEYS[combo.toUpperCase()];
-  if (simpleDef) {
-    return sendSimpleKey(simpleDef);
-  }
+  const parsed = parseKeyCombo(combo);
+  if (!parsed) throw new Error('invalid_key');
+  const { modifiers, key } = parsed;
 
-  // Parse combo: Ctrl+Alt+Shift+Key
-  const parts = combo.split('+').map(p => p.trim());
-  const key = parts[parts.length - 1];
-  const modifiers = parts.slice(0, -1).map(m => m.toLowerCase());
+  if (modifiers.length === 0 && FUNCTION_KEYS[key]) {
+    return sendSimpleKey(FUNCTION_KEYS[key]);
+  }
 
   switch (platform) {
     case 'win32':
-      return sendWinCombo(modifiers, key);
+      return sendWinCombo(combo);
     case 'darwin':
       return sendMacCombo(modifiers, key);
     default:
@@ -141,16 +180,10 @@ async function sendSimpleKey(def: KeyDefinition): Promise<void> {
   }
 }
 
-function sendWinCombo(modifiers: string[], key: string): Promise<void> {
+function sendWinCombo(combo: string): Promise<void> {
   // WScript.Shell SendKeys: ^ = Ctrl, + = Shift, % = Alt
-  let seq = '';
-  for (const m of modifiers) {
-    if (m === 'ctrl') seq += '^';
-    else if (m === 'shift') seq += '+';
-    else if (m === 'alt') seq += '%';
-  }
-  const fk = FUNCTION_KEYS[key.toUpperCase()];
-  seq += fk ? fk.winSequence : key.toLowerCase();
+  const seq = toWinSendKeys(combo);
+  if (!seq) return Promise.reject(new Error('invalid_key'));
   return runCommand('powershell', [
     '-NoLogo', '-NoProfile', '-Command',
     `$wshell = New-Object -ComObject WScript.Shell; Start-Sleep -Milliseconds 50; $wshell.SendKeys('${seq}')`

@@ -733,24 +733,50 @@ export async function createServer() {
     return {
       available: keyRelayAvailable,
       active: keyRelay.isActive,
-      roomId: keyRelay.monitoredRoom,
+      // Código da sala monitorada não sai em rota anônima (status é público
+      // para o admin saber se o relay existe/está ativo).
+      roomId: null,
       keys: keyRelay.keys
     };
   });
 
-  app.post<{ Body: { roomId?: string; validKey?: string; invalidKey?: string } }>('/key-relay/start', async (request, reply) => {
-    const roomId = request.body?.roomId?.trim();
+  // Key Relay aperta teclas NA MÁQUINA do servidor: só existe onde foi
+  // habilitado (bundle) e exige o PIN da sala — antes qualquer um na rede
+  // ligava, desligava ou reconfigurava as teclas sem credencial.
+  function keyRelayAuth(
+    request: { ip: string; headers: Record<string, string | string[] | undefined> },
+    roomId: string | undefined,
+    adminPin: unknown
+  ): { ok: true } | { ok: false; code: number; error: string } {
+    if (!keyRelayAvailable) return { ok: false, code: 403, error: 'key_relay_unavailable' };
+    if (!roomId || !roomManager.getRoomState(roomId)) return { ok: false, code: 404, error: 'room_not_found' };
+    if (!roomManager.verifyAdminPin(roomId, typeof adminPin === 'string' ? adminPin : undefined)) {
+      return { ok: false, code: 403, error: 'invalid_pin' };
+    }
+    return { ok: true };
+  }
+
+  app.post<{ Body: { roomId?: string; adminPin?: string; validKey?: string; invalidKey?: string } }>('/key-relay/start', async (request, reply) => {
+    const roomId = typeof request.body?.roomId === 'string' ? request.body.roomId.trim() : '';
     if (!roomId) { reply.code(400); return { error: 'missing_room_id' }; }
+    const auth = keyRelayAuth(request, roomId, request.body?.adminPin);
+    if (!auth.ok) { reply.code(auth.code); return { error: auth.error }; }
     try {
       keyRelay.start(roomId, request.body?.validKey, request.body?.invalidKey);
       return { ok: true, roomId, keys: keyRelay.keys };
-    } catch (err: any) {
+    } catch (err) {
       reply.code(400);
-      return { error: err?.message ?? 'invalid_config' };
+      return { error: (err as Error).message === 'invalid_key' ? 'invalid_key' : 'key_relay_error' };
     }
   });
 
-  app.post('/key-relay/stop', async () => {
+  app.post<{ Body: { roomId?: string; adminPin?: string } }>('/key-relay/stop', async (request, reply) => {
+    // Desligar exige o PIN da sala monitorada; se ela já foi arquivada, vale
+    // o PIN de qualquer sala ativa (senão o relay ficaria preso ligado).
+    const monitored = keyRelay.monitoredRoom;
+    const target = monitored && roomManager.getRoomState(monitored) ? monitored : request.body?.roomId;
+    const auth = keyRelayAuth(request, typeof target === 'string' ? target : undefined, request.body?.adminPin);
+    if (!auth.ok) { reply.code(auth.code); return { error: auth.error }; }
     keyRelay.stop();
     return { ok: true };
   });
