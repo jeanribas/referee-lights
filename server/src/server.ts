@@ -964,7 +964,9 @@ export async function createServer() {
     return {
       available: keyRelayAvailable,
       active: keyRelay.isActive,
-      roomId: keyRelay.monitoredRoom,
+      // Código da sala monitorada não sai mais em rota anônima (status é
+      // público para o admin saber se o relay existe/está ativo).
+      roomId: null,
       keys: keyRelay.keys
     };
   });

@@ -154,6 +154,9 @@ describe('Key Relay', () => {
     const ok = await post('/key-relay/start', { roomId: room.roomId, adminPin: room.adminPin, validKey: 'Ctrl+F2', invalidKey: 'F10' });
     expect(ok.statusCode).toBe(200);
     expect(ok.json().keys).toEqual({ valid: 'Ctrl+F2', invalid: 'F10' });
+    const st = (await app.inject({ method: 'GET', url: '/key-relay/status' })).json();
+    expect(st.active).toBe(true);
+    expect(st.roomId).toBeNull();
     // outra sala (PIN válido dela) não desliga o relay desta
     const other = await createRoom();
     expect((await post('/key-relay/stop', { roomId: other.roomId, adminPin: other.adminPin })).statusCode).toBe(403);
