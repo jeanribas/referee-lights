@@ -25,6 +25,8 @@ cleanup() {
   done
   wait 2>/dev/null || true
   rm -rf "$TMP_DIR"
+  # next build/start reescrevem o next-env.d.ts; não deixa sujeira no git
+  git -C "$ROOT" checkout -- frontend/next-env.d.ts 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 
@@ -69,8 +71,6 @@ if [ "${SKIP_BUILD:-0}" != "1" ]; then
   step "server + frontend: build (API em ${API_URL})"
   (cd "$ROOT/server" && npm run --silent build)
   (cd "$ROOT/frontend" && NEXT_PUBLIC_API_URL="$API_URL" NEXT_PUBLIC_WS_URL="$API_URL" npm run --silent build)
-  # o build reescreve o next-env.d.ts; não deixa sujeira no git
-  git -C "$ROOT" checkout -- frontend/next-env.d.ts 2>/dev/null || true
 fi
 
 step "subindo API (:${API_PORT}) e frontend (:${WEB_PORT})"
@@ -84,7 +84,6 @@ wait_http "http://localhost:${WEB_PORT}/" web
 step "playwright (${PW_PROJECT})"
 set +e
 (cd "$ROOT/frontend" && E2E_API_URL="$API_URL" PORT="$WEB_PORT" \
-  E2E_MASTER_USER="$MASTER_USER" E2E_MASTER_PASSWORD="$MASTER_PASSWORD" \
   npx playwright test --project="$PW_PROJECT" "$@")
 status=$?
 set -e
@@ -92,7 +91,7 @@ set -e
 if [ $status -ne 0 ]; then
   echo -e "\n--- últimas linhas do log da API ---"
   tail -40 "$LOG_DIR/api.log" || true
-  echo "✗ Playwright falhou (relatório: frontend/playwright-report)"
+  echo "✗ Playwright falhou (traces/vídeos em frontend/test-results)"
   exit $status
 fi
 echo -e "\n\033[1;32m✓ bateria completa verde\033[0m"

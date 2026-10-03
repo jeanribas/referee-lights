@@ -58,8 +58,9 @@ Infra preparada para `decision.finalized` (POST JSON) configurável por room. Ch
 
 ## Testing
 
-- API e domínio cobertos por testes unitários (Vitest) no server.
-- Workflow E2E (Playwright) exercita o fluxo criação → ready → votos → release → clear.
+- API e domínio cobertos por testes Vitest no server (`server/tests/`): rotas HTTP, matriz de permissões do websocket por papel e payloads malformados.
+- E2E (Playwright) em `frontend/tests/e2e/`, separado por área: páginas públicas nos 3 idiomas, fluxo completo de competição, timers/intervalo, idioma da sala, legenda, falhas de acesso, admin, reconexão, salas isoladas e celular.
+- Bateria completa local: `tools/test-all.sh` (typecheck, lint, Vitest, build, sobe API + frontend em portas próprias — 4333/4300 — e roda o Playwright; derruba tudo no fim). Precisa do Chromium do Playwright (`npx playwright install chromium` em `frontend/`). Variáveis: `API_PORT`, `WEB_PORT`, `SKIP_BUILD=1`; argumentos extras vão para o Playwright.
 - ESLint + Prettier + Husky para consistência.
 
 ## Roadmap Futuro
