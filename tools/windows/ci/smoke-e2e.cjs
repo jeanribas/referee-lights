@@ -79,6 +79,9 @@ async function health() {
     evil.emit('admin:ready', { not: 'a function' });
     evil.emit('ref:vote', null, 'nem isto');
     evil.emit('client:register', 'lixo', 42);
+    // Papel viewer foi removido: registrar como viewer é recusado.
+    const viewer = await new Promise((r) => evil.emit('client:register', { role: 'viewer', roomId: room.roomId }, r));
+    if (!viewer || viewer.error !== 'invalid_payload') throw new Error(`viewer aceito: ${JSON.stringify(viewer)}`);
     await new Promise((r) => setTimeout(r, 1500));
     evil.close();
     await health().catch((e) => { throw new Error(`server MORREU após payload malformado (${e.message})`); });

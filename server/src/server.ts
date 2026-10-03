@@ -31,15 +31,15 @@ import {
   type VoteValue
 } from './state.js';
 
-type Role = 'admin' | 'display' | Judge | 'viewer';
+type Role = 'admin' | 'display' | Judge;
 
 const ADMIN_ROLE: Role = 'admin';
 const DISPLAY_ROLE: Role = 'display';
-const VIEWER_ROLE: Role = 'viewer';
 const JUDGE_ROLES: Judge[] = ['left', 'center', 'right'];
 
 interface ClientData {
-  role: Role;
+  /** Ausente até o client:register ser aceito. */
+  role?: Role;
   roomId?: string;
   adminPin?: string;
   refereeToken?: string;
@@ -119,16 +119,16 @@ function roomChannel(roomId: string) {
   return `${ROOM_CHANNEL_PREFIX}${roomId}`;
 }
 
-function isAdmin(role: Role): role is typeof ADMIN_ROLE {
+function isAdmin(role: Role | undefined): role is typeof ADMIN_ROLE {
   return role === ADMIN_ROLE;
 }
 
-function isDisplay(role: Role): role is typeof DISPLAY_ROLE {
+function isDisplay(role: Role | undefined): role is typeof DISPLAY_ROLE {
   return role === DISPLAY_ROLE;
 }
 
-function isJudge(role: Role): role is Judge {
-  return (JUDGE_ROLES as string[]).includes(role);
+function isJudge(role: Role | undefined): role is Judge {
+  return role !== undefined && (JUDGE_ROLES as string[]).includes(role);
 }
 
 export async function createServer() {
@@ -339,7 +339,7 @@ export async function createServer() {
   });
 
   io.on('connection', (socket: AppSocket) => {
-    socket.data = { role: VIEWER_ROLE };
+    socket.data = {};
 
     // Rede de segurança: payload e ack vêm de qualquer cliente anônimo. Uma
     // exceção síncrona num handler virava uncaughtException → process.exit(1),
@@ -636,7 +636,8 @@ export async function createServer() {
         state?.setConnected(judgeRole, false);
       }
       if (connectionId) analyticsStore.logDisconnection(connectionId);
-      telemetry.trackDisconnection(roomId ?? '', socket.data.role);
+      // Só quem se registrou conta (simétrico ao trackConnection do register).
+      if (socket.data.role) telemetry.trackDisconnection(roomId ?? '', socket.data.role);
     });
   });
 
@@ -770,9 +771,9 @@ export async function createServer() {
       const ip = socketIp(socket as unknown as AppSocket);
       const geo = geoip.lookup(ip);
       visitors.push({
-        role: data.role,
+        role: data.role ?? '',
         roomId: data.roomId,
-        page: mapRoleToPage(data.role, data.judgeRole),
+        page: mapRoleToPage(data.role ?? '', data.judgeRole),
         host,
         country: geo?.country ?? '',
         city: geo?.city ?? '',
@@ -978,7 +979,7 @@ function toAck(ack: unknown): AckFn | undefined {
 const VOTE_VALUES: ReadonlyArray<VoteValue> = ['white', 'red', null];
 const CARD_VALUES: ReadonlyArray<CardValue> = [1, 2, 3, null];
 /** Teto de 24h para timer/intervalo: acima disso é payload inválido. */
-const KNOWN_ROLES: ReadonlyArray<Role> = [ADMIN_ROLE, DISPLAY_ROLE, VIEWER_ROLE, ...JUDGE_ROLES];
+const KNOWN_ROLES: ReadonlyArray<Role> = [ADMIN_ROLE, DISPLAY_ROLE, ...JUDGE_ROLES];
 
 /** Papel desconhecido não entra: antes qualquer string caía no canal da sala. */
 function parseRegistration(input: unknown): RegistrationPayload | null {
