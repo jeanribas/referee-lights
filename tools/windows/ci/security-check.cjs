@@ -1,5 +1,7 @@
 // Checagens de segurança do pacote via HTTP (sem browser).
-// Uso: node security-check.cjs [apiBase] [--key-relay]
+// Uso: node security-check.cjs [apiBase] [--key-relay] [--abuse=<pastaDoFrontend>]
+//   --abuse: flood no socket (deve desconectar) e força bruta de PIN (31ª
+//   tentativa = 429). BLOQUEIA o IP por 10 min: rode por ÚLTIMO.
 //   --key-relay: o server foi iniciado com KEY_RELAY_AVAILABLE=true; testa
 //   PIN obrigatório, lista branca de teclas e status sem roomId. NUNCA liga
 //   o relay de verdade com tecla válida (start ok é seguido de stop).
@@ -46,6 +48,32 @@ const expect = (cond, msg) => {
     expect(r.status === 403, `stop com PIN errado recusado (${r.status})`);
     r = await post('/key-relay/stop', { roomId: room.roomId, adminPin: room.adminPin });
     expect(r.status === 200, 'stop com PIN aceito');
+  }
+  const abuseArg = process.argv.find((a) => a.startsWith('--abuse='));
+  if (abuseArg) {
+    const path = require('path');
+    const { io } = require(path.join(path.resolve(abuseArg.slice(8)), 'node_modules', 'socket.io-client'));
+    const s = io(API, { transports: ['websocket'], reconnection: false });
+    await new Promise((r) => s.on('connect', r));
+    const dropped = new Promise((r) => s.on('disconnect', r));
+    for (let i = 0; i < 300; i++) s.emit('admin:ready', () => {});
+    const res = await Promise.race([dropped.then(() => 'disconnected'), new Promise((r) => setTimeout(() => r('alive'), 3000))]);
+    expect(res === 'disconnected', 'socket com flood (300 ev/s) desconectado');
+    const huge = io(API, { transports: ['websocket'], reconnection: false });
+    await new Promise((r) => huge.on('connect', r));
+    const hugeDropped = new Promise((r) => huge.on('disconnect', r));
+    huge.emit('legend:config', { config: 'x'.repeat(64 * 1024) });
+    const hres = await Promise.race([hugeDropped.then(() => 'disconnected'), new Promise((r) => setTimeout(() => r('alive'), 3000))]);
+    expect(hres === 'disconnected', 'mensagem > 16KB derruba só o socket');
+    huge.close();
+    const wrong = room.adminPin === '1000' ? '1001' : '1000';
+    let last;
+    for (let i = 0; i < 31; i++) last = await post(`/rooms/${room.roomId}/access`, { adminPin: wrong });
+    expect(last.status === 429, `31ª tentativa de PIN errado bloqueada (${last.status})`);
+    const right = await post(`/rooms/${room.roomId}/access`, { adminPin: room.adminPin });
+    expect(right.status === 429, 'IP bloqueado mesmo com o PIN certo até a janela vencer');
+    const health = await fetch(`${API}/health`);
+    expect(health.ok, 'server segue vivo após abuso');
   }
   process.exit(0);
 })().catch((e) => {

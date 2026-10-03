@@ -16,7 +16,9 @@ function readAppVersion(): string {
 import geoip from 'geoip-lite';
 import { AnalyticsStore } from './analytics.js';
 import { config } from './config.js';
+import { resolveClientIp } from './client-ip.js';
 import { KeyRelay } from './key-relay.js';
+import { failureBlocked, rateLimitOk, recordFailure } from './rate-limit.js';
 import { generateMasterToken, validateCredentials, verifyMasterToken } from './master-auth.js';
 import { RoomManager } from './rooms.js';
 import { Telemetry } from './telemetry.js';
@@ -108,6 +110,9 @@ type AppSocketServer = SocketIOServer<ClientToServerEvents, ServerToClientEvents
 
 const ROOM_CHANNEL_PREFIX = 'room:';
 
+/** Teto de eventos por socket por segundo (ver `on` no handler de conexão). */
+const SOCKET_EVENTS_PER_SEC = 40;
+
 const SUPPORTED_LOCALES: Locale[] = ['pt-BR', 'en-US', 'es-ES'];
 
 function roomChannel(roomId: string) {
@@ -140,6 +145,9 @@ export async function createServer() {
   // socket.io acoplado direto ao http.Server do Fastify (o plugin
   // fastify-socket.io não suporta Fastify 5)
   app.decorate('io', new SocketIOServer(app.server, {
+    // Maior payload legítimo (legend:config) tem < 300 bytes; o padrão de 1MB
+    // por mensagem só servia para inflar memória com lixo.
+    maxHttpBufferSize: 16 * 1024,
     cors: {
       origin: config.CORS_ORIGIN === '*' ? '*' : config.CORS_ORIGIN.split(',').map((origin) => origin.trim())
     }
@@ -210,16 +218,24 @@ export async function createServer() {
     }
   }
 
-  function extractIp(request: { ip: string; headers: Record<string, string | string[] | undefined> }): string {
-    const forwarded = request.headers['x-forwarded-for'];
-    if (typeof forwarded === 'string') return forwarded.split(',')[0].trim();
-    return request.ip ?? '';
+  // X-Forwarded-For só é usado com TRUST_PROXY_HOPS > 0 (padrão 0 no bundle:
+  // na LAN não há proxy e o header é forjável pelo cliente).
+  function extractIp(request: { socket?: { remoteAddress?: string }; ip: string; headers: Record<string, string | string[] | undefined> }): string {
+    return resolveClientIp(request.socket?.remoteAddress ?? request.ip, request.headers['x-forwarded-for'], config.TRUST_PROXY_HOPS);
   }
 
   function socketIp(socket: AppSocket): string {
-    const forwarded = socket.handshake.headers['x-forwarded-for'];
-    if (typeof forwarded === 'string') return forwarded.split(',')[0].trim();
-    return socket.handshake.address ?? '';
+    return resolveClientIp(socket.handshake.address, socket.handshake.headers['x-forwarded-for'], config.TRUST_PROXY_HOPS);
+  }
+
+  // Força bruta de PIN (4 dígitos) / token: 30 credenciais erradas por IP a
+  // cada 10 min, somando HTTP (/rooms/:id/access, refresh, key relay) e socket.
+  const AUTH_FAIL_LIMIT = 30;
+  const AUTH_FAIL_WINDOW_MS = 10 * 60_000;
+  const authFailKey = (ip: string) => `authfail:${ip}`;
+
+  function isLoopback(ip: string): boolean {
+    return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
   }
 
   function socketHost(socket: AppSocket): string {
@@ -238,11 +254,18 @@ export async function createServer() {
   app.get('/health', async () => ({ status: 'ok' }));
 
   app.post('/rooms', async (request, reply) => {
+    // Criação em massa enche a memória e o pool de códigos de 4 letras.
+    // Loopback (admin na própria máquina do bundle) não entra no limite.
+    const ip = extractIp(request);
+    if (!isLoopback(ip) && !rateLimitOk(`room:${ip}`, 30, 10 * 60_000)) {
+      reply.code(429);
+      return { error: 'rate_limited' };
+    }
     const data = roomManager.createRoom();
     const sessionId = analyticsStore.logSessionCreated(data.roomId, data.adminPin);
     if (sessionId !== null) sessionMap.set(data.roomId, sessionId);
     telemetry.trackSessionCreated(data.roomId);
-    analyticsStore.logAccess('room_created', data.roomId, extractIp(request));
+    analyticsStore.logAccess('room_created', data.roomId, ip);
     reply.code(201);
     return data;
   });
@@ -254,6 +277,12 @@ export async function createServer() {
     const { roomId } = request.params;
     const { adminPin } = request.body ?? {};
 
+    const failKey = authFailKey(extractIp(request));
+    if (failureBlocked(failKey, AUTH_FAIL_LIMIT)) {
+      reply.code(429);
+      return { error: 'too_many_attempts' };
+    }
+
     const state = roomManager.getRoomState(roomId);
     if (!state) {
       reply.code(404);
@@ -261,6 +290,7 @@ export async function createServer() {
     }
 
     if (!roomManager.verifyAdminPin(roomId, adminPin)) {
+      recordFailure(failKey, AUTH_FAIL_WINDOW_MS);
       reply.code(403);
       return { error: 'invalid_pin' };
     }
@@ -281,6 +311,12 @@ export async function createServer() {
     const { roomId } = request.params;
     const { adminPin } = request.body ?? {};
 
+    const failKey = authFailKey(extractIp(request));
+    if (failureBlocked(failKey, AUTH_FAIL_LIMIT)) {
+      reply.code(429);
+      return { error: 'too_many_attempts' };
+    }
+
     const state = roomManager.getRoomState(roomId);
     if (!state) {
       reply.code(404);
@@ -288,6 +324,7 @@ export async function createServer() {
     }
 
     if (!roomManager.verifyAdminPin(roomId, adminPin)) {
+      recordFailure(failKey, AUTH_FAIL_WINDOW_MS);
       reply.code(403);
       return { error: 'invalid_pin' };
     }
@@ -307,8 +344,28 @@ export async function createServer() {
     // Rede de segurança: payload e ack vêm de qualquer cliente anônimo. Uma
     // exceção síncrona num handler virava uncaughtException → process.exit(1),
     // derrubando todas as salas. Aqui ela vira erro registrado e o socket segue.
+    // Flood: um cliente legítimo manda poucos eventos por segundo (voto,
+    // cartão, botão do admin). Acima de SOCKET_EVENTS_PER_SEC o excedente é
+    // recusado; quem insiste (5x o limite na mesma janela) é desconectado.
+    let floodWindowStart = 0;
+    let floodCount = 0;
     const on = (event: keyof ClientToServerEvents, handler: (...args: unknown[]) => void) => {
       socket.on(event, ((...args: unknown[]) => {
+        const now = Date.now();
+        if (now - floodWindowStart >= 1000) {
+          floodWindowStart = now;
+          floodCount = 0;
+        }
+        floodCount += 1;
+        if (floodCount > SOCKET_EVENTS_PER_SEC) {
+          if (floodCount > SOCKET_EVENTS_PER_SEC * 5) {
+            app.log.warn({ event: 'socket_flood', ip: socketIp(socket) }, 'socket desconectado por flood');
+            socket.disconnect(true);
+            return;
+          }
+          toAck(args[args.length - 1])?.({ error: 'rate_limited' });
+          return;
+        }
         try {
           handler(...args);
         } catch (error) {
@@ -326,6 +383,12 @@ export async function createServer() {
         return;
       }
 
+      const failKey = authFailKey(socketIp(socket));
+      if (failureBlocked(failKey, AUTH_FAIL_LIMIT)) {
+        ack?.({ error: 'too_many_attempts' });
+        return;
+      }
+
       const state = roomManager.getRoomState(payload.roomId);
       if (!state) {
         ack?.({ error: 'room_not_found' });
@@ -334,6 +397,7 @@ export async function createServer() {
 
       if (isAdmin(payload.role) || isDisplay(payload.role)) {
         if (!roomManager.verifyAdminPin(payload.roomId, payload.pin)) {
+          recordFailure(failKey, AUTH_FAIL_WINDOW_MS);
           ack?.({ error: 'invalid_pin' });
           return;
         }
@@ -341,6 +405,7 @@ export async function createServer() {
 
       if (isJudge(payload.role)) {
         if (!roomManager.isValidRefToken(payload.roomId, payload.role, payload.token)) {
+          recordFailure(failKey, AUTH_FAIL_WINDOW_MS);
           ack?.({ error: 'invalid_token' });
           return;
         }
@@ -744,13 +809,16 @@ export async function createServer() {
   // habilitado (bundle) e exige o PIN da sala — antes qualquer um na rede
   // ligava, desligava ou reconfigurava as teclas sem credencial.
   function keyRelayAuth(
-    request: { ip: string; headers: Record<string, string | string[] | undefined> },
+    request: { socket?: { remoteAddress?: string }; ip: string; headers: Record<string, string | string[] | undefined> },
     roomId: string | undefined,
     adminPin: unknown
   ): { ok: true } | { ok: false; code: number; error: string } {
     if (!keyRelayAvailable) return { ok: false, code: 403, error: 'key_relay_unavailable' };
+    const failKey = authFailKey(extractIp(request));
+    if (failureBlocked(failKey, AUTH_FAIL_LIMIT)) return { ok: false, code: 429, error: 'too_many_attempts' };
     if (!roomId || !roomManager.getRoomState(roomId)) return { ok: false, code: 404, error: 'room_not_found' };
     if (!roomManager.verifyAdminPin(roomId, typeof adminPin === 'string' ? adminPin : undefined)) {
+      recordFailure(failKey, AUTH_FAIL_WINDOW_MS);
       return { ok: false, code: 403, error: 'invalid_pin' };
     }
     return { ok: true };
