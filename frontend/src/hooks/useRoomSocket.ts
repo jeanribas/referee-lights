@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 
+import { tagSession } from '@/lib/session-tags';
 import { getWsUrl } from '@/lib/config';
 import { AppState, CardValue, ClientRole, LegendConfig, VoteValue } from '@/types/state';
 import type { AppLocale } from '@/lib/i18n/config';
@@ -77,6 +78,7 @@ export function useRoomSocket(role: ClientRole, options: UseRoomSocketOptions = 
           return;
         }
         setError(null);
+        tagSession(registerPayload.roomId, role);
       });
     });
 
