@@ -1,6 +1,6 @@
 # Referee Lights robots.txt
 # Landing e páginas de produto seguem indexáveis. As telas de operação
-# (admin, display, legend, ref, timer, master) são desindexadas via header
+# (admin, display, legend, ref, timer) são desindexadas via header
 # X-Robots-Tag (next.config.js). O crawl delas fica liberado de propósito:
 # com Disallow o robô não enxerga o noindex e a URL aparece como stub no
 # índice (foi assim que o Bing listou /admin).
