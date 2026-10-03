@@ -6,6 +6,10 @@ const nextConfig = {
     defaultLocale: 'pt-BR'
   },
   reactStrictMode: true,
+  // Exposto ao cliente para ajustes só do pacote (ex.: CSS inline). Vazio na web.
+  env: {
+    NEXT_PUBLIC_BUNDLE_TARGET: process.env.BUNDLE_TARGET ?? ''
+  },
   typescript: {
     ignoreBuildErrors: false
   },
