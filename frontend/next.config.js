@@ -39,7 +39,9 @@ const nextConfig = {
     // criação de salas. Só entra no build do bundle (BUNDLE_TARGET=windows,
     // setado pelo tools/windows/build-package.mjs) — a web não é afetada.
     if (process.env.BUNDLE_TARGET === 'windows') {
-      const roots = ['/', '/en-US', '/es-ES'];
+      // '/pt-BR' também: a raiz do locale padrão com prefixo explícito não
+      // casa com a regra '/' (locale: false) e mostrava a home de marketing.
+      const roots = ['/', '/pt-BR', '/en-US', '/es-ES'];
       hostRedirects.push(
         ...roots.map((source) => ({
           source,
