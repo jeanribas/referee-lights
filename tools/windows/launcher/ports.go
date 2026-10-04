@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 // Porta: 3000 por padrão; ocupada → 3001…3010. A escolhida fica gravada em
@@ -36,7 +37,14 @@ func saveState(p Paths, s launcherState) error {
 	return writeFileAtomic(statePath(p), b)
 }
 
+// portFree: ninguém atende E dá para abrir a porta. Só tentar abrir não
+// basta no Windows: dependendo das opções do socket de quem já está lá, o
+// bind passa e o server cai depois com EADDRINUSE.
 func portFree(port int) bool {
+	if c, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 300*time.Millisecond); err == nil {
+		_ = c.Close()
+		return false
+	}
 	l, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
 	if err != nil {
 		return false
