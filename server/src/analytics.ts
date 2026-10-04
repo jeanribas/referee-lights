@@ -1070,24 +1070,6 @@ export class AnalyticsStore {
     }
   }
 
-  getLinkClicks(): Array<{ url: string; count: number; last_click: string }> {
-    if (!this.db) return [];
-    try {
-      return this.db
-        .prepare(
-          `SELECT room_id as url, COUNT(*) as count, MAX(timestamp) as last_click
-          FROM access_logs
-          WHERE event_type = 'link_click'
-          GROUP BY room_id
-          ORDER BY count DESC`
-        )
-        .all() as Array<{ url: string; count: number; last_click: string }>;
-    } catch (err) {
-      console.error('[analytics] getLinkClicks error:', err);
-      return [];
-    }
-  }
-
   getGeoDistribution(period?: string): GeoDistribution {
     if (!this.db) return { countries: [], cities: [] };
     try {

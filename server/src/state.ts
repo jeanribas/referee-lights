@@ -1,7 +1,7 @@
 export type Judge = 'left' | 'center' | 'right';
 export type VoteValue = 'white' | 'red' | null;
 export type CardValue = 1 | 2 | 3 | null;
-export type Phase = 'idle' | 'revealed';
+type Phase = 'idle' | 'revealed';
 
 export type Locale = 'pt-BR' | 'en-US' | 'es-ES';
 
@@ -28,8 +28,6 @@ export interface AppState {
   locale: Locale;
   legendConfig: LegendConfig;
 }
-
-export type RoomSnapshot = AppState;
 
 const DEFAULT_TIMER_MS = 60_000;
 const AUTO_CLEAR_MS = 10_000;

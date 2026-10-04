@@ -16,7 +16,7 @@ interface IntervalFullProps {
   };
 }
 
-export function IntervalFull({ intervalMs, configuredMs, running, labels }: IntervalFullProps) {
+function IntervalFull({ intervalMs, configuredMs, running, labels }: IntervalFullProps) {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const finishedRef = useRef(false);
   const primaryFinishedRef = useRef(false);

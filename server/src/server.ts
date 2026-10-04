@@ -896,11 +896,6 @@ export async function createServer() {
     return { referrers: analyticsStore.getReferrers(request.query.period) };
   });
 
-  app.get('/master/clicks', async (request, reply) => {
-    if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
-    return { clicks: analyticsStore.getLinkClicks() };
-  });
-
   app.get('/master/active', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
     return { rooms: roomManager.listRooms() };

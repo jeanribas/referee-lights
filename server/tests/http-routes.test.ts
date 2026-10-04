@@ -198,7 +198,6 @@ describe('auth administrativa', () => {
     '/master/devices',
     '/master/locales',
     '/master/referrers',
-    '/master/clicks',
     '/master/active',
     '/master/online',
     '/master/pages',

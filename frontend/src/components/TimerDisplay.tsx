@@ -97,7 +97,7 @@ export function useCooldownBadges(phase?: Phase) {
   }, [cooldownEntries, now]);
 }
 
-export function TimerDisplay(props: TimerDisplayProps) {
+function TimerDisplay(props: TimerDisplayProps) {
   const { remainingMs, running, variant = 'panel', hidden = false, phase, attemptNo } = props;
 
   const [cooldownEntries, setCooldownEntries] = useState<CooldownEntry[]>([]);

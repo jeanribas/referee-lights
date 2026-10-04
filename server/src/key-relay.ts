@@ -34,7 +34,7 @@ const TRIGGER_DELAY_MS = 1600;
  */
 const KEY_COMBO_RE = /^(?:(?:ctrl|shift|alt|meta)\+){0,3}(?:f(?:[1-9]|1[0-2])|[a-z0-9])$/i;
 
-export function isValidKeyCombo(combo: unknown): combo is string {
+function isValidKeyCombo(combo: unknown): combo is string {
   return typeof combo === 'string' && combo.length <= 32 && KEY_COMBO_RE.test(combo.replace(/\s+/g, ''));
 }
 

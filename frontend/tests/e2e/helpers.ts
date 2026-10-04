@@ -8,7 +8,7 @@ import { getMessages } from '../../src/lib/i18n/messages';
 
 export const API_BASE_URL = process.env.E2E_API_URL ?? 'http://localhost:3333';
 export const LOCALES = ['pt-BR', 'en-US', 'es-ES'] as const;
-export type Locale = (typeof LOCALES)[number];
+type Locale = (typeof LOCALES)[number];
 export const JUDGES = ['left', 'center', 'right'] as const;
 export type Judge = (typeof JUDGES)[number];
 
@@ -47,7 +47,7 @@ export const urls = {
 const BLOCKED = [/clarity\.ms/, /\/_vercel\//, /\/_a\//, /vercel-insights/, /vercel-scripts/];
 
 /** Bloqueia terceiros e protege contra qualquer host de produção. */
-export async function isolateNetwork(context: BrowserContext) {
+async function isolateNetwork(context: BrowserContext) {
   await context.route(
     (url) => BLOCKED.some((re) => re.test(url.href)),
     (route) => route.fulfill({ status: 204, body: '' })
@@ -55,13 +55,13 @@ export async function isolateNetwork(context: BrowserContext) {
   await context.route(/refereelights\.app|assist\.com\.br/, (route) => route.abort('blockedbyclient'));
 }
 
-export interface PageIssues {
+interface PageIssues {
   console: string[];
   failed: string[];
 }
 
 /** Captura erros de console, exceções e requisições falhas de uma página. */
-export function watchPage(page: Page, issues: PageIssues) {
+function watchPage(page: Page, issues: PageIssues) {
   page.on('console', (m) => {
     if (m.type() === 'error') issues.console.push(`${page.url()} :: ${m.text()}`);
   });
@@ -143,6 +143,3 @@ export function refButtons(page: Page) {
 }
 
 /** Quadrados das luzes na ordem esquerda/centro/direita. */
-export function lights(page: Page) {
-  return page.locator('div[style*="aspect-ratio"]').filter({ hasNot: page.locator('.invisible') });
-}
