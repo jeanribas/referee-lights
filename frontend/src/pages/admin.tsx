@@ -934,17 +934,22 @@ function RoomSetup(props: {
         className="w-full max-w-6xl space-y-10"
         style={fitScale < 1 ? { transform: `scale(${fitScale})`, transformOrigin: 'center center' } : undefined}
       >
-        <header className="max-w-3xl space-y-4">
-          <div className="flex pb-2">
+        {/* Uma linha só: identidade à esquerda, explicação à direita
+            (antes o texto ficava numa coluna estreita e sobrava a direita) */}
+        <header className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between md:gap-12">
+          <div className="flex items-center gap-6">
             <BrandLogo size={40} />
+            <div className="h-16 w-px bg-white/10" aria-hidden="true" />
+            <div className="space-y-3">
+              <span className="inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/90">
+                {messages.roomSetup.badge}
+              </span>
+              <h1 className="whitespace-nowrap text-4xl font-semibold tracking-tight text-white md:text-5xl">
+                {messages.roomSetup.title}
+              </h1>
+            </div>
           </div>
-          <span className="inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/90">
-            {messages.roomSetup.badge}
-          </span>
-          <h1 className="text-4xl font-semibold tracking-tight text-white md:text-5xl">
-            {messages.roomSetup.title}
-          </h1>
-          <p className="text-lg leading-relaxed text-slate-200">{messages.roomSetup.description}</p>
+          <p className="max-w-xl text-base leading-relaxed text-slate-300 md:text-right">{messages.roomSetup.description}</p>
         </header>
 
         <section className="grid gap-10 md:grid-cols-[1.1fr_1fr]">
