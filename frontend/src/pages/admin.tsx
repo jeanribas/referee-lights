@@ -13,6 +13,7 @@ import { FooterBadges } from '@/components/FooterBadges';
 import type { Judge } from '@/types/state';
 import { getMessages, type Messages } from '@/lib/i18n/messages';
 import { APP_LOCALES, type AppLocale } from '@/lib/i18n/config';
+import { BrandLogo } from '@/components/BrandLogo';
 import { Seo } from '@/components/Seo';
 
 interface AdminPageProps {
@@ -467,20 +468,24 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
         } : undefined}
       >
         <header className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <h1 className="text-2xl font-semibold uppercase tracking-[0.45em]">
-              {adminMessages.header.title}
-            </h1>
-            {roomId && adminPin && (
-              <div className="flex flex-wrap gap-6 text-xs uppercase tracking-[0.35em] text-slate-400">
-                <span>
-                  {commonMessages.labels.room}: {roomId}
-                </span>
-                <span>
-                  {commonMessages.labels.adminPinShort}: {adminPin}
-                </span>
-              </div>
-            )}
+          <div className="flex items-center gap-6">
+            <BrandLogo size={30} />
+            <div className="h-12 w-px bg-white/10" aria-hidden="true" />
+            <div className="flex flex-col gap-1">
+              <h1 className="text-2xl font-semibold uppercase tracking-[0.45em]">
+                {adminMessages.header.title}
+              </h1>
+              {roomId && adminPin && (
+                <div className="flex flex-wrap gap-6 text-xs uppercase tracking-[0.35em] text-slate-400">
+                  <span>
+                    {commonMessages.labels.room}: {roomId}
+                  </span>
+                  <span>
+                    {commonMessages.labels.adminPinShort}: {adminPin}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
           <div className="flex flex-col items-start gap-1 text-sm uppercase tracking-[0.35em] text-slate-400">
             <span>
@@ -919,6 +924,7 @@ function RoomSetup(props: {
 
       <div className="w-full max-w-6xl space-y-14">
         <header className="max-w-3xl space-y-4">
+          <BrandLogo size={36} className="items-start" />
           <span className="inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/90">
             {messages.roomSetup.badge}
           </span>
