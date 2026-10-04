@@ -91,6 +91,7 @@ func (p *panelWindow) run() {
 			Width:  1440,
 			Height: 900,
 			Center: true,
+			IconId: 1, // ícone da classe da janela (barra de tarefas e Alt+Tab)
 		},
 	})
 	if w == nil {
@@ -141,11 +142,12 @@ const externalLinksScript = `(() => {
 func (p *panelWindow) setIcon() {
 	var hinst windows.Handle
 	_ = windows.GetModuleHandleEx(0, nil, &hinst)
-	name, _ := windows.UTF16PtrFromString("APP") // ícone do recurso (go-winres)
-	big, _, _ := procLoadImage.Call(uintptr(hinst), uintptr(unsafe.Pointer(name)), imageIcon, 0, 0, lrDefaultSize|lrShared)
+	// go-winres grava o ícone do exe com o ID 1 (MAKEINTRESOURCE(1))
+	const iconID = 1
+	big, _, _ := procLoadImage.Call(uintptr(hinst), iconID, imageIcon, 0, 0, lrDefaultSize|lrShared)
 	cx, _, _ := procGetSysMetrics.Call(smCxSmIcon)
 	cy, _, _ := procGetSysMetrics.Call(smCySmIcon)
-	small, _, _ := procLoadImage.Call(uintptr(hinst), uintptr(unsafe.Pointer(name)), imageIcon, cx, cy, lrShared)
+	small, _, _ := procLoadImage.Call(uintptr(hinst), iconID, imageIcon, cx, cy, lrShared)
 	if big != 0 {
 		procSendMessage.Call(p.hwnd, wmSetIcon, 1, big)
 	}
