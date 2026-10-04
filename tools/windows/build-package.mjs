@@ -19,6 +19,12 @@ import { fileURLToPath } from 'node:url';
 import https from 'node:https';
 import http from 'node:http';
 
+// No Windows usa o bsdtar nativo (System32): o tar do Git Bash do runner
+// lê "D:\..." como host remoto ("Cannot connect to D: resolve failed").
+const TAR = process.platform === 'win32'
+  ? `"${process.env.SystemRoot ?? 'C:\\Windows'}\\System32\\tar.exe"`
+  : 'tar';
+
 const NODE_VERSION = '20.18.1';
 const NODE_ZIP_URL = `https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-win-x64.zip`;
 
@@ -235,7 +241,7 @@ async function downloadNode() {
     await downloadFile(NODE_ZIP_URL, zipPath);
     await rm(tmp, { recursive: true, force: true });
     await mkdir(tmp, { recursive: true });
-    run(`tar -xf "${zipPath}" -C "${tmp}"`, { stdio: 'pipe' });
+    run(`${TAR} -xf "${zipPath}" -C "${tmp}"`, { stdio: 'pipe' });
     const exe = path.join(tmp, `node-v${NODE_VERSION}-win-x64`, 'node.exe');
     if (!existsSync(exe)) die('node.exe não encontrado no zip do Node.');
     await cp(exe, cachedExe);
@@ -400,7 +406,7 @@ async function createZip() {
   if (process.platform === 'win32') {
     // Runner Windows (CI) não tem `zip`; o bsdtar nativo (Win10+) gera zip
     // deflate com nomes UTF-8. Entradas explícitas: sem prefixo "./".
-    run(`tar -a -c -f "${zipPath}" ${entries.map((e) => `"${e}"`).join(' ')}`, { cwd: outputDir });
+    run(`${TAR} -a -c -f "${zipPath}" ${entries.map((e) => `"${e}"`).join(' ')}`, { cwd: outputDir });
   } else {
     // -X: sem atributos extras de macOS; deflate padrão (-6): tamanho x
     // velocidade de extração equilibrados

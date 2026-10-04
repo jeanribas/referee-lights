@@ -58,7 +58,7 @@ async function extract(dest) {
   await rm(dest, { recursive: true, force: true });
   await mkdir(dest, { recursive: true });
   const t0 = Date.now();
-  if (process.platform === 'win32') execFileSync('tar', ['-xf', zipPath, '-C', dest]);
+  if (process.platform === 'win32') execFileSync(`${process.env.SystemRoot ?? 'C:\\Windows'}\\System32\\tar.exe`, ['-xf', zipPath, '-C', dest]); // bsdtar nativo; o do Git Bash lê "D:" como host
   else execFileSync('unzip', ['-q', zipPath, '-d', dest]);
   const ms = Date.now() - t0;
   let files = 0;
