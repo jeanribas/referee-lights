@@ -505,10 +505,10 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
                 id="locale-select"
                 value={currentLocale}
                 onChange={handleLocaleChange}
-                className="min-w-32 rounded-xl border border-white/10 bg-[#1A2231] px-3 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white shadow-xs transition focus:border-indigo-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-400/40"
+                className="min-w-32 rounded-xl border border-white/10 bg-[#1A2231] px-3 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white scheme-dark shadow-xs transition focus:border-indigo-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-400/40"
               >
                 {localeOptions.map((option) => (
-                  <option key={option.code} value={option.code} className="text-slate-900">
+                  <option key={option.code} value={option.code} className="bg-[#1A2231] text-white">
                     {option.label}
                   </option>
                 ))}
