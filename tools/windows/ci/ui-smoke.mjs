@@ -133,6 +133,18 @@ for (const [w, h] of [[1150, 790], [1280, 720], [1366, 768], [1920, 1080]]) {
   }
 }
 
+// Coluna de controles do admin sem rolagem à toa nas resoluções comuns
+for (const [w, h] of [[1280, 720], [1366, 768], [1920, 1080]]) {
+  const page = await context.newPage();
+  await page.setViewportSize({ width: w, height: h });
+  await page.goto(`${base}${pages.admin}`, { waitUntil: 'load' });
+  await page.waitForSelector('aside', { timeout: 15_000 }).catch(() => undefined);
+  await page.waitForTimeout(800);
+  const extra = await page.evaluate(() => { const a = document.querySelector('aside'); return a ? a.scrollHeight - a.clientHeight : -1; });
+  if (extra > 0) failures.push(`admin ${w}x${h}: coluna de controles com rolagem (${extra}px a mais)`);
+  await page.close();
+}
+
 // Tags de sessão depois do register
 const expectedRole = { admin: 'admin', display: 'display', legend: 'legend', timer: 'timer', left: 'left', center: 'center', right: 'right' };
 for (const [name, { page }] of Object.entries(opened)) {
