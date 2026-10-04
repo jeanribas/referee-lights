@@ -172,10 +172,6 @@ function canConnect(
     return Boolean(options.adminPin);
   }
 
-  if (role === 'viewer') {
-    return true;
-  }
-
   return Boolean(options.refereeToken);
 }
 

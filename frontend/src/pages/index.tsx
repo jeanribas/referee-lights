@@ -263,7 +263,7 @@ export default function HomePage() {
               softwareVersion: '1.2',
               author: { '@type': 'Person', name: 'Jean Ribas' },
               url: 'https://github.com/jeanribas/referee-lights',
-              downloadUrl: 'https://github.com/jeanribas/referee-lights/releases',
+              downloadUrl: 'https://github.com/jeanribas/referee-lights/releases/latest/download/referee-lights-windows.zip',
               screenshot: [
                 'https://refereelights.app/screenshots/display.jpg',
                 'https://refereelights.app/screenshots/admin.jpg',

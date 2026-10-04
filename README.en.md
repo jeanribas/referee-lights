@@ -104,17 +104,15 @@ Open `http://localhost:3000` and navigate to the desired route.
 
 ## External shortcuts (F1/F10)
 
-The recommended approach is to use the **"Ativar Key Relay"** toggle in the admin panel. It starts/stops the key relay directly from the browser with no helper process needed. A modal lets you capture any key combination (F1–F12, Ctrl+key, Alt+key, etc.) to customize the shortcuts.
+The Key Relay is built into the server and controlled from the admin panel (**"Ativar Key Relay"** toggle, protected by the room PIN). When a decision is revealed, the server sends the configured key to the **window in focus** on the machine where it runs:
 
-For advanced use, the standalone helper in `tools/key-relay` is still available. Run `start.command` (macOS), `start.bat`/`start.ps1` (Windows), or `start.sh` (Linux), paste the session link (display/admin), and optionally override the shortcut keys. The helper stays connected via Socket.IO and sends:
+- `F1` with at least two white lights (good lift);
+- `F10` with at least two red lights (no lift).
 
-- `F1` when at least two white lights (good lift) are registered
-- `F10` when at least two red lights (no lift) are registered
-
-The helper only requires Node 18+. Full instructions (including OS permissions) are in `tools/key-relay/README.md`. Keep it running on the machine that will emit the keystrokes, even if the backend is hosted elsewhere.
+Keys can be changed in the modal (F1–F12 or one letter/digit, with up to three modifiers). Works on Windows (SendKeys), macOS (System Events — requires Accessibility permission) and Linux (`xdotool`). Available only when the server runs with `KEY_RELAY_AVAILABLE=true` (default in the Windows package).
 
 ## Deploy
 
-- **Server**: any Node 18+ environment (e.g., EasyPanel). Run `npm run build` and then `npm start`.
+- **Server**: Docker (`server/Dockerfile`) or any Node 20+ platform. Run `npm run build` and then `npm start`.
 - **Frontend**: Vercel or similar. Configure `NEXT_PUBLIC_WS_URL` and `NEXT_PUBLIC_API_URL` with the server domain.
 - **Docker**: mount a volume at `/app/data` to persist data.

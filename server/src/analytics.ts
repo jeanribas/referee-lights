@@ -170,7 +170,7 @@ export class AnalyticsStore {
 
     // Limpeza única (user_version 1): o geoip-lite antigo gravava país errado
     // sem coordenadas (ex.: faixa BR marcada como RW). País sem lat/lng não é
-    // verificável nem mapeável — zera para não poluir os painéis.
+    // verificável nem mapeável — zera.
     try {
       const version = (this.db!.pragma('user_version', { simple: true }) as number) ?? 0;
       if (version < 1) {
@@ -182,10 +182,8 @@ export class AnalyticsStore {
         console.log('[analytics] migração 1: geo sem coordenadas zerado');
       }
       // Migração 2 (histórica, 02/ago/2026): apagou os eventos por sala já
-      // coletados. A decisão foi REVERTIDA no mesmo dia — premissa do produto
-      // é que os filhos reportem o máximo de dados de uso e o master consuma
-      // (/master/instances/:id/activity). A migração fica registrada porque
-      // já rodou em produção; num banco novo ela roda vazia.
+      // gravados. A decisão foi revertida no mesmo dia. A migração fica
+      // registrada porque já rodou em produção; num banco novo ela roda vazia.
       if (version < 2) {
         this.db!.exec(`
           DELETE FROM instance_events;
@@ -193,8 +191,7 @@ export class AnalyticsStore {
         `);
         console.log('[analytics] migração 2: eventos por sala descartados');
       }
-      // Migração 3: bundles >= 1.2.3 reportam a versão do app no heartbeat —
-      // o master passa a mostrar qual versão cada instalação roda.
+      // Migração 3: bundles >= 1.2.3 informam a versão do app no status.
       if (version < 3) {
         this.db!.exec(`
           ALTER TABLE instances ADD COLUMN app_version TEXT NOT NULL DEFAULT '';
@@ -202,8 +199,8 @@ export class AnalyticsStore {
         `);
         console.log('[analytics] migração 3: coluna app_version em instances');
       }
-      // Migração 4: geolocalização da INSTALAÇÃO (resolvida do IP público do
-      // heartbeat) — mostra no mapa onde o produto está instalado.
+      // Migração 4: localização aproximada da instalação (resolvida do IP
+      // público do status).
       if (version < 4) {
         this.db!.exec(`
           ALTER TABLE instances ADD COLUMN country TEXT NOT NULL DEFAULT '';
@@ -216,7 +213,7 @@ export class AnalyticsStore {
         console.log('[analytics] migração 4: geo da instalação em instances');
       }
       // Migração 5: salas abertas agora em cada instalação (JSON do último
-      // heartbeat) — granularidade igual à do online no painel.
+      // status).
       if (version < 5) {
         this.db!.exec(`
           ALTER TABLE instances ADD COLUMN rooms_json TEXT NOT NULL DEFAULT '[]';
@@ -241,7 +238,7 @@ export class AnalyticsStore {
       }
       // Migração 7: expurga instâncias sintéticas de diagnóstico (testes de
       // pipeline feitos em 02-03/ago/2026) e as de macOS (máquina de build).
-      // Dado de diagnóstico não é dado de uso — só polui as métricas.
+      // Dado de teste não é dado de uso.
       if (version < 7) {
         this.db!.exec(`
           CREATE TEMP TABLE junk AS
@@ -260,7 +257,7 @@ export class AnalyticsStore {
       }
 
       // Migração 8: identificação legível da instalação. hostname vem
-      // AUTOMÁTICO no heartbeat (nome da máquina); label é override manual
+      // automático no status (nome da máquina); label é override manual
       // opcional. Sem isso os ids são UUIDs — impossível reconhecer/filtrar.
       if (version < 8) {
         this.db!.exec(`
@@ -683,7 +680,7 @@ export class AnalyticsStore {
     } | null;
     /** Momento em que a amostra foi tirada na origem (pode chegar atrasada pela fila offline). */
     sampledAt?: string;
-    /** IP público de origem do heartbeat — vira geo da instalação, nunca é gravado cru. */
+    /** IP público de origem do status — vira localização aproximada, nunca é gravado cru. */
     ip?: string;
   }): void {
     if (!this.db) return;
@@ -828,7 +825,7 @@ export class AnalyticsStore {
     }
   }
 
-  /** Apelido operacional da instalação — definido no painel master. */
+  /** Apelido operacional da instalação, definido manualmente. */
   setInstanceLabel(instanceId: string, label: string): boolean {
     if (!this.db) return false;
     try {
@@ -842,7 +839,7 @@ export class AnalyticsStore {
     }
   }
 
-  /** Instalações com heartbeat nos últimos 10 min — o "ao vivo" dos bundles. */
+  /** Instalações com status nos últimos 10 min — o "ao vivo" dos bundles. */
   getOnlineBundleInstances(excludeInstanceId = ''): Array<{
     instance_id: string;
     label: string;
@@ -994,7 +991,7 @@ export class AnalyticsStore {
     }
   }
 
-  /** Atividade de uma instância: eventos por sala + histórico de heartbeat. */
+  /** Atividade de uma instância: eventos por sala + histórico de status. */
   getInstanceActivity(instanceId: string): {
     events: Array<{ event_type: string; room_id: string | null; event_ts: string | null; received_at: string }>;
     samples: Array<{ active_rooms: number; total_sessions: number; total_connections: number; unique_ips: number; uptime_seconds: number; sampled_at: string }>;
@@ -1066,24 +1063,6 @@ export class AnalyticsStore {
         .all(`-${windowMinutes} minutes`) as Array<{ page: string; country: string; city: string; last_seen: string }>;
     } catch (err) {
       console.error('[analytics] getRecentSiteVisitors error:', err);
-      return [];
-    }
-  }
-
-  getLinkClicks(): Array<{ url: string; count: number; last_click: string }> {
-    if (!this.db) return [];
-    try {
-      return this.db
-        .prepare(
-          `SELECT room_id as url, COUNT(*) as count, MAX(timestamp) as last_click
-          FROM access_logs
-          WHERE event_type = 'link_click'
-          GROUP BY room_id
-          ORDER BY count DESC`
-        )
-        .all() as Array<{ url: string; count: number; last_click: string }>;
-    } catch (err) {
-      console.error('[analytics] getLinkClicks error:', err);
       return [];
     }
   }

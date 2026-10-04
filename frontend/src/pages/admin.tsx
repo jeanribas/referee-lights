@@ -121,19 +121,19 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
   }, []);
 
   const handleKeyRelayToggle = useCallback(async () => {
-    if (!roomId) return;
+    if (!roomId || !adminPin) return;
     try {
       if (keyRelayStatus?.active) {
-        await stopKeyRelay();
+        await stopKeyRelay(roomId, adminPin);
       } else {
-        await startKeyRelay(roomId, krValidKey, krInvalidKey);
+        await startKeyRelay(roomId, adminPin, krValidKey, krInvalidKey);
       }
       const s = await getKeyRelayStatus();
       setKeyRelayStatus(s);
     } catch (err) {
       console.error('Key relay toggle error:', err);
     }
-  }, [keyRelayStatus, roomId, krValidKey, krInvalidKey]);
+  }, [keyRelayStatus, roomId, adminPin, krValidKey, krInvalidKey]);
 
   useEffect(() => {
     if (!credentialsReady) {
@@ -666,6 +666,9 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
                     </span>
                   </div>
                 </div>
+                <p className="text-[11px] leading-snug text-slate-400">
+                  Ao revelar a decisão, envia a tecla para a janela em foco no computador do servidor.
+                </p>
                 <button
                   className={`${controlButtonBase} ${keyRelayStatus?.active ? 'bg-red-500/80 text-white hover:bg-red-500' : 'bg-emerald-500 text-slate-900 hover:bg-emerald-400/90'}`}
                   onClick={handleKeyRelayToggle}

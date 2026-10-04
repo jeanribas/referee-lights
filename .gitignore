@@ -21,8 +21,6 @@ dist/
 # Artefatos locais de sessão/ferramentas
 *.pid
 .compact-summary.md
-tools/key-relay/key-relay-config.json
-tools/key-relay/key-relay-config.txt
 
 # Editor
 .DS_Store
@@ -36,3 +34,7 @@ logs
 # Artefatos do Playwright
 frontend/test-results/
 frontend/playwright-report/
+
+# Material interno de desenvolvimento (fica fora do repositório)
+CLAUDE.md
+PLAN.md

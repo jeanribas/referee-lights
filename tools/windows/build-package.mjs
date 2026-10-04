@@ -47,9 +47,9 @@ async function buildProjects() {
   run('npm install', { cwd: frontendDir });
   run('npm run build', {
     cwd: frontendDir,
-    // NEXT_PUBLIC_OFFLINE_BUNDLE tira Vercel Analytics e Clarity do build:
-    // em LAN sem internet eles não coletam nada, e o import estático do
-    // @vercel/analytics quebrava o SSR fora do ambiente de build (v1.3).
+    // NEXT_PUBLIC_OFFLINE_BUNDLE tira os scripts de terceiros do build:
+    // em LAN sem internet eles não têm função, e o import estático
+    // quebrava o SSR fora do ambiente de build (v1.3).
     // URLs de API/WS vazias NO BUILD: o client inlina NEXT_PUBLIC_* na
     // compilação, e um .env.local esquecido (ex.: criado pelo vercel CLI)
     // já apontou o bundle para a API de produção — sala criada lá, socket

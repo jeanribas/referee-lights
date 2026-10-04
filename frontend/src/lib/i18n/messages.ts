@@ -4,7 +4,6 @@ type CommonMessages = {
   labels: {
     room: string;
     adminPinShort: string;
-    adminPinLong: string;
     status: string;
   };
   errors: Record<string, string>;
@@ -249,7 +248,7 @@ type WindowsMessages = {
 };
 
 /**
- * Barra de consentimento. O texto vive aqui, e não no tracker: o `s.js` do
+ * Barra de consentimento. O texto vive aqui, e não no script de terceiros: o `s.js` do
  * stats.assist.com.br traz um banner de fallback com texto fixo em português
  * ("só microsites, sem consent conhecido", diz o próprio script), sem opção de
  * idioma. Este site é trilíngue, então desligamos o dele (data-banner="0") e
@@ -286,7 +285,6 @@ const MESSAGES: Record<AppLocale, Messages> = {
       labels: {
         room: 'Sala',
         adminPinShort: 'PIN admin',
-        adminPinLong: 'PIN Administrativo',
         status: 'Status'
     },
     errors: {
@@ -649,7 +647,6 @@ const MESSAGES: Record<AppLocale, Messages> = {
       labels: {
         room: 'Room',
         adminPinShort: 'Admin PIN',
-        adminPinLong: 'Admin PIN',
         status: 'Status'
       },
       errors: {
@@ -1012,7 +1009,6 @@ const MESSAGES: Record<AppLocale, Messages> = {
       labels: {
         room: 'Sala',
         adminPinShort: 'PIN admin',
-        adminPinLong: 'PIN administrativo',
         status: 'Estado'
       },
       errors: {

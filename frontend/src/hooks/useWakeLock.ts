@@ -102,6 +102,10 @@ export function useWakeLock(enabled: boolean) {
 
   const requestLock = useCallback(async () => {
     if (!enabled) return;
+    // Já segurando o lock: focus/visibilitychange disparam de novo e cada
+    // pedido criava um sentinel novo — os antigos nunca eram liberados, e ao
+    // desligar o keepAwake a tela continuava presa acordada.
+    if (sentinelRef.current && !sentinelRef.current.released) return;
     try {
       if ('wakeLock' in navigator && 'request' in (navigator as any).wakeLock) {
         sentinelRef.current = await (navigator as any).wakeLock.request('screen');

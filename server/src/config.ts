@@ -1,5 +1,7 @@
 import { config as loadEnv } from 'dotenv';
 
+import { parseTrustProxyHops } from './client-ip.js';
+
 // dotenv 17 loga uma dica de runtime a cada boot; quiet mantém o stdout limpo.
 loadEnv({ quiet: true });
 
@@ -9,7 +11,7 @@ export const config = {
   LOG_LEVEL: process.env.LOG_LEVEL ?? 'info',
   MASTER_USER: process.env.MASTER_USER ?? '',
   MASTER_PASSWORD: process.env.MASTER_PASSWORD ?? '',
-  // Chave de assinatura dos tokens do master, separada da senha: um token
+  // Chave de assinatura dos tokens administrativos, separada da senha: um token
   // capturado não pode mais ser usado para brute-forçar a senha offline.
   MASTER_TOKEN_SECRET: process.env.MASTER_TOKEN_SECRET ?? '',
   ANALYTICS_DB_PATH: process.env.ANALYTICS_DB_PATH ?? 'data/analytics.db',
@@ -19,5 +21,8 @@ export const config = {
   GEO_ENABLED: (process.env.GEO_ENABLED ?? 'true') === 'true',
   KEY_RELAY_AVAILABLE: (process.env.KEY_RELAY_AVAILABLE ?? 'false') === 'true',
   // Sala sem atividade por este tempo é arquivada (código volta ao pool)
-  ROOM_TTL_HOURS: Number(process.env.ROOM_TTL_HOURS ?? 24)
+  ROOM_TTL_HOURS: Number(process.env.ROOM_TTL_HOURS ?? 24),
+  // Quantos proxies NOSSOS ficam na frente da API (Traefik/Dokploy = 1).
+  // 0 = sem proxy (bundle na LAN): X-Forwarded-For é ignorado.
+  TRUST_PROXY_HOPS: parseTrustProxyHops(process.env.TRUST_PROXY_HOPS)
 };

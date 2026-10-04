@@ -12,14 +12,13 @@ import { trackPageView } from '@/lib/api';
 import '@/styles/globals.css';
 
 /**
- * Analytics de terceiros (Vercel + Clarity) ficam FORA do bundle Windows.
+ * Scripts de terceiros ficam FORA do bundle Windows.
  *
  * Dois motivos, os dois aprendidos do jeito difícil:
- * - o import estático de @vercel/analytics fazia o Turbopack externalizar o
- *   módulo no build do servidor com um nome hasheado
- *   (`@vercel/analytics-<hash>`) que só resolve dentro do ambiente de build —
+ * - o import estático fazia o Turbopack externalizar o módulo no build do
+ *   servidor com um nome hasheado que só resolve dentro do ambiente de build —
  *   no bundle portátil o SSR quebrava em toda requisição (v1.3);
- * - numa competição em LAN sem internet esses scripts não coletam nada, só
+ * - numa competição em LAN sem internet esses scripts não têm função, só
  *   tentam sair da rede do ginásio.
  *
  * `next/dynamic` com ssr:false tira o módulo do chunk do servidor; a flag
@@ -73,10 +72,10 @@ export default function App({ Component, pageProps }: AppProps) {
       {!IS_OFFLINE_BUNDLE && <VercelAnalytics />}
       {!IS_OFFLINE_BUNDLE && MARKETING_ROUTES.includes(router.pathname) && (
         <>
-          {/* data-banner="0": o banner de fallback do tracker tem texto fixo em
+          {/* data-banner="0": o banner de fallback do script tem texto fixo em
               português e nenhum atributo de idioma. Num site trilíngue quem
               exibe é o CookieConsent, que lê o mesmo estado pela API do
-              tracker. */}
+              script. */}
           <Script src="/_a/s.js" strategy="afterInteractive" data-site="refereelights" data-banner="0" />
           <CookieConsent />
         </>

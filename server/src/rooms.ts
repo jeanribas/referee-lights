@@ -4,6 +4,14 @@ import { RoomState, type AppState, type Judge, type Locale } from './state.js';
 
 type RefereeTokens = Record<Judge, string>;
 
+/** Comparação em tempo constante (hash-then-compare) para PIN e tokens. */
+function safeEqual(expected: string | undefined, given: string): boolean {
+  if (typeof expected !== 'string') return false;
+  const a = crypto.createHash('sha256').update(expected).digest();
+  const b = crypto.createHash('sha256').update(given).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
 interface Room {
   id: string;
   adminPin: string;
@@ -37,7 +45,7 @@ export interface PersistedRoom {
 interface RoomManagerOptions {
   /** Sala sem NENHUMA atividade por este tempo é arquivada (código volta ao pool). */
   ttlMs?: number;
-  /** Chamado ao arquivar — fecha a sessão no analytics, avisa telemetria etc. */
+  /** Chamado ao arquivar — fecha a sessão registrada e notifica quem precisa. */
   onExpire?: (roomId: string) => void;
   /** Persistência para recuperação pós-restart (salas voltam em até TTL). */
   store?: {
@@ -151,7 +159,7 @@ export class RoomManager {
     if (!pin) return false;
     const room = this.rooms.get(roomId);
     if (!room) return false;
-    return room.adminPin === pin;
+    return safeEqual(room.adminPin, pin);
   }
 
   getRoomAccess(roomId: string, pin: string) {
@@ -188,7 +196,7 @@ export class RoomManager {
     if (!token) return false;
     const room = this.rooms.get(roomId);
     if (!room) return false;
-    return room.refereeTokens[judge] === token;
+    return safeEqual(room.refereeTokens[judge], token);
   }
 
   getRoomState(roomId: string) {
@@ -232,7 +240,8 @@ export class RoomManager {
   }
 
   private generateAdminPin() {
-    return String(1000 + Math.floor(Math.random() * 9000));
+    // crypto: Math.random não é imprevisível o bastante para credencial
+    return String(crypto.randomInt(1000, 10000));
   }
 
   private generateRefereeTokens(): RefereeTokens {

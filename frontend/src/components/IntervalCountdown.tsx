@@ -12,7 +12,7 @@ interface IntervalCountdownProps {
   };
 }
 
-export function IntervalCountdown({ intervalMs, configuredMs, running, labels }: IntervalCountdownProps) {
+function IntervalCountdown({ intervalMs, configuredMs, running, labels }: IntervalCountdownProps) {
   if (configuredMs <= 0 && intervalMs <= 0) {
     return null;
   }

@@ -1,8 +1,0 @@
-{
-  "sessionUrl": "https://meusite.com/display?roomId=ABCD&pin=1234",
-  "wsUrl": "http://localhost:3333",
-  "apiUrl": "http://localhost:3333",
-  "validKey": "F1",
-  "invalidKey": "F10"
-}
-

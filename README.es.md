@@ -104,17 +104,15 @@ Ingrese a `http://localhost:3000` y navegue a la ruta deseada.
 
 ## Atajos externos (F1/F10)
 
-La forma recomendada es usar el toggle **"Ativar Key Relay"** en el panel admin. Inicia/detiene el key relay directamente desde el navegador, sin procesos auxiliares. Un modal permite capturar cualquier combinación de teclas (F1–F12, Ctrl+tecla, Alt+tecla, etc.) para personalizar los atajos.
+El Key Relay está integrado en el servidor y se controla desde el panel admin (toggle **"Ativar Key Relay"**, protegido por el PIN de la sala). Cuando se revela la decisión, el servidor envía la tecla configurada a la **ventana en foco** de la máquina donde se ejecuta:
 
-Para uso avanzado, el helper independiente en `tools/key-relay` sigue disponible. Ejecute `start.command` (macOS), `start.bat`/`start.ps1` (Windows) o `start.sh` (Linux), pegue el enlace de la sesión (display/admin) y, opcionalmente, personalice las teclas. El helper se mantiene conectado por Socket.IO y envía:
+- `F1` con al menos dos luces blancas (válido);
+- `F10` con al menos dos luces rojas (no válido).
 
-- `F1` cuando se registran al menos dos luces blancas (válido)
-- `F10` cuando se registran al menos dos luces rojas (no válido)
-
-El helper solo requiere Node 18+. Las instrucciones completas (incluyendo permisos del sistema operativo) están en `tools/key-relay/README.md`. Debe ejecutarse en la máquina que enviará las teclas, incluso si el backend está alojado en la nube.
+Las teclas se cambian en el modal (F1–F12 o una letra/dígito, con hasta tres modificadores). Funciona en Windows (SendKeys), macOS (System Events — requiere permiso de Accesibilidad) y Linux (`xdotool`). Disponible solo cuando el servidor se ejecuta con `KEY_RELAY_AVAILABLE=true` (por defecto en el paquete de Windows).
 
 ## Deploy
 
-- **Servidor**: cualquier entorno Node 18+ (por ejemplo, EasyPanel). Ejecute `npm run build` y luego `npm start`.
+- **Servidor**: Docker (`server/Dockerfile`) o cualquier plataforma Node 20+. Ejecute `npm run build` y luego `npm start`.
 - **Frontend**: Vercel o similar. Configure `NEXT_PUBLIC_WS_URL` y `NEXT_PUBLIC_API_URL` con el dominio del servidor.
 - **Docker**: monte un volumen en `/app/data` para persistir los datos.
