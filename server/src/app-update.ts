@@ -109,8 +109,10 @@ export function registerAppUpdate(app: FastifyInstance, opts: Options) {
     return view;
   }
 
-  app.get('/app-update', async (request, reply) => {
-    if (!allowed(request)) { reply.code(404); return { error: 'not_found' }; }
+  app.get('/app-update', async (request) => {
+    // Painel aberto por outra máquina da rede: nada a mostrar (sem 404, que
+    // apareceria como erro no console do navegador)
+    if (!allowed(request)) return { state: 'none', current: opts.appVersion, canApply: false } satisfies UpdateView;
     if (opts.controlUrl) {
       return (await fromLauncher('/update', 'GET')) ?? { state: 'none', current: opts.appVersion, canApply: false };
     }
