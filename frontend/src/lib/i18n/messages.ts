@@ -4,7 +4,6 @@ type CommonMessages = {
   labels: {
     room: string;
     adminPinShort: string;
-    adminPinLong: string;
     status: string;
   };
   errors: Record<string, string>;
@@ -254,7 +253,6 @@ const MESSAGES: Record<AppLocale, Messages> = {
       labels: {
         room: 'Sala',
         adminPinShort: 'PIN admin',
-        adminPinLong: 'PIN Administrativo',
         status: 'Status'
     },
     errors: {
@@ -549,7 +547,6 @@ const MESSAGES: Record<AppLocale, Messages> = {
       labels: {
         room: 'Room',
         adminPinShort: 'Admin PIN',
-        adminPinLong: 'Admin PIN',
         status: 'Status'
       },
       errors: {
@@ -844,7 +841,6 @@ const MESSAGES: Record<AppLocale, Messages> = {
       labels: {
         room: 'Sala',
         adminPinShort: 'PIN admin',
-        adminPinLong: 'PIN administrativo',
         status: 'Estado'
       },
       errors: {
