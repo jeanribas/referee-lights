@@ -28,8 +28,8 @@ export interface InstanceSnapshot {
   totalSessions: number;
   totalConnections: number;
   uniqueIps: number;
-  /** Salas abertas AGORA (código, árbitros conectados, fase) — dá ao master a
-   * mesma granularidade do online. Limitado a 20 para o payload não crescer. */
+  /** Salas abertas AGORA (código, árbitros conectados, fase). Limitado a 20
+   * para o payload não crescer. */
   rooms?: Array<{ id: string; createdAt: number; connectedJudges: number; phase: string }>;
 }
 
@@ -135,7 +135,7 @@ export class Telemetry {
     this.push('decision', { roomId, white: counts.white, red: counts.red });
   }
 
-  /** Sala arquivada por inatividade — fecha o ciclo de vida no master. */
+  /** Sala arquivada por inatividade — fecha o ciclo de vida da sala. */
   trackRoomArchived(roomId: string): void {
     this.push('room_archived', { roomId });
   }

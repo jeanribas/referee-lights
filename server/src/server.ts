@@ -642,7 +642,7 @@ export async function createServer() {
     });
   });
 
-  // --- Master Admin Endpoints ---
+  // --- Endpoints administrativos ---
 
   app.post<{ Body: { user?: string; password?: string } }>('/master/auth', async (request, reply) => {
     // 10 tentativas por IP a cada 15min — barra brute force de credenciais
@@ -752,11 +752,9 @@ export async function createServer() {
   // --- Endpoints de instâncias ---
 
   app.post('/telemetry/events', async (request, reply) => {
-    // Premissa do produto: os filhos (bundles) reportam o máximo de dados de
-    // uso possível, e o master consome. Eventos por sala (session_created,
-    // connection, disconnection — com roomId, papel e hash de IP, nunca IP
-    // cru nem nomes) são gravados em instance_events e lidos em
-    // /master/instances/:id/activity.
+    // Eventos por sala (session_created, connection, disconnection — com
+    // roomId, papel e hash de IP, nunca IP cru nem nomes) são gravados em
+    // instance_events.
     if (!rateLimitOk(`tel:${extractIp(request)}`, 60, 60_000)) {
       reply.code(429);
       return { error: 'rate_limited' };
