@@ -22,7 +22,9 @@ function useViewportScale(designWidth = 1920, designHeight = 1080) {
     const update = () => {
       const sx = window.innerWidth / designWidth;
       const sy = window.innerHeight / designHeight;
-      setScale(Math.min(sx, sy, 1));
+      // Amplia também (telas maiores que o desenho): tudo mede em cqw/rem
+      // dentro desta tela de desenho, então a cara é a mesma em qualquer resolução.
+      setScale(Math.min(sx, sy));
     };
     update();
     window.addEventListener('resize', update);
@@ -114,12 +116,16 @@ export default function DisplayPage() {
       <div className="h-screen w-screen overflow-hidden bg-black">
       <main
         className="relative flex h-screen flex-col bg-black px-6 pt-12 pb-16 text-white overflow-hidden"
-        style={viewportScale < 1 ? {
+        // Container de tamanho: luzes e relógio medem em cqw (largura desta
+        // tela de desenho), não em vw. Com vw a tela encolhia duas vezes em
+        // janelas estreitas — pela unidade e de novo pelo scale abaixo.
+        style={viewportScale !== 1 ? {
+          containerType: 'inline-size',
           transformOrigin: 'top left',
           transform: `scale(${viewportScale})`,
           width: `${100 / viewportScale}%`,
           height: `${100 / viewportScale}vh`,
-        } as CSSProperties : undefined}
+        } as CSSProperties : { containerType: 'inline-size' } as CSSProperties}
       >
         <div className="fixed bottom-6 left-6 z-30 flex flex-col items-start gap-3" ref={menuRef}>
           {menuOpen && (
@@ -198,7 +204,7 @@ export default function DisplayPage() {
             </div>
           </div>
         ) : (
-          <div className="flex flex-1 flex-col items-center justify-center gap-[8vh]">
+          <div className="flex flex-1 flex-col items-center justify-center gap-[5.4rem]">
             {/* A fileira de cartões do DecisionLights é absolute (top-full,
                 mt-6 + 5rem) e não ocupa espaço no layout: sem esta reserva o
                 relógio encostava nos cartões em telas mais baixas. */}
