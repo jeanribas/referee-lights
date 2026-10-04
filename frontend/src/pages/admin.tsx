@@ -286,9 +286,17 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
     ];
   }, [adminMessages.qrMenu.targets.center, adminMessages.qrMenu.targets.left, adminMessages.qrMenu.targets.right, appOrigin, roomAccess, roomId]);
 
-  const displayLink = buildRoomViewHref('/display', roomId, adminPin);
-  const legendLink = buildRoomViewHref('/legend', roomId, adminPin);
-  const timerLink = buildRoomViewHref('/timer', roomId, adminPin);
+  // Display e timer costumam abrir em OUTRO computador: mesmo endereço de
+  // rede dos QR dos árbitros (com o painel em localhost, um link relativo
+  // levaria "localhost" para a outra máquina). A legenda abre aqui (prévia),
+  // mas o "copiar link" dela usa esse endereço (shareOrigin).
+  const displayLink = `${appOrigin}${buildRoomViewHref('/display', roomId, adminPin)}`;
+  const timerLink = `${appOrigin}${buildRoomViewHref('/timer', roomId, adminPin)}`;
+  const legendLink = useMemo(() => {
+    const href = buildRoomViewHref('/legend', roomId, adminPin);
+    if (!appOrigin) return href;
+    return `${href}${href.includes('?') ? '&' : '?'}shareOrigin=${encodeURIComponent(appOrigin)}`;
+  }, [appOrigin, roomId, adminPin]);
   const roomErrorMessage = formatApiError(roomErrorCode, commonMessages.errors);
   const socketErrorMessage = formatApiError(socketError, commonMessages.errors);
 
