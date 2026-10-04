@@ -75,7 +75,7 @@ Aponte o navegador para `http://localhost:3000` nas rotas desejadas.
 | `PORT` | Porta do servidor | `3333` |
 | `CORS_ORIGIN` | Origens permitidas | — |
 | `LOG_LEVEL` | Nível de log (debug, info, warn, error) | `info` |
-| `ANALYTICS_DB_PATH` | Caminho do banco analítico | `data/analytics.db` |
+| `ANALYTICS_DB_PATH` | Caminho do banco local (SQLite) | `data/analytics.db` |
 
 ## Painel `/` (Admin)
 

@@ -79,7 +79,7 @@ Ingrese a `http://localhost:3000` y navegue a la ruta deseada.
 | `PORT` | Puerto del servidor | `3333` |
 | `CORS_ORIGIN` | Orígenes permitidos | — |
 | `LOG_LEVEL` | Nivel de log (debug, info, warn, error) | `info` |
-| `ANALYTICS_DB_PATH` | Ruta de la base de datos analítica | `data/analytics.db` |
+| `ANALYTICS_DB_PATH` | Ruta de la base de datos local (SQLite) | `data/analytics.db` |
 
 ## Panel admin (`/`, también `/admin`)
 
