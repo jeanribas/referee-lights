@@ -5,6 +5,7 @@ import Script from 'next/script';
 import { useRouter } from 'next/router';
 import dynamic from 'next/dynamic';
 
+import { ConnectionLost } from '@/components/ConnectionLost';
 import { CookieConsent } from '@/components/CookieConsent';
 import { Seo } from '@/components/Seo';
 import { trackPageView } from '@/lib/api';
@@ -69,6 +70,7 @@ export default function App({ Component, pageProps }: AppProps) {
       </Head>
       <Seo />
       <Component {...pageProps} />
+      <ConnectionLost />
       {!IS_OFFLINE_BUNDLE && <VercelAnalytics />}
       {!IS_OFFLINE_BUNDLE && MARKETING_ROUTES.includes(router.pathname) && (
         <>

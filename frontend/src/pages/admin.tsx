@@ -59,7 +59,6 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
   const adminMessages = messages.admin;
   const commonMessages = messages.common;
   const isSpanishLocale = Boolean(locale?.startsWith('es'));
-  const cardHeadingTracking = isSpanishLocale ? 'tracking-[0.25em]' : 'tracking-[0.3em]';
   const labelTracking = isSpanishLocale ? 'tracking-[0.12em]' : 'tracking-[0.16em]';
   const smallLabelTracking = isSpanishLocale ? 'tracking-[0.18em]' : 'tracking-[0.26em]';
   const buttonTracking = isSpanishLocale ? 'tracking-[0.08em]' : 'tracking-[0.14em]';
@@ -459,7 +458,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
       {pageHead}
       <div className="h-screen w-screen overflow-hidden bg-slate-950">
       <main
-        className="flex h-screen flex-col gap-6 bg-slate-950 px-10 py-6 text-slate-100 overflow-hidden"
+        className="flex h-screen flex-col gap-4 bg-slate-950 px-10 py-5 text-slate-100 overflow-hidden"
         style={viewportScale < 1 ? {
           transformOrigin: 'top left',
           transform: `scale(${viewportScale})`,
@@ -467,34 +466,36 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
           height: `${100 / viewportScale}vh`,
         } : undefined}
       >
-        <header className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-6">
-            <BrandLogo size={30} />
-            <div className="h-12 w-px bg-white/10" aria-hidden="true" />
-            <div className="flex flex-col gap-1">
-              <h1 className="text-2xl font-semibold uppercase tracking-[0.45em]">
+        <header className="flex items-center justify-between gap-6">
+          <div className="flex items-center gap-5">
+            <BrandLogo size={45} />
+            <div className="h-14 w-px bg-white/10" aria-hidden="true" />
+            <div className="flex flex-col gap-2">
+              <h1 className="text-xs font-semibold uppercase tracking-[0.45em] text-slate-400">
                 {adminMessages.header.title}
               </h1>
               {roomId && adminPin && (
-                <div className="flex flex-wrap gap-6 text-xs uppercase tracking-[0.35em] text-slate-400">
-                  <span>
+                <div className="flex flex-wrap items-center gap-3 uppercase">
+                  <span className="rounded-lg bg-white/10 px-3 py-1 text-lg font-bold tracking-[0.2em] text-white">
                     {commonMessages.labels.room}: {roomId}
                   </span>
-                  <span>
+                  <span className="rounded-lg bg-white/5 px-3 py-1 text-lg font-semibold tracking-[0.2em] text-slate-200">
                     {commonMessages.labels.adminPinShort}: {adminPin}
                   </span>
                 </div>
               )}
             </div>
           </div>
-          <div className="flex flex-col items-start gap-1 text-sm uppercase tracking-[0.35em] text-slate-400">
-            <span>
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-300">
+              <span
+                aria-hidden="true"
+                className={`h-2.5 w-2.5 rounded-full ${status === 'connected' ? 'bg-emerald-400' : status === 'connecting' ? 'bg-amber-400' : 'bg-red-500'}`}
+              />
               {commonMessages.labels.status}: {status}
+              {tokenRefreshing && <span className="text-slate-400"> · {adminMessages.header.generatingLinks}</span>}
             </span>
-            {tokenRefreshing && <span>{adminMessages.header.generatingLinks}</span>}
-          </div>
-          <div className="flex flex-col items-start gap-1 text-xs uppercase tracking-[0.3em] text-slate-400">
-            <label htmlFor="locale-select" className="block">
+            <label htmlFor="locale-select" className="sr-only">
               {commonMessages.languageLabel}
             </label>
             <select
@@ -514,8 +515,8 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
 
         <section className="grid min-h-0 w-full flex-1 gap-6 md:grid-cols-[320px_1fr]">
           <aside className="flex flex-col gap-4 overflow-y-auto rounded-3xl border border-slate-800 bg-slate-900/80 p-5 shadow-2xl [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-700">
-            <div className="flex flex-col gap-4 rounded-2xl border border-slate-800 bg-[#0F141F] p-5">
-              <h3 className={`text-xs font-semibold uppercase ${cardHeadingTracking} text-slate-300`}>
+            <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-[#0F141F] p-4">
+              <h3 className="text-xl font-semibold uppercase tracking-[0.15em] text-slate-200">
                 {adminMessages.timer.title}
               </h3>
               <TimerDisplay remainingMs={state?.timerMs ?? 60_000} running={state?.running ?? false} variant="panel" />
@@ -562,9 +563,9 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
               </div>
             </div>
 
-            <div className="flex flex-col gap-4 rounded-2xl border border-slate-800 bg-[#0F141F] p-5">
+            <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-[#0F141F] p-4">
               <header className="flex flex-col gap-1">
-                <h3 className={`text-xs font-semibold uppercase ${cardHeadingTracking} text-slate-300`}>
+                <h3 className="text-xl font-semibold uppercase tracking-[0.15em] text-slate-200">
                   {adminMessages.interval.title}
                 </h3>
                 <span className={`text-[10px] uppercase ${smallLabelTracking} text-slate-500`}>
@@ -658,9 +659,9 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
             </div>
 
             {status === 'connected' && roomId && keyRelayStatus?.available && (
-              <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-[#0F141F] p-5">
+              <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-[#0F141F] p-4">
                 <div className="flex items-center justify-between">
-                  <h3 className={`text-xs font-semibold uppercase ${cardHeadingTracking} text-slate-300`}>
+                  <h3 className="text-xl font-semibold uppercase tracking-[0.15em] text-slate-200">
                     Key Relay
                   </h3>
                   <div className="flex items-center gap-2">
@@ -924,7 +925,9 @@ function RoomSetup(props: {
 
       <div className="w-full max-w-6xl space-y-14">
         <header className="max-w-3xl space-y-4">
-          <BrandLogo size={36} className="items-start" />
+          <div className="flex pb-2">
+            <BrandLogo size={40} />
+          </div>
           <span className="inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/90">
             {messages.roomSetup.badge}
           </span>
