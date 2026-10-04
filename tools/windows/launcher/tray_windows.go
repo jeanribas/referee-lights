@@ -104,12 +104,12 @@ func setupTray(app *App, removeData *bool) {
 	}
 	// Achou sozinho: com competição em andamento, só muda o item da bandeja
 	// (e o aviso no /admin); sem competição, pergunta.
-	app.updater.onAvailable = func(m Manifest) {
+	app.updater.SetOnAvailable(func(m Manifest) {
 		update.SetTitle(fmt.Sprintf(t.UpdateInstall, m.Version))
 		if busy, _ := app.updater.busy(); !busy {
 			go promptUpdate(m)
 		}
-	}
+	})
 
 	go func() {
 		for {

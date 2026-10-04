@@ -173,6 +173,12 @@ func (u *Updater) View() UpdateView {
 	return v
 }
 
+func (u *Updater) SetOnAvailable(f func(Manifest)) {
+	u.mu.Lock()
+	u.onAvailable = f
+	u.mu.Unlock()
+}
+
 func (u *Updater) CurrentManifest() *Manifest {
 	u.mu.Lock()
 	defer u.mu.Unlock()
