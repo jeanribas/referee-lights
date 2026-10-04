@@ -14,6 +14,8 @@ frontend/.next
 frontend/out
 *.zip
 *.tsbuildinfo
+frontend/test-results/
+frontend/playwright-report/
 
 # Bundle Windows — tudo em dist/ é gerado por tools/windows/build-package.mjs
 dist/
