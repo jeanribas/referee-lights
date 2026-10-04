@@ -262,7 +262,6 @@ function TimerDisplay(props: TimerDisplayProps) {
 
   return (
     <div className="flex w-full flex-col items-center gap-2">
-      <span className="text-xs uppercase tracking-[0.4em] text-slate-400">Timer</span>
       <div
         className={`rounded-3xl border border-slate-700 bg-slate-900/80 px-12 py-6 text-6xl font-bold font-display tracking-widest shadow-inner transition-colors ${
           isZero ? 'text-[#ff1f1f]' : urgency ? 'text-[#ff4d4f]' : 'text-slate-50'

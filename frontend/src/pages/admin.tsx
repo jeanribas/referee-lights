@@ -60,9 +60,9 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
   const commonMessages = messages.common;
   const isSpanishLocale = Boolean(locale?.startsWith('es'));
   const labelTracking = isSpanishLocale ? 'tracking-[0.12em]' : 'tracking-[0.16em]';
-  const smallLabelTracking = isSpanishLocale ? 'tracking-[0.18em]' : 'tracking-[0.26em]';
-  const buttonTracking = isSpanishLocale ? 'tracking-[0.08em]' : 'tracking-[0.14em]';
-  const buttonTextSize = isSpanishLocale ? 'text-[9px]' : 'text-[10px]';
+  const smallLabelTracking = isSpanishLocale ? 'tracking-[0.1em]' : 'tracking-[0.14em]';
+  const buttonTracking = isSpanishLocale ? 'tracking-[0.03em]' : 'tracking-[0.06em]';
+  const buttonTextSize = isSpanishLocale ? 'text-[12px]' : 'text-[13px]';
   const controlButtonBase = `min-h-[48px] rounded-lg px-3 py-2.5 ${buttonTextSize} font-semibold uppercase ${buttonTracking} leading-tight text-center whitespace-normal transition`;
   const controlButtonFull = `${controlButtonBase} w-full sm:w-auto`;
   const currentLocale = useMemo<AppLocale>(() => {
@@ -466,50 +466,54 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
           height: `${100 / viewportScale}vh`,
         } : undefined}
       >
-        <header className="flex items-center justify-between gap-6">
-          <div className="flex items-center gap-5">
+        {/* Mesmas colunas da tela: logo centrada sobre o menu da esquerda;
+            título, sala e PIN numa linha só alinhados com o painel */}
+        <header className="grid items-center gap-6 md:grid-cols-[320px_1fr]">
+          <div className="flex justify-center">
             <BrandLogo size={45} />
-            <div className="h-14 w-px bg-white/10" aria-hidden="true" />
-            <div className="flex flex-col gap-2">
-              <h1 className="text-xs font-semibold uppercase tracking-[0.45em] text-slate-400">
+          </div>
+          <div className="flex items-center justify-between gap-6">
+            <div className="flex flex-wrap items-center gap-3 uppercase">
+              <h1 className="text-lg font-semibold tracking-[0.3em] text-slate-300">
                 {adminMessages.header.title}
               </h1>
               {roomId && adminPin && (
-                <div className="flex flex-wrap items-center gap-3 uppercase">
+                <>
+                  <span className="h-6 w-px bg-white/15" aria-hidden="true" />
                   <span className="rounded-lg bg-white/10 px-3 py-1 text-lg font-bold tracking-[0.2em] text-white">
                     {commonMessages.labels.room}: {roomId}
                   </span>
                   <span className="rounded-lg bg-white/5 px-3 py-1 text-lg font-semibold tracking-[0.2em] text-slate-200">
                     {commonMessages.labels.adminPinShort}: {adminPin}
                   </span>
-                </div>
+                </>
               )}
             </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-300">
-              <span
-                aria-hidden="true"
-                className={`h-2.5 w-2.5 rounded-full ${status === 'connected' ? 'bg-emerald-400' : status === 'connecting' ? 'bg-amber-400' : 'bg-red-500'}`}
-              />
-              {commonMessages.labels.status}: {status}
-              {tokenRefreshing && <span className="text-slate-400"> · {adminMessages.header.generatingLinks}</span>}
-            </span>
-            <label htmlFor="locale-select" className="sr-only">
-              {commonMessages.languageLabel}
-            </label>
-            <select
-              id="locale-select"
-              value={currentLocale}
-              onChange={handleLocaleChange}
-              className="min-w-32 rounded-xl border border-white/10 bg-[#1A2231] px-3 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white shadow-xs transition focus:border-indigo-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-400/40"
-            >
-              {localeOptions.map((option) => (
-                <option key={option.code} value={option.code} className="text-slate-900">
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-300">
+                <span
+                  aria-hidden="true"
+                  className={`h-2.5 w-2.5 rounded-full ${status === 'connected' ? 'bg-emerald-400' : status === 'connecting' ? 'bg-amber-400' : 'bg-red-500'}`}
+                />
+                {commonMessages.labels.status}: {status}
+                {tokenRefreshing && <span className="text-slate-400"> · {adminMessages.header.generatingLinks}</span>}
+              </span>
+              <label htmlFor="locale-select" className="sr-only">
+                {commonMessages.languageLabel}
+              </label>
+              <select
+                id="locale-select"
+                value={currentLocale}
+                onChange={handleLocaleChange}
+                className="min-w-32 rounded-xl border border-white/10 bg-[#1A2231] px-3 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white shadow-xs transition focus:border-indigo-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-400/40"
+              >
+                {localeOptions.map((option) => (
+                  <option key={option.code} value={option.code} className="text-slate-900">
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </header>
 
@@ -542,7 +546,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
               </div>
               <div className="flex flex-col gap-3 text-sm sm:flex-row sm:items-end sm:gap-3">
                 <label className="flex flex-1 flex-col gap-1">
-                  <span className={`text-[10px] uppercase ${labelTracking} text-slate-400`}>
+                  <span className={`text-xs uppercase ${labelTracking} text-slate-400`}>
                     {adminMessages.timer.minutesLabel}
                   </span>
                   <input
@@ -568,17 +572,17 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
                 <h3 className="text-xl font-semibold uppercase tracking-[0.15em] text-slate-200">
                   {adminMessages.interval.title}
                 </h3>
-                <span className={`text-[10px] uppercase ${smallLabelTracking} text-slate-500`}>
+                <span className={`text-xs uppercase ${smallLabelTracking} text-slate-500`}>
                   {adminMessages.interval.configured}: {intervalConfiguredDisplay}
                 </span>
-                <span className={`text-[10px] uppercase ${smallLabelTracking} text-slate-500`}>
+                <span className={`text-xs uppercase ${smallLabelTracking} text-slate-500`}>
                   {adminMessages.interval.remaining}: {intervalDisplay}
                 </span>
               </header>
 
               <div className="grid grid-cols-3 gap-3 text-sm">
                 <label className="flex flex-col gap-1">
-                  <span className={`text-[10px] uppercase ${labelTracking} text-slate-400`}>
+                  <span className={`text-xs uppercase ${labelTracking} text-slate-400`}>
                     {adminMessages.interval.hours}
                   </span>
                   <input
@@ -590,7 +594,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
                   />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className={`text-[10px] uppercase ${labelTracking} text-slate-400`}>
+                  <span className={`text-xs uppercase ${labelTracking} text-slate-400`}>
                     {adminMessages.interval.minutes}
                   </span>
                   <input
@@ -602,7 +606,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
                   />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className={`text-[10px] uppercase ${labelTracking} text-slate-400`}>
+                  <span className={`text-xs uppercase ${labelTracking} text-slate-400`}>
                     {adminMessages.interval.seconds}
                   </span>
                   <input
@@ -661,18 +665,18 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
             {status === 'connected' && roomId && keyRelayStatus?.available && (
               <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-[#0F141F] p-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-semibold uppercase tracking-[0.15em] text-slate-200">
+                  <h3 className="whitespace-nowrap text-xl font-semibold uppercase tracking-[0.1em] text-slate-200">
                     Key Relay
                   </h3>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => setKrConfigOpen(true)}
-                      className="text-[10px] text-indigo-400 hover:text-indigo-300 transition"
+                      className="text-xs text-indigo-400 hover:text-indigo-300 transition"
                     >
                       {krValidKey}/{krInvalidKey}
                     </button>
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wider ${
                       keyRelayStatus?.active ? 'bg-emerald-500/15 text-emerald-400' : 'bg-slate-500/15 text-slate-500'
                     }`}>
                       <span className={`h-1.5 w-1.5 rounded-full ${keyRelayStatus?.active ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`} />
@@ -680,7 +684,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
                     </span>
                   </div>
                 </div>
-                <p className="text-[11px] leading-snug text-slate-400">
+                <p className="text-[13px] leading-snug text-slate-400">
                   Ao revelar a decisão, envia a tecla para a janela em foco no computador do servidor.
                 </p>
                 <button
@@ -758,7 +762,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-[0.3em] text-white">Configurar teclas</h2>
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-2">
-                <span className="text-[10px] uppercase tracking-[0.2em] text-emerald-400">Decisão válida (Good Lift)</span>
+                <span className="text-xs uppercase tracking-[0.2em] text-emerald-400">Decisão válida (Good Lift)</span>
                 <button
                   type="button"
                   onClick={() => setKrCapturing('valid')}
@@ -787,7 +791,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
                 </button>
               </div>
               <div className="flex flex-col gap-2">
-                <span className="text-[10px] uppercase tracking-[0.2em] text-red-400">Decisão inválida (No Lift)</span>
+                <span className="text-xs uppercase tracking-[0.2em] text-red-400">Decisão inválida (No Lift)</span>
                 <button
                   type="button"
                   onClick={() => setKrCapturing('invalid')}
@@ -1129,7 +1133,7 @@ function QrMenu({
               type="button"
               onClick={handleRefreshClick}
               disabled={refreshing}
-              className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.35em] text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {refreshing ? messages.regenerating : messages.regenerate}
             </button>
@@ -1150,7 +1154,7 @@ function QrMenu({
                 </div>
                 <div className="flex flex-col gap-1">
                   <span className="text-xs font-semibold uppercase tracking-[0.4em] text-slate-200">{target.label}</span>
-                  <span className="text-[10px] text-slate-500 break-all">{target.href}</span>
+                  <span className="text-xs text-slate-500 break-all">{target.href}</span>
                 </div>
               </div>
             ))}
