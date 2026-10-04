@@ -69,9 +69,12 @@ function assertReleaseBranch() {
     // git indisponível/quebrado: lê o HEAD direto (funciona em worktree)
     branch = readHeadBranch();
   }
-  // No CI vale a branch informada pelo workflow (em PR o checkout é o merge
-  // ref "<n>/merge" e o workflow passa a branch ALVO em GITHUB_REF_NAME)
-  if (process.env.GITHUB_ACTIONS === 'true' && process.env.GITHUB_REF_NAME) branch = process.env.GITHUB_REF_NAME;
+  // No CI vale o que o GitHub informa. Em PR o checkout é o merge ref
+  // "<n>/merge": a branch que importa é a ALVO (GITHUB_BASE_REF). Variáveis
+  // GITHUB_* não podem ser sobrescritas pelo `env` do workflow.
+  if (process.env.GITHUB_ACTIONS === 'true' && (process.env.GITHUB_BASE_REF || process.env.GITHUB_REF_NAME)) {
+    branch = process.env.GITHUB_BASE_REF || process.env.GITHUB_REF_NAME;
+  }
   else if ((!branch || branch === 'HEAD') && process.env.GITHUB_REF_NAME) branch = process.env.GITHUB_REF_NAME;
   if (!/^release\/[\w.-]+$/.test(branch)) {
     die(`O pacote Windows só é gerado de uma branch release/* (atual: "${branch || 'desconhecida'}").`);

@@ -87,8 +87,6 @@ jobs:
           # Nenhuma URL de produção pode existir no ambiente do build.
           NEXT_PUBLIC_API_URL: ''
           NEXT_PUBLIC_WS_URL: ''
-          # Em PR o checkout é um merge ref: o nome da branch vem do alvo
-          GITHUB_REF_NAME: ${{ github.event_name == 'pull_request' && github.base_ref || github.ref_name }}
           BUNDLE_VERIFY_RUNTIME: '0'
         run: node tools/windows/build-package.mjs
 
