@@ -43,6 +43,11 @@ export function useRoomSocket(role: ClientRole, options: UseRoomSocketOptions = 
   const [state, setState] = useState<AppState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
+  // Só depois do client:register aceito o servidor reconhece este socket.
+  // Antes disso (ou com a conexão caída) nada é enviado: o socket.io guarda
+  // eventos offline e os manda na reconexão ANTES do register, e o servidor
+  // os recusava — um voto tocado durante a queda sumia em silêncio.
+  const registeredRef = useRef(false);
   const { roomId, adminPin, refereeToken } = options;
 
   useEffect(() => {
@@ -76,19 +81,22 @@ export function useRoomSocket(role: ClientRole, options: UseRoomSocketOptions = 
 
     socket.on('connect', () => {
       failedAttempts = 0;
-      setStatus('connected');
+      registeredRef.current = false;
       socket.emit('client:register', registerPayload, (response: AckResponse) => {
         if ('error' in response) {
           setError(response.error);
           socket.disconnect();
           return;
         }
+        registeredRef.current = true;
+        setStatus('connected');
         setError(null);
         tagSession(registerPayload.roomId, role);
       });
     });
 
     socket.on('disconnect', () => {
+      registeredRef.current = false;
       setStatus('disconnected');
     });
 
@@ -119,7 +127,7 @@ export function useRoomSocket(role: ClientRole, options: UseRoomSocketOptions = 
   const send = useMemo(() => {
     return (event: string, payload?: unknown) => {
       const socket = socketRef.current;
-      if (!socket) return;
+      if (!socket || !socket.connected || !registeredRef.current) return;
       socket.emit(event, payload); // fire-and-forget for simplicidade
     };
   }, []);
