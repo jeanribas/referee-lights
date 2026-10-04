@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Monta o pacote Windows portátil (dist/windows-bundle + zip).
 //
-// Regras (ver docs/windows-package.md):
+// Regras:
 // - só roda numa branch release/* (o pacote NUNCA sai do main);
 // - instala com `npm ci` e falha se algum package-lock.json mudar;
 // - server vira UM arquivo JS (esbuild) + o binário win-x64 do better-sqlite3:
@@ -58,7 +58,7 @@ function readHeadBranch() {
   }
 }
 
-/** O pacote sai SÓ de release/* (docs/windows-package.md, armadilha 1). */
+/** O pacote sai SÓ de release/* (nunca do main). */
 function assertReleaseBranch() {
   let branch = '';
   try {
@@ -70,7 +70,7 @@ function assertReleaseBranch() {
   // Checkout destacado (CI): o GitHub informa a branch em GITHUB_REF_NAME
   if ((!branch || branch === 'HEAD') && process.env.GITHUB_REF_NAME) branch = process.env.GITHUB_REF_NAME;
   if (!/^release\/[\w.-]+$/.test(branch)) {
-    die(`O pacote Windows só é gerado de uma branch release/* (atual: "${branch || 'desconhecida'}"). Veja docs/windows-package.md.`);
+    die(`O pacote Windows só é gerado de uma branch release/* (atual: "${branch || 'desconhecida'}").`);
   }
   console.log(`🌿 Branch ${branch}`);
 }
