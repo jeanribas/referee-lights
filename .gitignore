@@ -21,8 +21,6 @@ dist/
 # Artefatos locais de sessão/ferramentas
 *.pid
 .compact-summary.md
-tools/key-relay/key-relay-config.json
-tools/key-relay/key-relay-config.txt
 
 # Editor
 .DS_Store

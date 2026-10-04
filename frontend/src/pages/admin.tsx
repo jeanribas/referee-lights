@@ -666,6 +666,9 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
                     </span>
                   </div>
                 </div>
+                <p className="text-[11px] leading-snug text-slate-400">
+                  Ao revelar a decisão, envia a tecla para a janela em foco no computador do servidor.
+                </p>
                 <button
                   className={`${controlButtonBase} ${keyRelayStatus?.active ? 'bg-red-500/80 text-white hover:bg-red-500' : 'bg-emerald-500 text-slate-900 hover:bg-emerald-400/90'}`}
                   onClick={handleKeyRelayToggle}

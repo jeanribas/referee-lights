@@ -97,14 +97,12 @@ Aponte o navegador para `http://localhost:3000` nas rotas desejadas.
 
 ## Atalhos externos (F1/F10)
 
-A forma recomendada é usar o toggle **"Ativar Key Relay"** no painel admin. Ele inicia/para o key relay diretamente pelo navegador, sem processos auxiliares. Um modal permite capturar qualquer combinação de teclas (F1–F12, Ctrl+tecla, Alt+tecla, etc.) para personalizar os atalhos.
+O Key Relay é embutido no servidor e controlado pelo painel admin (toggle **"Ativar Key Relay"**, protegido pelo PIN da sala). Quando a decisão é revelada, o servidor envia a tecla configurada para a **janela em foco** na máquina onde ele roda:
 
-Para uso avançado, o helper independente em `tools/key-relay` continua disponível. Basta abrir `start.command` (macOS), `start.bat`/`start.ps1` (Windows) ou `start.sh` (Linux), colar o link da sessão (display/admin) e informar opcionalmente as teclas de atalho. Ele acompanha a sala via Socket.IO e dispara:
+- `F1` com pelo menos dois votos brancos (válido);
+- `F10` com pelo menos dois votos vermelhos (inválido).
 
-- `F1` quando houver pelo menos dois votos brancos (válido);
-- `F10` quando houver pelo menos dois votos vermelhos (inválido).
-
-O helper só precisa de Node 18+ instalado. As instruções completas (incluindo permissões específicas de cada sistema) estão em `tools/key-relay/README.md`. Ele deve rodar na máquina que enviará as teclas, mesmo quando o backend estiver hospedado na web.
+As teclas podem ser trocadas no modal (F1–F12 ou uma letra/dígito, com até três modificadores). Funciona no Windows (SendKeys), no macOS (System Events — exige permissão de Acessibilidade) e no Linux (`xdotool`). Disponível só quando o servidor roda com `KEY_RELAY_AVAILABLE=true` (padrão no pacote Windows).
 
 ## Deploy
 - **Server**: qualquer ambiente Node 18+ (ex.: EasyPanel). Basta `npm run build` e `npm start`.
