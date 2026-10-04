@@ -45,7 +45,7 @@ export function DecisionLights({
       ? 'flex w-full max-w-none flex-col items-center gap-10'
       : 'flex w-full max-w-6xl flex-col items-center gap-10';
   const rowClassName = isLegendSize
-    ? 'flex w-full flex-row flex-wrap items-start justify-center gap-[clamp(0.75rem,2.5vw,2rem)]'
+    ? 'flex w-full flex-row flex-wrap items-start justify-center gap-[clamp(0.75rem,2.5cqw,2rem)]'
     : isStageSize
       ? 'flex flex-row items-end justify-center gap-24'
       : 'flex flex-col gap-8 sm:flex-row sm:items-end sm:justify-center sm:gap-32';
@@ -116,18 +116,18 @@ function JudgeLight({
       ? 'clamp(9.5rem, min(26vw, 24vh), 22rem)'
       : isStageSize
         ? '240px'
-        : 'clamp(12.32rem, 24.64vw, 28.16rem)',
+        : 'clamp(12.32rem, 24.64cqw, 28.16rem)',
     minWidth: isLegendSize
       ? 'clamp(9.5rem, min(26vw, 24vh), 22rem)'
       : isStageSize
         ? '240px'
-        : 'clamp(12.32rem, 24.64vw, 28.16rem)',
+        : 'clamp(12.32rem, 24.64cqw, 28.16rem)',
     aspectRatio: '1 / 1',
     fontSize: isLegendSize
       ? 'clamp(3.8rem, min(10vw, 9.5vh), 10.5rem)'
       : isStageSize
         ? '118px'
-        : 'clamp(5.28rem, 10.56vw, 14.08rem)'
+        : 'clamp(5.28rem, 10.56cqw, 14.08rem)'
   };
   const cardSlotHeight = isLegendSize
     ? 'clamp(2.2rem, 4vh, 4.2rem)'
@@ -138,7 +138,7 @@ function JudgeLight({
     ? 'clamp(1rem, 2.8vh, 2.4rem)'
     : isStageSize
       ? '42px'
-      : 'clamp(1.6rem, 3.4vw, 3rem)';
+      : 'clamp(1.6rem, 3.4cqw, 3rem)';
   const cardBorderRadius = isLegendSize
     ? 'clamp(0.35rem, 0.95vh, 0.85rem)'
     : isStageSize

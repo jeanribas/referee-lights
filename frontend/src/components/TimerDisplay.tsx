@@ -240,14 +240,14 @@ function TimerDisplay(props: TimerDisplayProps) {
 
     return (
       <div
-        className="mx-auto grid w-full max-w-[min(88vw,1300px)] grid-cols-[max-content_auto_max-content] items-end gap-14"
+        className="mx-auto grid w-full max-w-[min(88cqw,1300px)] grid-cols-[max-content_auto_max-content] items-end gap-14"
         style={displayScaleStyle}
       >
         <AttemptColumn badges={cooldownBadges} ghost attemptNo={attemptNo} />
         <div className="flex flex-col items-center gap-6">
           <div
             className={`font-display font-black leading-none tracking-tight [font-variant-numeric:tabular-nums] ${urgencyColor}`}
-            style={{ fontSize: 'clamp(6rem, 24vw, 20rem)' }}
+            style={{ fontSize: 'clamp(6rem, 24cqw, 20rem)' }}
           >
             {timerText}
           </div>
