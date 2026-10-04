@@ -105,6 +105,6 @@ O Key Relay é embutido no servidor e controlado pelo painel admin (toggle **"At
 As teclas podem ser trocadas no modal (F1–F12 ou uma letra/dígito, com até três modificadores). Funciona no Windows (SendKeys), no macOS (System Events — exige permissão de Acessibilidade) e no Linux (`xdotool`). Disponível só quando o servidor roda com `KEY_RELAY_AVAILABLE=true` (padrão no pacote Windows).
 
 ## Deploy
-- **Server**: qualquer ambiente Node 18+ (ex.: EasyPanel). Basta `npm run build` e `npm start`.
+- **Server**: Docker (`server/Dockerfile`) ou qualquer plataforma Node 20+. Basta `npm run build` e `npm start`.
 - **Frontend**: Vercel ou semelhante. Configure `NEXT_PUBLIC_WS_URL` e `NEXT_PUBLIC_API_URL` apontando para o domínio do servidor.
 - **Docker**: monte um volume em `/app/data` para persistir os dados.

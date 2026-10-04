@@ -54,17 +54,28 @@ After registering, each client joins `room:<roomId>` and receives `state:update`
 
 ## Auth rules
 
-- `admin` and `display` require valid room PIN (`pin`).
-- `left`, `center`, `right` require valid referee token (`token`).
-- Any other role is rejected with `invalid_payload`.
+- `role` must be one of `admin`, `display`, `left`, `center`, `right`; anything else gets `invalid_payload`.
+- `admin` and `display` require the room PIN (`pin`).
+- `left`, `center`, `right` require their referee token (`token`).
+- 30 failed PIN/token attempts per IP within 10 minutes block registration with `too_many_attempts`.
+
+## Limits
+
+- 40 events per second per connection; extra events get `rate_limited`. Above 200/s the connection is dropped.
+- Maximum message size: 16 KB.
+- `seconds` in `timer:command` / `interval:command`: number from 0 to 86400.
 
 ## ACK errors
 
-Most commands can return `{ error: string }` in ACK callbacks:
+Commands can return `{ error: string }` in the ACK callback:
 
-- `invalid_payload`
-- `room_not_found`
-- `invalid_pin`
-- `invalid_token`
-- `not_authorised`
-- `unknown_action`
+| Code | Meaning |
+| --- | --- |
+| `invalid_payload` | Malformed payload or unknown role |
+| `room_not_found` | Room does not exist or was archived |
+| `invalid_pin` | Wrong room PIN |
+| `invalid_token` | Wrong or rotated referee token |
+| `not_authorised` | Role cannot send this event |
+| `unknown_action` | Unsupported `action` |
+| `too_many_attempts` | Too many failed authentications from this IP |
+| `rate_limited` | Too many events per second |

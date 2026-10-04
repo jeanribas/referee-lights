@@ -1,35 +1,26 @@
 # Referee Lights · Server
 
-Pequeno backend Fastify + Socket.IO que mantém o estado global das luzes IPF.
+Backend Fastify + Socket.IO que mantém o estado das salas (luzes IPF, cronômetro, intervalo e legenda).
 
 ## Scripts
 
 ```bash
 npm install
-npm run dev     # desenvolvimento
-npm run build
-npm start       # usa dist/index.js
+npm run dev        # desenvolvimento (tsx watch)
+npm run build      # gera dist/
+npm start          # roda dist/index.js
+npm run typecheck
+npm run lint
+npm test           # Vitest
 ```
 
-### Variáveis de ambiente (`.env`)
+## Variáveis de ambiente
 
-- `PORT` (default `3333`)
-- `CORS_ORIGIN` – origens autorizadas para o Socket.IO (ex.: `http://localhost:3000`)
-- `LOG_LEVEL` – nível de log do Fastify (`info`, `debug`, etc.)
+Veja `.env.example`. Principais: `PORT` (3333), `CORS_ORIGIN`, `LOG_LEVEL`, `ROOM_TTL_HOURS` (24), `TRUST_PROXY_HOPS` (0), `KEY_RELAY_AVAILABLE` (false). Descrição completa em `../docs/architecture.md`.
 
-## Evento Socket.IO
+## Interfaces
 
-Todas as conexões compartilham o mesmo estado. Eventos disponíveis:
+- HTTP: `../docs/openapi.yaml` (salas, Key Relay, `/health`).
+- Socket.IO: `../docs/websocket-events.md`. Papéis: `admin`, `display` (PIN da sala) e `left`, `center`, `right` (token do árbitro).
 
-- `client:register` `{ role: 'admin'|'display'|'viewer'|'left'|'center'|'right', roomId, pin?, token? }`
-- `ref:vote` `{ vote: 'white'|'red'|null }`
-- `ref:card` `{ card: 1|2|3|null }`
-- `admin:ready` (limpa votos/timer)
-- `admin:release` (força exibição imediata)
-- `admin:clear` (limpa manualmente)
-- `timer:command` `{ action: 'start'|'stop'|'reset'|'set', seconds? }` (aceito para `admin`, `display` e árbitro `center`)
-- `interval:command` `{ action: 'start'|'stop'|'reset'|'set'|'show'|'hide', seconds? }` (aceito para `admin` e `display`)
-- `locale:change` `{ locale: 'pt-BR'|'en-US'|'es-ES' }` (aceito para `admin` e `display`)
-- `legend:config` `{ config: { bgColor, timerColor, digitMode, showPlaceholders, showDashedFrame, keepAwake } }` (aceito para `admin` e `display`)
-
-Assim que os três votos chegam, o servidor mantém o resultado exibido por 10 segundos e limpa automaticamente. O evento `state:update` é emitido a cada mudança (inclusive a contagem do cronômetro e intervalo).
+Com os três votos a decisão é revelada, fica 10 s na tela e limpa sozinha. `state:update` é emitido a cada mudança (inclusive a contagem do cronômetro e do intervalo).

@@ -1,71 +1,63 @@
-# Luzes Árbitros – Arquitetura MVP
+# Arquitetura
 
-## Visão Geral
+## Visão geral
 
-O sistema é dividido em dois projetos independentes:
-
-- **Server** (`server/`): Fastify + Socket.IO sobre Node.js 20 com TypeScript estrito. Expõe endpoints REST para setup de salas e canal WebSocket para sincronização em tempo real. Estado mantido in-memory com contrato preparado para Redis em versões futuras.
-- **Frontend** (`frontend/`): Next.js 14 (modo `app` desabilitado) + TypeScript. Consome o WebSocket do servidor, renderiza display, consoles de árbitros e dashboard/admin. Deploy alvo na Vercel.
-
-Comunicação em tempo real segue o diagrama:
+- **Server** (`server/`): Fastify 5 + Socket.IO, TypeScript, Node 20+. Endpoints REST para criar/recuperar salas (`docs/openapi.yaml`) e Socket.IO para o tempo real (`docs/websocket-events.md`). Estado das salas em memória, com cópia em SQLite (`data/`) para recuperar salas após reinício.
+- **Frontend** (`frontend/`): Next.js (Pages Router) + TypeScript + Tailwind. Telas `/admin`, `/display`, `/legend`, `/timer`, `/ref/:judge`, além das páginas públicas.
+- **Pacote Windows** (`tools/windows/`): servidor + frontend standalone num zip para uso offline em LAN.
 
 ```
-Árbitros / Admin / Display --(Socket.IO)-- Server --(Webhook future)--> integrações
+Árbitros / Admin / Display / Legenda / Timer ──Socket.IO──▶ Server
+Admin ──HTTP (criar/recuperar sala, Key Relay)──▶ Server
 ```
 
-## Domínio e Estados
+## Sala
 
-Cada **Room** representa uma plataforma de competição e possui:
+- Código de 4 letras e PIN admin de 4 dígitos, gerados com `crypto`.
+- Um token por árbitro (`left`, `center`, `right`), entregue por QR Code; pode ser rotacionado pelo admin (`/rooms/:roomId/refresh-ref-tokens`).
+- Estado (`AppState`): fase `idle`/`revealed`, votos e cartões por árbitro, cronômetro (padrão 60 s), intervalo, idioma e configuração da legenda.
+- Com os três votos a decisão é revelada; o resultado fica na tela por 10 s e limpa sozinho.
+- Sala sem atividade por `ROOM_TTL_HOURS` (padrão 24 h) é arquivada e o código volta ao pool. Salas com atividade dentro desse prazo são restauradas após reinício com o mesmo código, PIN e tokens.
 
-- `id`: código curto (ex.: `PLAT1`)
-- `pin`: PIN admin numérico
-- `config`: toggles do display (`showTimer`, `showLogo`, `showQRCodes`, `fullscreenHint`)
-- `decision`: estado do ciclo (`IDLE`, `READY`, `ARMED`, `DECISION_RELEASED`, `LATCHED`) e votos por lado
-- `timer`: cronômetro regressivo em ms, com marcações de `running`, `remainingMs`
-- `tokens`: JWT efêmeros para papéis (left, center, right, display, admin, jury)
-- `members`: usuários conectados por `socketId`, papel e última atividade
+## Papéis e autenticação
 
-Estados de decisão seguem:
+| Papel | Credencial | Pode |
+| --- | --- | --- |
+| `admin`, `display` | PIN da sala | Controlar decisão, cronômetro, intervalo, idioma e legenda |
+| `left`, `right` | token do árbitro | Votar e marcar cartões |
+| `center` | token do árbitro | Votar, cartões e cronômetro |
 
-```
-IDLE -> READY -> (ARMED opcional) -> DECISION_RELEASED -> LATCHED -> IDLE
-```
+## Limites
 
-Luzes são exibidas simultaneamente apenas após `DECISION_RELEASED`. Cartões IPF (1,2,3) ficam disponíveis após voto `red`.
+- Falhas de PIN/token: 30 por IP em 10 min; depois `too_many_attempts` (HTTP 429 ou ACK).
+- Criação de sala: 30 por IP em 10 min (loopback isento).
+- Socket.IO: 40 eventos/s por conexão (acima disso `rate_limited`; acima de 200/s a conexão é derrubada); payload máximo de 16 KB.
+- `TRUST_PROXY_HOPS` define quantos proxies são confiáveis para ler o IP do cliente (`X-Forwarded-For`); com 0 o cabeçalho é ignorado.
 
-Resultado final calcula maioria simples de votos `white`. `jury:override` pode alterar posteriormente.
+## Key Relay
 
-## Segurança
+Embutido no servidor (`server/src/key-relay.ts`). Ativado pelo admin com o PIN da sala; ao revelar a decisão envia a tecla configurada para a janela em foco na máquina do servidor (Windows: SendKeys; macOS: System Events; Linux: `xdotool`). Teclas aceitas por lista branca (F1–F12 ou uma letra/dígito com até 3 modificadores). Só existe com `KEY_RELAY_AVAILABLE=true`.
 
-- Tokens JWT (`JWT_SECRET`, expiração 15 min) entregues via QR Codes para cada árbitro.
-- Admin autentica com `roomId` + PIN; ações sensíveis (release, override) validam papel + PIN.
-- Rate limiting de chamadas REST e throttling de eventos WebSocket por socket.
-- Sanitização de inputs com esquemas Zod.
+## Variáveis de ambiente (server)
 
-## Observabilidade
+| Variável | Padrão | Uso |
+| --- | --- | --- |
+| `PORT` | `3333` | Porta HTTP/Socket.IO |
+| `CORS_ORIGIN` | `*` | Origens permitidas, separadas por vírgula |
+| `LOG_LEVEL` | `info` | Nível de log do Fastify |
+| `ROOM_TTL_HOURS` | `24` | Horas sem atividade até arquivar a sala |
+| `TRUST_PROXY_HOPS` | `0` | Proxies reversos confiáveis |
+| `KEY_RELAY_AVAILABLE` | `false` | Habilita o Key Relay |
 
-- Logger estruturado (pino) com `roomId` incluído nas mensagens.
-- Métricas simplificadas (`prom-client`) acessíveis em `GET /metrics` (apenas contadores básicos: conexões, decisões, tempo de decisão médio).
+Frontend: `NEXT_PUBLIC_WS_URL` e `NEXT_PUBLIC_API_URL` (URL do servidor).
 
 ## Deploy
 
-- **Server**: Dockerfile multi-stage (`node:20-alpine`), start via `node dist/index.js`. Variáveis `.env` obrigatórias: `PORT`, `CORS_ORIGIN`, `JWT_SECRET`, `RATE_LIMIT`, `LOG_LEVEL`.
-- **Frontend**: Deploy na Vercel com `NEXT_PUBLIC_WS_URL` e `NEXT_PUBLIC_BRAND_LOGO_URL`. Build otimizada com `next build`.
+- **Server**: `server/Dockerfile` (`node:20-alpine`) ou `npm run build && npm start`. Monte um volume em `/app/data` para manter as salas entre reinícios.
+- **Frontend**: Vercel ou qualquer host Next.js.
 
-## Webhooks
+## Testes
 
-Infra preparada para `decision.finalized` (POST JSON) configurável por room. Chamada assíncrona com retry exponencial posteriormente (fora do MVP).
-
-## Testing
-
-- API e domínio cobertos por testes Vitest no server (`server/tests/`): rotas HTTP, matriz de permissões do websocket por papel e payloads malformados.
-- E2E (Playwright) em `frontend/tests/e2e/`, separado por área: páginas públicas nos 3 idiomas, fluxo completo de competição, timers/intervalo, idioma da sala, legenda, falhas de acesso, admin, reconexão, salas isoladas e celular.
-- Bateria completa local: `tools/test-all.sh` (typecheck, lint, Vitest, build, sobe API + frontend em portas próprias — 4333/4300 — e roda o Playwright; derruba tudo no fim). Precisa do Chromium do Playwright (`npx playwright install chromium` em `frontend/`). Variáveis: `API_PORT`, `WEB_PORT`, `SKIP_BUILD=1`; argumentos extras vão para o Playwright.
-- ESLint + Prettier + Husky para consistência.
-
-## Roadmap Futuro
-
-1. Persistência em Redis/Postgres com replicação e histórico de tentativas.
-2. Multi-plataforma (rooms paralelos), auditoria, export, i18n.
-3. Integração com sistemas externos via webhooks e API autenticada.
-
+- Vitest no server (`server/tests/`): rotas HTTP, permissões por papel no websocket, payloads inválidos e limites.
+- Playwright em `frontend/tests/e2e/`: páginas públicas nos 3 idiomas, fluxo de competição, timers, legenda, falhas de acesso, reconexão e celular.
+- `tools/test-all.sh` roda tudo localmente (typecheck, lint, Vitest, build, sobe API e frontend nas portas 4333/4300 e roda o Playwright). Precisa do Chromium do Playwright (`npx playwright install chromium` em `frontend/`). Variáveis: `API_PORT`, `WEB_PORT`, `SKIP_BUILD=1`.

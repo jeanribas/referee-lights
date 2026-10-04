@@ -113,6 +113,6 @@ Keys can be changed in the modal (F1–F12 or one letter/digit, with up to three
 
 ## Deploy
 
-- **Server**: any Node 18+ environment (e.g., EasyPanel). Run `npm run build` and then `npm start`.
+- **Server**: Docker (`server/Dockerfile`) or any Node 20+ platform. Run `npm run build` and then `npm start`.
 - **Frontend**: Vercel or similar. Configure `NEXT_PUBLIC_WS_URL` and `NEXT_PUBLIC_API_URL` with the server domain.
 - **Docker**: mount a volume at `/app/data` to persist data.
