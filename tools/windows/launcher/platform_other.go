@@ -24,3 +24,14 @@ func userLanguage() string                      { return os.Getenv("LANG") }
 func systemDescription() string {
 	return fmt.Sprintf("%s %s; exe %s", runtime.GOOS, runtime.GOARCH, version)
 }
+
+func startDetached(path string, args ...string) error {
+	cmd := exec.Command(path, args...)
+	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	return cmd.Process.Release()
+}
+
+func confirmUpdate(title, text string) int { return 0 }

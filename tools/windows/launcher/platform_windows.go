@@ -131,3 +131,31 @@ func allowFirewall(nodePath string) error {
 	args := fmt.Sprintf(`advfirewall firewall add rule name="Referee Lights" dir=in action=allow program="%s" enable=yes profile=any`, nodePath)
 	return shellOpen("runas", "netsh", args, windows.SW_HIDE)
 }
+
+// startDetached sobe outra instância do lançador (troca de versão). Fica
+// fora do Job Object do node: sobrevive à saída deste processo.
+func startDetached(path string, args ...string) error {
+	cmd := exec.Command(path, args...)
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	return cmd.Process.Release()
+}
+
+const (
+	mbYesNoCancel = 0x3
+	idNo          = 7
+	idCancel      = 2
+)
+
+// confirmUpdate: 1 = atualizar agora, 0 = depois, -1 = pular esta versão.
+func confirmUpdate(title, text string) int {
+	switch messageBox(title, text, mbYesNoCancel|mbIconInfo) {
+	case idYes:
+		return 1
+	case idCancel:
+		return -1
+	default:
+		return 0
+	}
+}

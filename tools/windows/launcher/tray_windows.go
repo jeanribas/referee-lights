@@ -75,6 +75,7 @@ func setupTray(app *App, removeData *bool) {
 	}()
 
 	systray.AddSeparator()
+	update := systray.AddMenuItem(t.UpdateCheck, "")
 	logs := systray.AddMenuItem(t.ViewLogs, "")
 	firewall := systray.AddMenuItem(t.Firewall, "")
 	importData := systray.AddMenuItem(t.ImportData, "")
@@ -82,9 +83,50 @@ func setupTray(app *App, removeData *bool) {
 	remove := systray.AddMenuItem(t.RemoveData, "")
 	quit := systray.AddMenuItem(t.Quit, "")
 
+	promptUpdate := func(m Manifest) {
+		update.SetTitle(fmt.Sprintf(t.UpdateInstall, m.Version))
+		notes := m.NotesEN
+		switch {
+		case strings.HasPrefix(userLanguage(), "pt"):
+			notes = m.NotesPT
+		case strings.HasPrefix(userLanguage(), "es"):
+			notes = m.NotesES
+		}
+		switch confirmUpdate("Referee Lights", fmt.Sprintf(t.UpdatePrompt, m.Version, notes)) {
+		case 1:
+			if v := app.updater.Apply(); v.State == "deferred" {
+				showMessage("Referee Lights", fmt.Sprintf(t.UpdateDeferred, m.Version), false)
+			}
+		case -1:
+			app.updater.Skip()
+			update.SetTitle(t.UpdateCheck)
+		}
+	}
+	// Achou sozinho: com competição em andamento, só muda o item da bandeja
+	// (e o aviso no /admin); sem competição, pergunta.
+	app.updater.onAvailable = func(m Manifest) {
+		update.SetTitle(fmt.Sprintf(t.UpdateInstall, m.Version))
+		if busy, _ := app.updater.busy(); !busy {
+			go promptUpdate(m)
+		}
+	}
+
 	go func() {
 		for {
 			select {
+			case <-update.ClickedCh:
+				go func() {
+					app.updater.Check()
+					v := app.updater.View()
+					switch {
+					case (v.State == "ready" || v.State == "deferred") && app.updater.CurrentManifest() != nil:
+						promptUpdate(*app.updater.CurrentManifest())
+					case v.State == "error":
+						showMessage("Referee Lights", fmt.Sprintf(t.UpdateFailed, v.Message), true)
+					case v.State == "none":
+						showMessage("Referee Lights", fmt.Sprintf(t.UpdateNone, version), false)
+					}
+				}()
 			case <-open.ClickedCh:
 				openBrowser(app.adminURL())
 			case <-logs.ClickedCh:

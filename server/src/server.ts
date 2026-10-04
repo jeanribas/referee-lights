@@ -19,6 +19,7 @@ import { config } from './config.js';
 import { resolveClientIp } from './client-ip.js';
 import { KeyRelay } from './key-relay.js';
 import { attachFrontend } from './next-host.js';
+import { registerAppUpdate } from './app-update.js';
 import { failureBlocked, rateLimitOk, recordFailure } from './rate-limit.js';
 import { generateMasterToken, validateCredentials, verifyMasterToken } from './master-auth.js';
 import { RoomManager } from './rooms.js';
@@ -897,6 +898,11 @@ export async function createServer() {
       return { ok: true };
     });
 
+    app.get('/__launcher/busy', async (request, reply) => {
+      if (!launcherAuth(request)) { reply.code(404); return { error: 'not_found' }; }
+      return roomManager.busyState(config.BUSY_ACTIVITY_MINUTES * 60_000);
+    });
+
     app.post('/__launcher/error', { bodyLimit: 16 * 1024 }, async (request, reply) => {
       if (!launcherAuth(request)) { reply.code(404); return { error: 'not_found' }; }
       const body = request.body;
@@ -940,6 +946,14 @@ export async function createServer() {
   }
 
   if (config.FRONTEND_DIR) {
+    registerAppUpdate(app, {
+      appVersion: process.env.RL_LAUNCHER_VERSION || readAppVersion(),
+      controlUrl: config.LAUNCHER_CONTROL_URL,
+      token: config.LAUNCHER_TOKEN,
+      manifestUrl: config.UPDATE_MANIFEST_URL,
+      checkEnabled: config.UPDATE_CHECK,
+      isLoopback
+    });
     await attachFrontend(app, config.FRONTEND_DIR, config.PORT, (error, url) => {
       telemetry.trackError(`next ${url.split('?')[0]}`, String((error as Error)?.message ?? error), errorDetails(error));
       app.log.error({ err: error, url }, 'next_handler_error');

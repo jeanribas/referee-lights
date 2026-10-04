@@ -23,21 +23,26 @@ var (
 )
 
 type App struct {
-	paths     Paths
-	t         texts
-	log       *log.Logger
-	logFile   *rotatingFile
-	serverLog *rotatingFile
-	errs      *errorQueue
-	sup       *Supervisor
-	appDir    string
-	nodePath  string
-	port      int
-	token     string
-	noBrowser bool
+	paths      Paths
+	t          texts
+	log        *log.Logger
+	logFile    *rotatingFile
+	serverLog  *rotatingFile
+	errs       *errorQueue
+	sup        *Supervisor
+	appDir     string
+	nodePath   string
+	port       int
+	token      string
+	noBrowser  bool
+	exePath    string
+	updater    *Updater
+	controlURL string
 
 	quitOnce sync.Once
 	quit     chan struct{}
+	exitOnce sync.Once
+	exitReq  chan struct{} // pedido para o processo sair (troca de versão)
 }
 
 func newApp(p Paths, logFile *rotatingFile, noBrowser bool) *App {
@@ -49,8 +54,11 @@ func newApp(p Paths, logFile *rotatingFile, noBrowser bool) *App {
 		errs:      newErrorQueue(p, systemDescription()),
 		noBrowser: noBrowser,
 		quit:      make(chan struct{}),
+		exitReq:   make(chan struct{}),
 	}
 }
+
+func (a *App) requestExit() { a.exitOnce.Do(func() { close(a.exitReq) }) }
 
 func (a *App) adminURL() string { return fmt.Sprintf("http://localhost:%d/admin", a.port) }
 
@@ -94,6 +102,13 @@ func (a *App) Boot(payload []byte, exeDir string) error {
 	}
 
 	a.token = randomToken()
+	if a.updater != nil {
+		if url, err := a.updater.serveControl(a.token); err == nil {
+			a.controlURL = url
+		} else {
+			a.log.Printf("controle do atualizador: %v", err)
+		}
+	}
 	serverLog, err := openRotating(filepath.Join(a.paths.Logs, "server.log"), 5<<20, 3)
 	if err != nil {
 		return err
@@ -125,6 +140,11 @@ func (a *App) Boot(payload []byte, exeDir string) error {
 	a.sup.Start()
 	cleanupOldApps(a.paths, appDir)
 	go a.flushLoop()
+	if a.updater != nil {
+		cleanupUpdateLeftovers(a.exePath)
+		go a.verifyPostUpdate(a.exePath)
+		go a.updater.Run()
+	}
 	return nil
 }
 
@@ -185,6 +205,9 @@ func (a *App) serverEnv() []string {
 	set("FRONTEND_DIR", filepath.Join(a.appDir, "frontend"))
 	set("LAUNCHER_TOKEN", a.token)
 	set("RL_LAUNCHER_VERSION", version)
+	if a.controlURL != "" {
+		set("LAUNCHER_CONTROL_URL", a.controlURL)
+	}
 	out := make([]string, 0, len(order))
 	for _, k := range order {
 		out = append(out, k+"="+env[k])
@@ -223,6 +246,9 @@ func (a *App) Quit() {
 		a.log.Printf("saindo")
 		if a.sup != nil {
 			a.sup.Stop()
+		}
+		if a.updater != nil {
+			a.updater.OnQuit()
 		}
 		close(a.quit)
 		if a.serverLog != nil {

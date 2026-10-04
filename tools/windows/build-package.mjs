@@ -428,7 +428,22 @@ async function buildExe() {
     '--product-name "Referee Lights" --file-description "Referee Lights"',
     '--copyright "Assist" --original-filename RefereeLights.exe'
   ].join(' '), { cwd: launcherDir, env: { ...process.env, GOOS: '', GOARCH: '' } });
-  run(`go build -trimpath -ldflags "-s -w -H=windowsgui -X main.version=${version} -X main.nodeVersion=${NODE_VERSION}" -o "${exePath}" .`, { cwd: launcherDir, env: goEnv });
+  // Canal de atualização embutido: builds de teste (padrão) seguem o
+  // pre-release "teste"; o workflow de release por tag usa "stable".
+  const channel = process.env.RL_CHANNEL || 'teste';
+  if (!['teste', 'stable'].includes(channel)) die(`RL_CHANNEL inválido: ${channel}`);
+  let build = (process.env.GITHUB_SHA ?? '').slice(0, 12);
+  if (!build) {
+    try { build = execFileSync('git', ['rev-parse', '--short=12', 'HEAD'], { cwd: rootDir, encoding: 'utf8' }).trim(); } catch { build = 'local'; }
+  }
+  const ldflags = [
+    '-s -w -H=windowsgui',
+    `-X main.version=${version}`, `-X main.nodeVersion=${NODE_VERSION}`,
+    `-X main.channel=${channel}`, `-X main.build=${build}`
+  ].join(' ');
+  run(`go build -trimpath -ldflags "${ldflags}" -o "${exePath}" .`, { cwd: launcherDir, env: goEnv });
+  await writeFile(path.join(rootDir, 'dist', 'build-info.json'), JSON.stringify({ version, channel, build, node: NODE_VERSION }, null, 2) + '\n');
+  console.log(`   canal ${channel}, build ${build}`);
   await rm(path.join(launcherDir, 'payload.tar.zst'), { force: true });
   console.log(`   ${((await stat(exePath)).size / 1024 / 1024).toFixed(1)} MB → ${exePath}`);
 }
