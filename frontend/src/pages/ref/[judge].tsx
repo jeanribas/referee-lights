@@ -252,6 +252,7 @@ function CenterLayout(props: {
               running ? 'ring-4 ring-emerald-300/60' : 'opacity-80'
             }`}
             onClick={onStart}
+            disabled={status !== 'connected'}
           >
             {messages.center.start}
           </button>
@@ -260,12 +261,14 @@ function CenterLayout(props: {
               isPaused ? 'ring-4 ring-amber-200/70' : 'opacity-80'
             }`}
             onClick={onPause}
+            disabled={status !== 'connected'}
           >
             {messages.center.pause}
           </button>
           <button
             className="flex-1 transform rounded-xl bg-red-500 px-4 py-3 font-semibold text-white transition duration-150 active:scale-95 active:brightness-95"
             onClick={onReset}
+            disabled={status !== 'connected'}
           >
             {messages.center.reset}
           </button>
@@ -278,6 +281,7 @@ function CenterLayout(props: {
             isValidActive ? 'ring-4 ring-white/70' : 'opacity-80'
           }`}
           onClick={onValid}
+          disabled={status !== 'connected'}
         >
           {messages.center.valid}
         </button>
@@ -290,6 +294,7 @@ function CenterLayout(props: {
                 option.color
               } ${isActive ? 'ring-4 ring-white/70' : 'opacity-80'}`}
               onClick={() => onToggleCard(option.value)}
+              disabled={status !== 'connected'}
             >
               {isActive ? '✓' : option.glyph}
             </button>
