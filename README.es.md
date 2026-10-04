@@ -124,6 +124,6 @@ Las teclas se cambian en el modal (F1–F12 o una letra/dígito, con hasta tres 
 
 ## Deploy
 
-- **Servidor**: cualquier entorno Node 18+ (por ejemplo, EasyPanel). Ejecute `npm run build` y luego `npm start`.
+- **Servidor**: Docker (`server/Dockerfile`) o cualquier plataforma Node 20+. Ejecute `npm run build` y luego `npm start`.
 - **Frontend**: Vercel o similar. Configure `NEXT_PUBLIC_WS_URL` y `NEXT_PUBLIC_API_URL` con el dominio del servidor.
 - **Docker**: monte un volumen en `/app/data` para persistir los datos.

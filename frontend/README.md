@@ -1,29 +1,39 @@
 # Referee Lights · Frontend
 
-Next.js + TypeScript servindo quatro telas simples:
+Next.js 14 (Pages Router) + TypeScript + Tailwind. Idiomas: `pt-BR` (padrão), `en-US`, `es-ES`.
 
-- `/` – display full screen (fundo preto)
-- `/admin` – painel de controle geral com preview das luzes/cronômetro
-- `/ref/left`, `/ref/right` – consoles laterais
-- `/ref/center` – console do árbitro central (inclui botões do timer)
+## Rotas
 
-Todas se conectam ao Socket.IO do backend e compartilham o estado global.
+| Rota | Tela |
+| --- | --- |
+| `/` | Página inicial |
+| `/admin` | Painel de controle: cria/recupera sala, QR Codes, preview, Key Relay |
+| `/display` | Telão com luzes, cronômetro e intervalo |
+| `/legend` | Legenda para transmissão (fundo configurável) |
+| `/timer` | Cronômetro em tela cheia |
+| `/ref/:judge` | Console do árbitro (`left`, `center`, `right`) |
+| `/windows` | Download do pacote Windows |
+
+Todas as telas de sala se conectam ao Socket.IO do servidor e compartilham o estado da sala.
 
 ## Rodando
+
 ```bash
 npm install
 cp .env.example .env.local
 npm run dev
 ```
 
-### Recursos recentes
-- Preview administrativo ajustável via `previewLayout` em `src/pages/admin.tsx` (escala, deslocamento e espaçamento).
-- Alertas sonoros do intervalo e cronômetro principal controlados em `src/components/IntervalFull.tsx` (beeps nos últimos 10 s e avisos finais).
-- Mensagem automática `TROCA DE PEDIDAS ENCERRADA` exibida após o fim do tempo de troca.
+## Variáveis
 
-### Variável obrigatória
 - `NEXT_PUBLIC_WS_URL` – URL do Socket.IO (ex.: `http://localhost:3333`)
+- `NEXT_PUBLIC_API_URL` – URL da API HTTP (normalmente a mesma)
 
-## Build/Deploy
-- `npm run build` → `npm run start`
-- Para Vercel: defina `NEXT_PUBLIC_WS_URL` apontando para o backend público.
+## Build
+
+`npm run build` e `npm run start`. Na Vercel, defina as duas variáveis apontando para o servidor público.
+
+## Onde mexer
+
+- Preview do admin: `previewLayout` em `src/pages/admin.tsx`.
+- Alertas sonoros do intervalo/cronômetro: `src/components/IntervalFull.tsx`.
