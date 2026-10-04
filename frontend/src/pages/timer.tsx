@@ -6,6 +6,7 @@ import type { CSSProperties } from 'react';
 import { Seo } from '@/components/Seo';
 import { FooterBadges } from '@/components/FooterBadges';
 import TimerDisplay, { useCooldownBadges } from '@/components/TimerDisplay';
+import { BrandLogo } from '@/components/BrandLogo';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
 import { getMessages, type Messages } from '@/lib/i18n/messages';
 
@@ -110,7 +111,8 @@ export default function TimerPage() {
         noIndex
       />
       <div className="h-screen w-screen overflow-hidden bg-slate-950">
-      <main className="flex h-screen flex-col items-center justify-center bg-slate-950 px-4 py-4 text-slate-100 overflow-hidden" style={scaleStyle}>
+      <main className="flex h-screen flex-col items-center justify-center gap-6 bg-slate-950 px-4 py-4 text-slate-100 overflow-hidden" style={scaleStyle}>
+        <BrandLogo size={30} />
         <div className="flex w-full max-w-3xl flex-col gap-4 md:flex-row md:items-start">
           {/* Timer card */}
           <div className="flex flex-1 flex-col gap-3 rounded-3xl border border-slate-800 bg-slate-900/80 p-5 shadow-2xl">

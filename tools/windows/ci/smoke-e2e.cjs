@@ -118,6 +118,16 @@ async function health() {
     const kr = await (await fetch(`${API}/key-relay/status`)).json();
     if (typeof kr.available !== 'boolean' || kr.roomId !== null) throw new Error(`key-relay/status inesperado: ${JSON.stringify(kr)}`);
     console.log('OK timer, intervalo, idioma, legenda e key-relay/status');
+
+    // Reconexão com Wi-Fi instável: o árbitro abre uma conexão nova antes de
+    // a antiga cair. A queda da antiga NÃO pode apagar a luz dele.
+    const extra = await conn({ role: 'left', roomId: room.roomId, token: room.joinQRCodes.left.token });
+    refs[0].close();
+    await new Promise((r) => setTimeout(r, 800));
+    if (last.connected.left !== true) throw new Error('árbitro com conexão viva apareceu como desconectado');
+    extra.close();
+    await until((st) => st.connected.left === false, 'árbitro desconectado só quando a última conexão cai');
+    console.log('OK árbitro segue conectado enquanto houver conexão viva (reconexão)');
   }
   for (const x of [admin, display, ...refs]) x.close();
 
