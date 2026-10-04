@@ -42,7 +42,6 @@ const (
 	wmClose       = 0x0010
 	wmSetIcon     = 0x0080
 	swHide        = 0
-	swMaximize    = 3
 	swRestore     = 9
 	swShow        = 5
 	imageIcon     = 1
@@ -83,13 +82,24 @@ func (a *App) openPanel(onQuit func()) {
 func (p *panelWindow) run() {
 	// A janela e o laço de mensagens precisam ficar na MESMA thread
 	runtime.LockOSThread()
+	// Janela reduzida e centralizada (não maximizada): 1440x900, ou 85% da
+	// tela se ela for menor. A pessoa maximiza se quiser.
+	sw, _, _ := procGetSysMetrics.Call(0) // SM_CXSCREEN
+	sh, _, _ := procGetSysMetrics.Call(1) // SM_CYSCREEN
+	width, height := uint(1440), uint(900)
+	if lim := uint(float64(sw) * 0.85); sw > 0 && width > lim {
+		width = lim
+	}
+	if lim := uint(float64(sh) * 0.85); sh > 0 && height > lim {
+		height = lim
+	}
 	w := webview2.NewWithOptions(webview2.WebViewOptions{
 		AutoFocus: true,
 		DataPath:  filepath.Join(p.app.paths.Root, "webview"),
 		WindowOptions: webview2.WindowOptions{
 			Title:  "Referee Lights",
-			Width:  1440,
-			Height: 900,
+			Width:  width,
+			Height: height,
 			Center: true,
 			IconId: 1, // ícone da classe da janela (barra de tarefas e Alt+Tab)
 		},
@@ -114,7 +124,6 @@ func (p *panelWindow) run() {
 	})
 	w.Init(externalLinksScript)
 	w.Navigate(p.app.adminURL())
-	procShowWindow.Call(p.hwnd, swMaximize)
 	procSetForeground.Call(p.hwnd)
 	p.ready <- true
 	w.Run()
