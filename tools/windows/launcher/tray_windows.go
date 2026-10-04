@@ -21,9 +21,10 @@ func setupTray(app *App, removeData *bool) {
 	t := app.t
 	systray.SetIcon(trayIcon)
 	systray.SetTooltip(fmt.Sprintf("%s — localhost:%d", t.Tooltip, app.port))
-	systray.SetOnTapped(func() { openBrowser(app.adminURL()) })
+	systray.SetOnTapped(func() { app.showPanel() })
 
 	open := systray.AddMenuItem(t.OpenPanel, "")
+	openBrowserItem := systray.AddMenuItem(t.OpenInBrowser, "")
 	addrMenu := systray.AddMenuItem(t.Addresses, "")
 	slots := make([]*systray.MenuItem, maxAddressSlots)
 	urls := make([]string, maxAddressSlots)
@@ -128,6 +129,8 @@ func setupTray(app *App, removeData *bool) {
 					}
 				}()
 			case <-open.ClickedCh:
+				app.showPanel()
+			case <-openBrowserItem.ClickedCh:
 				openBrowser(app.adminURL())
 			case <-logs.ClickedCh:
 				openFolder(app.paths.Logs)

@@ -7,7 +7,8 @@ type texts struct {
 	Tooltip, OpenPanel, Addresses, NoAddress, CopyHint, Copied, ViewLogs, Firewall,
 	ImportData, ImportPick, ImportDone, ImportFail, RemoveData, RemoveConfirm1, RemoveConfirm2,
 	Quit, PortChanged, CrashLoop, StartFailed, Migrated, AlreadyRunning,
-	UpdateCheck, UpdateInstall, UpdatePrompt, UpdateNone, UpdateDeferred, UpdateFailed string
+	UpdateCheck, UpdateInstall, UpdatePrompt, UpdateNone, UpdateDeferred, UpdateFailed,
+	OpenInBrowser, ClosePanel string
 }
 
 var allTexts = map[string]texts{
@@ -38,6 +39,8 @@ var allTexts = map[string]texts{
 		UpdateNone:     "Você já está na versão mais recente (%s).",
 		UpdateDeferred: "Há uma competição em andamento. A versão %s será instalada quando o Referee Lights for fechado.",
 		UpdateFailed:   "Não foi possível verificar ou baixar a atualização:\n%s",
+		OpenInBrowser:  "Abrir painel no navegador",
+		ClosePanel:     "Encerrar o Referee Lights?\n\nAs telas dos árbitros, o display e a legenda vão desconectar.\n\nSim = encerrar\nNão = esconder a janela (o app continua rodando; reabra pelo ícone perto do relógio)",
 	},
 	"en": {
 		Tooltip:        "Referee Lights",
@@ -66,6 +69,8 @@ var allTexts = map[string]texts{
 		UpdateNone:     "You already have the latest version (%s).",
 		UpdateDeferred: "A competition is in progress. Version %s will be installed when Referee Lights is closed.",
 		UpdateFailed:   "Could not check or download the update:\n%s",
+		OpenInBrowser:  "Open panel in the browser",
+		ClosePanel:     "Quit Referee Lights?\n\nThe referee screens, display and legend will disconnect.\n\nYes = quit\nNo = hide the window (the app keeps running; reopen it from the icon next to the clock)",
 	},
 	"es": {
 		Tooltip:        "Referee Lights",
@@ -94,6 +99,8 @@ var allTexts = map[string]texts{
 		UpdateNone:     "Ya tienes la versión más reciente (%s).",
 		UpdateDeferred: "Hay una competencia en curso. La versión %s se instalará al cerrar Referee Lights.",
 		UpdateFailed:   "No se pudo buscar o descargar la actualización:\n%s",
+		OpenInBrowser:  "Abrir panel en el navegador",
+		ClosePanel:     "¿Cerrar Referee Lights?\n\nLas pantallas de los árbitros, el display y la leyenda se desconectarán.\n\nSí = cerrar\nNo = ocultar la ventana (la app sigue funcionando; ábrela desde el ícono junto al reloj)",
 	},
 }
 

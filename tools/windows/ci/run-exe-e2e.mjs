@@ -75,8 +75,8 @@ const post = async (p, body, base = API) => {
 };
 
 const exeEnv = { ...process.env, LOCALAPPDATA: lad, USERPROFILE: home, RL_NO_BROWSER: '1' };
-function startExe(args = []) {
-  const child = spawn(exe, args, { env: exeEnv, detached: true, stdio: 'ignore', windowsHide: false });
+function startExe(args = [], env = exeEnv) {
+  const child = spawn(exe, args, { env, detached: true, stdio: 'ignore', windowsHide: false });
   child.unref();
   return child;
 }
@@ -239,6 +239,36 @@ async function main() {
   execSync(`taskkill /pid ${launcher.ProcessId} /f`, { stdio: 'ignore' });
   await waitFor(() => ourNodes().length === 0 && !listening(3000), 15_000, 'node encerrado junto com o lançador');
   assert(true, 'sem node órfão');
+
+  step('painel em janela própria: X pergunta, "Não" esconde, abrir de novo traz de volta, "Sim" encerra');
+  {
+    const panelState = (pid) => JSON.parse(execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(here, 'panel-window.ps1'), '-LauncherPid', String(pid), '-Action', 'state'], { encoding: 'utf8' }).trim());
+    const panelDo = (pid, action) => execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(here, 'panel-window.ps1'), '-LauncherPid', String(pid), '-Action', action], { stdio: 'inherit' });
+    const withPanel = { ...exeEnv };
+    delete withPanel.RL_NO_BROWSER;
+    startExe([], withPanel);
+    await waitFor(() => healthy(), 60_000, 'exe no ar (com painel)');
+    const [l] = launchers();
+    await waitFor(() => panelState(l.ProcessId).visible, 30_000, 'janela do painel visível');
+    const st = panelState(l.ProcessId);
+    assert(st.title === 'Referee Lights', `janela própria "${st.title}" (WebView2)`);
+    const webviews = processes().filter((p) => p.Name === 'msedgewebview2.exe');
+    assert(webviews.length > 0, `WebView2 rodando (${webviews.length} processo(s))`);
+    assert(visibleWindows(l.ProcessId).filter((w) => /^(node|cmd|conhost|powershell)/i.test(w.name)).length === 0, 'continua sem janela de console');
+    panelDo(l.ProcessId, 'close');
+    await waitFor(() => panelState(l.ProcessId).dialog, 15_000, 'pergunta ao clicar no X');
+    panelDo(l.ProcessId, 'answer-no');
+    await waitFor(() => !panelState(l.ProcessId).visible && !panelState(l.ProcessId).dialog, 15_000, 'janela escondida após "Não"');
+    assert(await healthy() && launchers().length === 1, '"Não": app continua rodando (telas conectadas)');
+    startExe([], withPanel); // como clicar no exe de novo
+    await waitFor(() => panelState(l.ProcessId).visible, 15_000, 'janela volta ao abrir o exe de novo');
+    assert(launchers().length === 1, 'continua uma instância só');
+    panelDo(l.ProcessId, 'close');
+    await waitFor(() => panelState(l.ProcessId).dialog, 15_000, 'pergunta de novo');
+    panelDo(l.ProcessId, 'answer-yes');
+    await waitFor(() => launchers().length === 0 && ourNodes().length === 0 && !listening(3000), 20_000, '"Sim" encerra tudo e libera a porta');
+    assert(true, '"Sim": app encerrado');
+  }
 
   step('porta 3000 ocupada → 3001');
   const blocker = net.createServer().listen(3000, '0.0.0.0');
