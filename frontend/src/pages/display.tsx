@@ -45,7 +45,8 @@ export default function DisplayPage() {
     adminPin
   });
 
-  const viewportScale = useViewportScale();
+  // 1080 + 104px (6.5rem) reservados para a fileira de cartões abaixo das luzes.
+  const viewportScale = useViewportScale(1920, 1184);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [keepAwake, setKeepAwake] = useState(() => {
@@ -195,7 +196,10 @@ export default function DisplayPage() {
           </div>
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center gap-[8vh]">
-            <div className="flex w-full justify-center">
+            {/* A fileira de cartões do DecisionLights é absolute (top-full,
+                mt-6 + 5rem) e não ocupa espaço no layout: sem esta reserva o
+                relógio encostava nos cartões em telas mais baixas. */}
+            <div className="flex w-full justify-center" style={{ paddingBottom: '6.5rem' }}>
               {state ? (
                 <div>
                   <DecisionLights
