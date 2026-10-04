@@ -330,11 +330,11 @@ for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /c:"IPv4"') do (
 
 echo  [1/2] Iniciando servidor...
 start /min "Referee-Server" cmd /k "cd /d "%~dp0server" && node dist\\index.js"
-timeout /t 3 /nobreak >nul
+ping -n 4 127.0.0.1 >nul
 
 echo  [2/2] Iniciando frontend...
 start /min "Referee-Frontend" cmd /k "cd /d "%~dp0frontend" && node server.js"
-timeout /t 4 /nobreak >nul
+ping -n 5 127.0.0.1 >nul
 
 echo.
 echo  ========================================================
@@ -368,7 +368,7 @@ taskkill /fi "WINDOWTITLE eq Referee-Frontend*" /f >nul 2>&1
 taskkill /fi "WINDOWTITLE eq Referee-Server*" /f >nul 2>&1
 taskkill /fi "WINDOWTITLE eq Referee-Frontend*" /f >nul 2>&1
 echo Serviços encerrados.
-timeout /t 2 >nul
+ping -n 3 127.0.0.1 >nul
 `;
 
   await writeFile(path.join(outputDir, 'Iniciar.cmd'), iniciarCmd, 'utf8');

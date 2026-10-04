@@ -189,7 +189,7 @@ jobs:
       - name: Recuperação pós-restart via Parar.cmd/Iniciar.cmd (mesma sala volta)
         shell: pwsh
         run: |
-          $room = Invoke-RestMethod -Method Post http://127.0.0.1:3333/rooms
+          $room = Invoke-RestMethod -Method Post -ContentType 'application/json' -Body '{}' http://127.0.0.1:3333/rooms
           Start-Sleep 2
           & (Join-Path $env:BUNDLE_DIR 'Parar.cmd')
           Start-Sleep 3
