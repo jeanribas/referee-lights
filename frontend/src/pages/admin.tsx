@@ -895,6 +895,26 @@ function RoomSetup(props: {
   const { onCreate, onJoin, loading, error, initialRoomId, initialPin, messages } = props;
   const [roomId, setRoomId] = useState(initialRoomId ?? '');
   const [pin, setPin] = useState(initialPin ?? '');
+  // Cabe sempre na janela, sem rolagem: mede o conteúdo e reduz a escala
+  const fitRef = useRef<HTMLDivElement | null>(null);
+  const [fitScale, setFitScale] = useState(1);
+  useEffect(() => {
+    const el = fitRef.current;
+    if (!el) return;
+    const update = () => {
+      const pad = 32;
+      const s = Math.min(1, (window.innerHeight - pad) / el.offsetHeight, (window.innerWidth - pad) / el.offsetWidth);
+      setFitScale(Number.isFinite(s) && s > 0 ? s : 1);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    window.addEventListener('resize', update);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', update);
+    };
+  }, []);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -903,12 +923,17 @@ function RoomSetup(props: {
   };
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-6 py-16 text-white">
+    <main className="relative flex h-screen items-center justify-center overflow-hidden bg-slate-950 px-6 text-white">
       <div className="absolute inset-0 -z-20 bg-gradient-to-br from-[#0B1220] via-[#0C1526] to-[#020617]" />
       <div className="absolute inset-x-0 top-0 -z-10 h-80 bg-gradient-to-b from-indigo-500/30 via-transparent" />
       <div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[460px] w-[460px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-indigo-700/20 blur-3xl" />
 
-      <div className="w-full max-w-6xl space-y-14">
+      <div
+        ref={fitRef}
+        data-fit-scale={fitScale.toFixed(3)}
+        className="w-full max-w-6xl space-y-10"
+        style={fitScale < 1 ? { transform: `scale(${fitScale})`, transformOrigin: 'center center' } : undefined}
+      >
         <header className="max-w-3xl space-y-4">
           <div className="flex pb-2">
             <BrandLogo size={40} />

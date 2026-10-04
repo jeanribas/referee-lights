@@ -145,6 +145,23 @@ for (const [w, h] of [[1280, 720], [1366, 768], [1920, 1080]]) {
   await page.close();
 }
 
+// Tela de criar sessão cabe na janela sem rolagem (escala dinâmica)
+for (const [w, h] of [[1280, 720], [1366, 768], [1424, 860], [1920, 1080]]) {
+  const page = await context.newPage();
+  await page.setViewportSize({ width: w, height: h });
+  await page.goto(`${base}/admin`, { waitUntil: 'load' });
+  await page.waitForSelector('[data-fit-scale]', { timeout: 15_000 }).catch(() => undefined);
+  await page.waitForTimeout(500);
+  const m = await page.evaluate(() => {
+    const el = document.querySelector('[data-fit-scale]');
+    const r = el?.getBoundingClientRect();
+    return r ? { top: r.top, bottom: r.bottom, vh: innerHeight, scroll: document.documentElement.scrollHeight } : null;
+  });
+  if (!m) failures.push(`criar sessão ${w}x${h}: conteúdo não encontrado`);
+  else if (m.top < 0 || m.bottom > m.vh + 1 || m.scroll > m.vh + 1) failures.push(`criar sessão ${w}x${h}: não cabe (topo ${m.top.toFixed(0)}, fundo ${m.bottom.toFixed(0)}, janela ${m.vh})`);
+  await page.close();
+}
+
 // Tags de sessão depois do register
 const expectedRole = { admin: 'admin', display: 'display', legend: 'legend', timer: 'timer', left: 'left', center: 'center', right: 'right' };
 for (const [name, { page }] of Object.entries(opened)) {
