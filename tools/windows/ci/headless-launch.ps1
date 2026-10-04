@@ -17,7 +17,12 @@ $out = foreach ($l in $lines) {
 # Mesmo encoding do original (UTF-8 sem BOM), para o chcp 65001 se comportar igual
 [System.IO.File]::WriteAllLines($dst, $out, (New-Object System.Text.UTF8Encoding($false)))
 
-$p = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', "`"$dst`"" -WorkingDirectory $BundleDir -PassThru -Wait -NoNewWindow
+# Sem -Wait: no PowerShell 7 ele espera a árvore inteira, e o script deixa
+# filhos de longa duração (start /min ... cmd /k). Janela oculta própria para
+# os filhos não herdarem os handles do step; espera só o cmd.exe do script.
+$p = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', "`"$dst`"" -WorkingDirectory $BundleDir -PassThru -WindowStyle Hidden
+$null = $p.Handle  # sem isso ExitCode pode vir vazio após WaitForExit
+if (-not $p.WaitForExit(120000)) { throw 'Iniciar-ci.cmd não terminou em 120 s' }
 if ($p.ExitCode -ne 0) { throw "Iniciar-ci.cmd saiu com código $($p.ExitCode)" }
 
 function Wait-Url([string]$url, [int]$seconds) {
