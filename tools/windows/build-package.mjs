@@ -362,17 +362,21 @@ pause >nul
 
 taskkill /fi "WINDOWTITLE eq Referee-Server*" /f >nul 2>&1
 taskkill /fi "WINDOWTITLE eq Referee-Frontend*" /f >nul 2>&1
+powershell -NoProfile -Command "Get-NetTCPConnection -State Listen -LocalPort 3000,3333 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id \$_.OwningProcess -Force -ErrorAction SilentlyContinue }" >nul 2>&1
 `;
 
   const pararCmd = `@echo off
 taskkill /fi "WINDOWTITLE eq Referee-Server*" /f >nul 2>&1
 taskkill /fi "WINDOWTITLE eq Referee-Frontend*" /f >nul 2>&1
-echo Serviços encerrados.
+powershell -NoProfile -Command "Get-NetTCPConnection -State Listen -LocalPort 3000,3333 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id \$_.OwningProcess -Force -ErrorAction SilentlyContinue }" >nul 2>&1
+echo Servicos encerrados.
 ping -n 3 127.0.0.1 >nul
 `;
 
-  await writeFile(path.join(outputDir, 'Iniciar.cmd'), iniciarCmd, 'utf8');
-  await writeFile(path.join(outputDir, 'Parar.cmd'), pararCmd, 'utf8');
+  // .cmd com CRLF: com LF o cmd.exe perde caracteres ao interpretar o arquivo.
+  const crlf = (t) => t.replace(/\r?\n/g, '\r\n');
+  await writeFile(path.join(outputDir, 'Iniciar.cmd'), crlf(iniciarCmd), 'utf8');
+  await writeFile(path.join(outputDir, 'Parar.cmd'), crlf(pararCmd), 'utf8');
 
   await writeFile(path.join(outputDir, 'LEIA-ME.txt'), `REFEREE LIGHTS - Luzes de Arbitragem
 
