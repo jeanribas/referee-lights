@@ -87,8 +87,6 @@ jobs:
           # Nenhuma URL de produção pode existir no ambiente do build.
           NEXT_PUBLIC_API_URL: ''
           NEXT_PUBLIC_WS_URL: ''
-          # Em PR o checkout é um merge ref: o nome da branch vem do alvo
-          GITHUB_REF_NAME: ${{ github.event_name == 'pull_request' && github.base_ref || github.ref_name }}
           BUNDLE_VERIFY_RUNTIME: '0'
         run: node tools/windows/build-package.mjs
 
@@ -166,13 +164,13 @@ jobs:
       - name: Smoke e2e (fluxo completo) pelo Iniciar.cmd
         shell: pwsh
         run: |
-          & (Join-Path $env:BUNDLE_DIR 'node\node.exe') tools/windows/ci/smoke-e2e.cjs (Join-Path $env:BUNDLE_DIR 'frontend') http://127.0.0.1:3333 --full
+          & (Join-Path $env:BUNDLE_DIR 'node\node.exe') tools/windows/ci/smoke-e2e.cjs (Join-Path $env:BUNDLE_DIR 'frontend') http://127.0.0.1:3000 --full
           if ($LASTEXITCODE -ne 0) { throw 'smoke e2e falhou' }
 
       - name: Resiliência — payload malformado não derruba o server
         shell: pwsh
         run: |
-          & (Join-Path $env:BUNDLE_DIR 'node\node.exe') tools/windows/ci/smoke-e2e.cjs (Join-Path $env:BUNDLE_DIR 'frontend') http://127.0.0.1:3333 --malformed
+          & (Join-Path $env:BUNDLE_DIR 'node\node.exe') tools/windows/ci/smoke-e2e.cjs (Join-Path $env:BUNDLE_DIR 'frontend') http://127.0.0.1:3000 --malformed
           if ($LASTEXITCODE -ne 0) { throw 'payload malformado derrubou o server' }
 
       - name: UI pelo IP da LAN (Chromium) — telas, CSS inline, tags de sessão
@@ -186,16 +184,23 @@ jobs:
           node tools/windows/ci/ui-smoke.mjs "http://${ip}:3000" (Join-Path $env:BUNDLE_DIR 'frontend')
           if ($LASTEXITCODE -ne 0) { throw 'UI smoke falhou' }
 
+      - name: Uma porta só (nada escutando na 3333) e erro de tela aceito
+        shell: pwsh
+        run: |
+          if (Get-NetTCPConnection -State Listen -LocalPort 3333 -ErrorAction SilentlyContinue) { throw 'algo escutando na 3333: o pacote deveria usar só a 3000' }
+          $r = Invoke-WebRequest -Method Post -ContentType 'application/json' -Body '{"kind":"TypeError","message":"teste CI","screen":"admin"}' http://127.0.0.1:3000/client-errors -UseBasicParsing
+          if ($r.StatusCode -ne 204) { throw "POST /client-errors respondeu $($r.StatusCode)" }
+
       - name: Recuperação pós-restart via Parar.cmd/Iniciar.cmd (mesma sala volta)
         shell: pwsh
         run: |
-          $room = Invoke-RestMethod -Method Post -ContentType 'application/json' -Body '{}' http://127.0.0.1:3333/rooms
+          $room = Invoke-RestMethod -Method Post -ContentType 'application/json' -Body '{}' http://127.0.0.1:3000/rooms
           Start-Sleep 2
           & (Join-Path $env:BUNDLE_DIR 'Parar.cmd')
           Start-Sleep 3
           ./tools/windows/ci/headless-launch.ps1 -BundleDir $env:BUNDLE_DIR
           $body = @{ adminPin = $room.adminPin } | ConvertTo-Json
-          Invoke-RestMethod -Method Post -ContentType 'application/json' -Body $body "http://127.0.0.1:3333/rooms/$($room.roomId)/access" | Out-Null
+          Invoke-RestMethod -Method Post -ContentType 'application/json' -Body $body "http://127.0.0.1:3000/rooms/$($room.roomId)/access" | Out-Null
           Write-Host "Sala $($room.roomId) recuperada após restart"
 
       - name: Parar.cmd encerra tudo (portas livres)

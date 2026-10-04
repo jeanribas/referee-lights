@@ -2,7 +2,8 @@
 // que mudam com i18n). Para CADA tela (admin, display, legend, timer e os 3
 // árbitros):
 //   - carrega sem erro de JS e sem 4xx/5xx em arquivo do próprio pacote;
-//   - abre o websocket em <host>:3333 (nenhuma URL de produção inlinada);
+//   - abre o websocket na MESMA origem da página (uma porta só; nenhuma URL
+//     de produção inlinada);
 //   - recebe as atualizações da sala (decisão revelada chega em todas);
 //   - CSS presente inline (<style data-inline-css>) e a tela renderiza
 //     IGUAL só com ele (links removidos → screenshot idêntico);
@@ -23,7 +24,7 @@ const { io } = createRequire(path.join(path.resolve(process.argv[3]), 'package.j
 
 const base = process.argv[2] ?? 'http://127.0.0.1:3000';
 const host = new URL(base).hostname;
-const api = `http://${host}:3333`;
+const api = new URL(base).origin;
 
 const room = await (await fetch(`${api}/rooms`, { method: 'POST' })).json();
 const q = `roomId=${room.roomId}&pin=${room.adminPin}`;
@@ -87,7 +88,7 @@ for (const [name, p] of Object.entries(pages)) {
   if (ws) ws.on('framereceived', (f) => frames.push(String(f.payload)));
   if (!res || res.status() >= 400) failures.push(`${name}: HTTP ${res?.status()}`);
   if (!ws) failures.push(`${name}: nenhum websocket aberto`);
-  else if (!ws.url().startsWith(`ws://${host}:3333`)) failures.push(`${name}: websocket foi para ${ws.url()}`);
+  else if (!ws.url().startsWith(`ws://${new URL(base).host}/`)) failures.push(`${name}: websocket foi para ${ws.url()}`);
   opened[name] = { page, errors, frames };
 }
 

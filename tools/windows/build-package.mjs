@@ -8,6 +8,8 @@
 //   nada de node_modules do server no pacote (era ~3.200 arquivos);
 // - frontend = standalone do Next (dependências decididas pelo trace do
 //   próprio Next) + .next/static + public. Nenhuma remoção por nome de pasta.
+// - UM processo e UMA porta (3000): o server carrega o Next do standalone
+//   (FRONTEND_DIR) e serve API, socket e telas juntos.
 import { execSync, execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { cp, mkdir, rm, writeFile, readFile, readdir, stat } from 'node:fs/promises';
@@ -67,8 +69,13 @@ function assertReleaseBranch() {
     // git indisponível/quebrado: lê o HEAD direto (funciona em worktree)
     branch = readHeadBranch();
   }
-  // Checkout destacado (CI): o GitHub informa a branch em GITHUB_REF_NAME
-  if ((!branch || branch === 'HEAD') && process.env.GITHUB_REF_NAME) branch = process.env.GITHUB_REF_NAME;
+  // No CI vale o que o GitHub informa. Em PR o checkout é o merge ref
+  // "<n>/merge": a branch que importa é a ALVO (GITHUB_BASE_REF). Variáveis
+  // GITHUB_* não podem ser sobrescritas pelo `env` do workflow.
+  if (process.env.GITHUB_ACTIONS === 'true' && (process.env.GITHUB_BASE_REF || process.env.GITHUB_REF_NAME)) {
+    branch = process.env.GITHUB_BASE_REF || process.env.GITHUB_REF_NAME;
+  }
+  else if ((!branch || branch === 'HEAD') && process.env.GITHUB_REF_NAME) branch = process.env.GITHUB_REF_NAME;
   if (!/^release\/[\w.-]+$/.test(branch)) {
     die(`O pacote Windows só é gerado de uma branch release/* (atual: "${branch || 'desconhecida'}").`);
   }
@@ -109,8 +116,8 @@ async function buildProjects() {
   // URLs de API/WS VAZIAS no build: o client inlina NEXT_PUBLIC_* na
   // compilação e um .env.local esquecido (ex.: criado pelo vercel CLI)
   // apontaria o pacote para a API de produção — sala criada lá, socket
-  // local, "sala não encontrada". Vazias, vale o fallback de runtime do
-  // config.ts: http://<host>:3333, que é o correto no pacote.
+  // local, "sala não encontrada". Vazias, vale o padrão do pacote no
+  // config.ts: a origem da própria página (API e telas na mesma porta).
   run('npm run build', {
     cwd: frontendDir,
     env: {
@@ -194,10 +201,11 @@ async function bundleServer() {
     name: pkg.name, version: pkg.version, private: true, type: 'module'
   }, null, 2) + '\n', 'utf8');
 
-  await writeFile(path.join(dest, '.env'), `PORT=3333
+  await writeFile(path.join(dest, '.env'), `PORT=3000
+FRONTEND_DIR=../frontend
+DATA_DIR=data
 CORS_ORIGIN=*
 LOG_LEVEL=info
-ANALYTICS_DB_PATH=data/analytics.db
 TELEMETRY_ENABLED=true
 KEY_RELAY_AVAILABLE=true
 BETTER_SQLITE3_BINDING=better_sqlite3.node
@@ -223,10 +231,6 @@ async function bundleFrontend() {
   await cp(standaloneSrc, dest, { recursive: true });
   await cp(path.join(frontendDir, '.next', 'static'), path.join(dest, '.next', 'static'), { recursive: true });
   await cp(path.join(frontendDir, 'public'), path.join(dest, 'public'), { recursive: true });
-
-  await writeFile(path.join(dest, '.env.local'), `NEXT_PUBLIC_WS_URL=http://localhost:3333
-NEXT_PUBLIC_API_URL=http://localhost:3333
-`, 'utf8');
 }
 
 async function downloadNode() {
@@ -328,13 +332,9 @@ for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /c:"IPv4"') do (
   )
 )
 
-echo  [1/2] Iniciando servidor...
+echo  Iniciando...
 start /min "Referee-Server" cmd /k "cd /d "%~dp0server" && node dist\\index.js"
-ping -n 4 127.0.0.1 >nul
-
-echo  [2/2] Iniciando frontend...
-start /min "Referee-Frontend" cmd /k "cd /d "%~dp0frontend" && node server.js"
-ping -n 5 127.0.0.1 >nul
+ping -n 6 127.0.0.1 >nul
 
 echo.
 echo  ========================================================
@@ -361,14 +361,12 @@ echo  Pressione qualquer tecla para encerrar tudo.
 pause >nul
 
 taskkill /fi "WINDOWTITLE eq Referee-Server*" /f >nul 2>&1
-taskkill /fi "WINDOWTITLE eq Referee-Frontend*" /f >nul 2>&1
-powershell -NoProfile -Command "Get-NetTCPConnection -State Listen -LocalPort 3000,3333 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id \$_.OwningProcess -Force -ErrorAction SilentlyContinue }" >nul 2>&1
+powershell -NoProfile -Command "Get-NetTCPConnection -State Listen -LocalPort 3000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id \$_.OwningProcess -Force -ErrorAction SilentlyContinue }" >nul 2>&1
 `;
 
   const pararCmd = `@echo off
 taskkill /fi "WINDOWTITLE eq Referee-Server*" /f >nul 2>&1
-taskkill /fi "WINDOWTITLE eq Referee-Frontend*" /f >nul 2>&1
-powershell -NoProfile -Command "Get-NetTCPConnection -State Listen -LocalPort 3000,3333 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id \$_.OwningProcess -Force -ErrorAction SilentlyContinue }" >nul 2>&1
+powershell -NoProfile -Command "Get-NetTCPConnection -State Listen -LocalPort 3000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id \$_.OwningProcess -Force -ErrorAction SilentlyContinue }" >nul 2>&1
 echo Servicos encerrados.
 ping -n 3 127.0.0.1 >nul
 `;

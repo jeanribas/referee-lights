@@ -329,7 +329,7 @@ const MESSAGES: Record<AppLocale, Messages> = {
       steps: [
         { title: 'Baixe o pacote', desc: 'Acesse a página de Releases no GitHub e baixe o arquivo referee-lights-windows.zip da versão mais recente.' },
         { title: 'Extraia o ZIP', desc: 'Clique com o botão direito no arquivo baixado e escolha "Extrair tudo". Escolha uma pasta fácil de encontrar, como a Área de Trabalho ou C:\\referee-lights.' },
-        { title: 'Execute o Iniciar.cmd', desc: 'Abra a pasta extraída e dê dois cliques no arquivo Iniciar.cmd. Duas janelas de terminal vão abrir — uma para o servidor e outra para o frontend. Não feche essas janelas.' },
+        { title: 'Execute o Iniciar.cmd', desc: 'Abra a pasta extraída e dê dois cliques no arquivo Iniciar.cmd. Uma janela do servidor vai abrir minimizada. Não feche essa janela durante o uso.' },
         { title: 'Abra no navegador', desc: 'Após alguns segundos, abra o navegador e acesse http://localhost:3000. O painel admin vai aparecer. Crie uma sessão e distribua os QR Codes para os árbitros.' },
         { title: 'Conecte os dispositivos', desc: 'Os árbitros devem estar na mesma rede WiFi. Eles acessam pelo IP da máquina (ex: http://192.168.1.100:3000) escaneando o QR Code.' },
       ],
@@ -346,9 +346,9 @@ const MESSAGES: Record<AppLocale, Messages> = {
         title: 'Problemas comuns',
         items: [
           { q: 'O Windows bloqueou o Iniciar.cmd', a: 'Clique em "Mais informações" e depois em "Executar assim mesmo". É normal o Windows alertar sobre arquivos baixados da internet.' },
-          { q: 'A página não abre no navegador', a: 'Espere 10 a 15 segundos após executar o Iniciar.cmd. Se ainda não funcionar, verifique se as janelas de terminal não mostraram erros.' },
+          { q: 'A página não abre no navegador', a: 'Espere 10 a 15 segundos após executar o Iniciar.cmd. Se ainda não funcionar, verifique se a janela do servidor mostrou algum erro.' },
           { q: 'Os árbitros não conseguem conectar', a: 'Verifique se todos estão na mesma rede WiFi. Use o IP da máquina (mostrado no painel admin) em vez de localhost.' },
-          { q: 'Erro de porta em uso', a: 'Feche outras aplicações que possam estar usando as portas 3000 ou 3333, ou edite o arquivo .env para mudar as portas.' },
+          { q: 'Erro de porta em uso', a: 'Feche outras aplicações que possam estar usando a porta 3000, ou edite PORT no arquivo server\\.env.' },
         ],
       },
       cta: 'Baixar para Windows',
@@ -623,7 +623,7 @@ const MESSAGES: Record<AppLocale, Messages> = {
       steps: [
         { title: 'Download the package', desc: 'Go to the GitHub Releases page and download the referee-lights-windows.zip file from the latest version.' },
         { title: 'Extract the ZIP', desc: 'Right-click the downloaded file and choose "Extract All". Pick an easy-to-find folder like the Desktop or C:\\referee-lights.' },
-        { title: 'Run Iniciar.cmd', desc: 'Open the extracted folder and double-click the Iniciar.cmd file. Two terminal windows will open — one for the server and one for the frontend. Do not close them.' },
+        { title: 'Run Iniciar.cmd', desc: 'Open the extracted folder and double-click the Iniciar.cmd file. A server window will open minimized. Do not close it while in use.' },
         { title: 'Open in the browser', desc: 'After a few seconds, open your browser and go to http://localhost:3000. The admin panel will appear. Create a session and share the QR Codes with the referees.' },
         { title: 'Connect the devices', desc: 'Referees must be on the same WiFi network. They access via the machine\'s IP address (e.g., http://192.168.1.100:3000) by scanning the QR Code.' },
       ],
@@ -640,9 +640,9 @@ const MESSAGES: Record<AppLocale, Messages> = {
         title: 'Common issues',
         items: [
           { q: 'Windows blocked Iniciar.cmd', a: 'Click "More info" then "Run anyway". This is normal for files downloaded from the internet.' },
-          { q: 'The page won\'t open in the browser', a: 'Wait 10 to 15 seconds after running Iniciar.cmd. If it still doesn\'t work, check the terminal windows for errors.' },
+          { q: 'The page won\'t open in the browser', a: 'Wait 10 to 15 seconds after running Iniciar.cmd. If it still doesn\'t work, check the server window for errors.' },
           { q: 'Referees can\'t connect', a: 'Make sure everyone is on the same WiFi network. Use the machine\'s IP (shown in the admin panel) instead of localhost.' },
-          { q: 'Port already in use error', a: 'Close other applications using ports 3000 or 3333, or edit the .env file to change the ports.' },
+          { q: 'Port already in use error', a: 'Close other applications using port 3000, or edit PORT in the server\\.env file.' },
         ],
       },
       cta: 'Download for Windows',
@@ -917,7 +917,7 @@ const MESSAGES: Record<AppLocale, Messages> = {
       steps: [
         { title: 'Descarga el paquete', desc: 'Ve a la p\u00e1gina de Releases en GitHub y descarga el archivo referee-lights-windows.zip de la versi\u00f3n m\u00e1s reciente.' },
         { title: 'Extrae el ZIP', desc: 'Haz clic derecho en el archivo descargado y elige "Extraer todo". Elige una carpeta f\u00e1cil de encontrar.' },
-        { title: 'Ejecuta Iniciar.cmd', desc: 'Abre la carpeta extra\u00edda y haz doble clic en Iniciar.cmd. Se abrir\u00e1n dos ventanas de terminal. No las cierres.' },
+        { title: 'Ejecuta Iniciar.cmd', desc: 'Abre la carpeta extra\u00edda y haz doble clic en Iniciar.cmd. Se abrir\u00e1 una ventana del servidor minimizada. No la cierres.' },
         { title: 'Abre en el navegador', desc: 'Despu\u00e9s de unos segundos, abre el navegador y ve a http://localhost:3000. Crea una sesi\u00f3n y comparte los QR Codes.' },
         { title: 'Conecta los dispositivos', desc: 'Los jueces deben estar en la misma red WiFi. Acceden por la IP de la m\u00e1quina escaneando el QR Code.' },
       ],
@@ -934,9 +934,9 @@ const MESSAGES: Record<AppLocale, Messages> = {
         title: 'Problemas comunes',
         items: [
           { q: 'Windows bloque\u00f3 Iniciar.cmd', a: 'Haz clic en "M\u00e1s informaci\u00f3n" y luego en "Ejecutar de todos modos".' },
-          { q: 'La p\u00e1gina no abre', a: 'Espera 10-15 segundos. Revisa si las ventanas de terminal muestran errores.' },
+          { q: 'La p\u00e1gina no abre', a: 'Espera 10-15 segundos. Revisa si la ventana del servidor muestra errores.' },
           { q: 'Los jueces no pueden conectarse', a: 'Verifica que todos est\u00e9n en la misma red WiFi. Usa la IP de la m\u00e1quina.' },
-          { q: 'Error de puerto en uso', a: 'Cierra otras aplicaciones en los puertos 3000 o 3333.' },
+          { q: 'Error de puerto en uso', a: 'Cierra otras aplicaciones en el puerto 3000.' },
         ],
       },
       cta: 'Descargar para Windows',

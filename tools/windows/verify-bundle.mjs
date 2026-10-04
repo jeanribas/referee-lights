@@ -103,7 +103,6 @@ async function checkNativeBinaries(bundleDir) {
 async function checkClientEnvLeak(bundleDir) {
   const start = errors.length;
   let scanned = 0;
-  let sawLocalFallback = false;
   for await (const file of walk(path.join(bundleDir, 'frontend', '.next', 'static'))) {
     if (!file.endsWith('.js')) continue;
     scanned++;
@@ -111,20 +110,21 @@ async function checkClientEnvLeak(bundleDir) {
     for (const bad of FORBIDDEN_IN_CLIENT) {
       if (content.includes(bad)) fail(`URL de produção inlinada no client: "${bad}" em ${path.relative(bundleDir, file)}`);
     }
-    if (content.includes(':3333')) sawLocalFallback = true;
+    // Pacote = uma porta: API e socket na origem da página, nunca :3333
+    if (content.includes(':3333')) fail(`Client ainda aponta para a porta 3333 em ${path.relative(bundleDir, file)}`);
   }
   if (scanned === 0) fail('Nenhum chunk JS encontrado em frontend/.next/static.');
-  if (!sawLocalFallback) warnings.push('Nenhum chunk contém ":3333" — confirme o fallback de runtime do config.ts.');
   if (errors.length === start) ok(`Client sem URLs de produção inlinadas (${scanned} chunks).`);
 }
 
 async function checkServerEnv(bundleDir) {
   const start = errors.length;
   const env = await readFile(path.join(bundleDir, 'server', '.env'), 'utf8').catch(() => '');
-  if (!/^PORT=3333$/m.test(env)) fail('server/.env sem PORT=3333.');
+  if (!/^PORT=3000$/m.test(env)) fail('server/.env sem PORT=3000.');
+  if (!/^FRONTEND_DIR=\.\.\/frontend$/m.test(env)) fail('server/.env sem FRONTEND_DIR=../frontend (telas não seriam servidas).');
   if (!/^KEY_RELAY_AVAILABLE=true$/m.test(env)) fail('server/.env sem KEY_RELAY_AVAILABLE=true (toggle do Key Relay some do admin).');
   if (!/^BETTER_SQLITE3_BINDING=better_sqlite3\.node$/m.test(env)) fail('server/.env sem BETTER_SQLITE3_BINDING (SQLite não abriria).');
-  if (errors.length === start) ok('server/.env com PORT, KEY_RELAY_AVAILABLE e BETTER_SQLITE3_BINDING.');
+  if (errors.length === start) ok('server/.env com PORT, FRONTEND_DIR, KEY_RELAY_AVAILABLE e BETTER_SQLITE3_BINDING.');
 }
 
 async function waitHttp(url, seconds) {

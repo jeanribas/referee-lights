@@ -1,6 +1,12 @@
 import 'dotenv/config';
+import path from 'node:path';
 
 import { parseTrustProxyHops } from './client-ip.js';
+
+// Pasta de dados (banco, instance.id, fila local). Padrão `data` relativo ao
+// cwd, como sempre foi na web/Docker; o executável aponta para fora da pasta
+// da versão para os dados sobreviverem às atualizações.
+const DATA_DIR = path.resolve(process.env.DATA_DIR || 'data');
 
 export const config = {
   PORT: Number(process.env.PORT ?? 3333),
@@ -8,7 +14,11 @@ export const config = {
   LOG_LEVEL: process.env.LOG_LEVEL ?? 'info',
   MASTER_USER: process.env.MASTER_USER ?? '',
   MASTER_PASSWORD: process.env.MASTER_PASSWORD ?? '',
-  ANALYTICS_DB_PATH: process.env.ANALYTICS_DB_PATH ?? 'data/analytics.db',
+  DATA_DIR,
+  ANALYTICS_DB_PATH: process.env.ANALYTICS_DB_PATH || path.join(DATA_DIR, 'analytics.db'),
+  // Standalone do Next servido pelo próprio server (pacote Windows: uma
+  // porta, um processo). Vazio = só API, como na web.
+  FRONTEND_DIR: process.env.FRONTEND_DIR ?? '',
   TELEMETRY_URL: process.env.TELEMETRY_URL ?? 'https://api-luzes-ipf.assist.com.br',
   TELEMETRY_ENABLED: (process.env.TELEMETRY_ENABLED ?? 'true') === 'true',
   KEY_RELAY_AVAILABLE: (process.env.KEY_RELAY_AVAILABLE ?? 'false') === 'true',
