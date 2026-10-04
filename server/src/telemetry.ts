@@ -167,6 +167,9 @@ export class Telemetry {
       ...(extra.roomId ? { roomId: extra.roomId.slice(0, 16) } : {}),
       ...(extra.userAgent ? { userAgent: extra.userAgent.slice(0, 200) } : {})
     });
+    // Erro vai para o disco NA HORA: se o processo cair antes do próximo
+    // envio (ou o envio demorar, sem internet), ele não se perde.
+    this.saveQueue();
     void this.flush();
   }
 
