@@ -211,6 +211,26 @@ async function runRuntimeE2E(bundleDir) {
   }
 }
 
+/** RefereeLights.exe: PE, subsistema GUI (sem console) e tamanho plausível. */
+async function checkExe() {
+  const exe = path.join(rootDir, 'dist', 'RefereeLights.exe');
+  if (!existsSync(exe)) {
+    if (args.has('--no-exe')) return;
+    fail('dist/RefereeLights.exe não encontrado (o build gera as duas formas: zip e exe).');
+    return;
+  }
+  const buf = await readFile(exe);
+  if (buf.subarray(0, 2).toString('latin1') !== 'MZ') { fail('RefereeLights.exe não é PE.'); return; }
+  const pe = buf.readUInt32LE(0x3c);
+  // Optional header começa em pe+24; Subsystem fica no offset 68 (2 = GUI, 3 = console)
+  const subsystem = buf.readUInt16LE(pe + 24 + 68);
+  if (subsystem !== 2) fail(`RefereeLights.exe com subsistema ${subsystem} (esperado 2 = GUI, sem janela de console).`);
+  const mb = buf.length / 1024 / 1024;
+  if (mb < 20 || mb > 80) fail(`RefereeLights.exe com ${mb.toFixed(1)} MB (esperado 20–80 MB: payload faltando ou duplicado?).`);
+  if (buf.includes(Buffer.from('UPX!'))) fail('RefereeLights.exe comprimido com UPX (falso positivo de antivírus).');
+  if (subsystem === 2 && mb >= 20 && mb <= 80) ok(`RefereeLights.exe: PE GUI, ${mb.toFixed(1)} MB, sem UPX.`);
+}
+
 async function main() {
   if (!existsSync(zipPath)) {
     console.error(`❌ ${path.relative(rootDir, zipPath)} não encontrado. Rode antes: node tools/windows/build-package.mjs`);
@@ -226,6 +246,7 @@ async function main() {
   await checkClientEnvLeak(bundleDir);
   await checkServerEnv(bundleDir);
   await checkRootRedirects(bundleDir);
+  await checkExe();
   if (!args.has('--no-runtime') && errors.length === 0) await runRuntimeE2E(bundleDir);
 
   for (const w of warnings) console.warn(`  ⚠️  ${w}`);

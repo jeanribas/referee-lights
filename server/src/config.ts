@@ -19,6 +19,9 @@ export const config = {
   // Standalone do Next servido pelo próprio server (pacote Windows: uma
   // porta, um processo). Vazio = só API, como na web.
   FRONTEND_DIR: process.env.FRONTEND_DIR ?? '',
+  // Segredo por execução que o lançador do exe passa ao server: libera as
+  // rotas /__launcher/* (só loopback). Vazio = rotas inexistentes.
+  LAUNCHER_TOKEN: process.env.LAUNCHER_TOKEN ?? '',
   TELEMETRY_URL: process.env.TELEMETRY_URL ?? 'https://api-luzes-ipf.assist.com.br',
   TELEMETRY_ENABLED: (process.env.TELEMETRY_ENABLED ?? 'true') === 'true',
   KEY_RELAY_AVAILABLE: (process.env.KEY_RELAY_AVAILABLE ?? 'false') === 'true',

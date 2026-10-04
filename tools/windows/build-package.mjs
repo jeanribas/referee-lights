@@ -10,6 +10,8 @@
 //   próprio Next) + .next/static + public. Nenhuma remoção por nome de pasta.
 // - UM processo e UMA porta (3000): o server carrega o Next do standalone
 //   (FRONTEND_DIR) e serve API, socket e telas juntos.
+// - Duas formas, do MESMO conteúdo: o zip (Iniciar.cmd) e o RefereeLights.exe
+//   (lançador em Go com server + frontend + node embutidos; precisa do Go).
 import { execSync, execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { cp, mkdir, rm, writeFile, readFile, readdir, stat } from 'node:fs/promises';
@@ -400,6 +402,37 @@ Contato: contato@assist.com.br
 `, 'utf8');
 }
 
+const launcherDir = path.join(rootDir, 'tools', 'windows', 'launcher');
+const exePath = path.join(rootDir, 'dist', 'RefereeLights.exe');
+
+/**
+ * RefereeLights.exe: payload (server + frontend + node.exe, tar.zst) embutido
+ * no lançador Go. Subsistema GUI (sem console), ícone e versão no recurso do
+ * exe. Sem UPX (principal causa de falso positivo de antivírus).
+ */
+async function buildExe() {
+  console.log('\n🧩 Gerando RefereeLights.exe...');
+  try {
+    execFileSync('go', ['version'], { stdio: 'pipe' });
+  } catch {
+    die('Go não encontrado: o RefereeLights.exe precisa do Go (https://go.dev/dl).');
+  }
+  const { version } = JSON.parse(await readFile(path.join(serverDir, 'package.json'), 'utf8'));
+  const goEnv = { ...process.env, GOOS: 'windows', GOARCH: 'amd64', CGO_ENABLED: '0' };
+  run(`go run ./cmd/mkpayload -src "${outputDir}" -out payload.tar.zst`, { cwd: launcherDir, env: { ...process.env, GOOS: '', GOARCH: '' } });
+  await rm(path.join(launcherDir, 'rsrc_windows_amd64.syso'), { force: true });
+  run([
+    'go run github.com/tc-hib/go-winres@v0.3.3 simply --arch amd64 --manifest gui',
+    `--icon "${path.join(frontendDir, 'public', 'images', 'icon-512.png')}"`,
+    `--product-version ${version}.0 --file-version ${version}.0`,
+    '--product-name "Referee Lights" --file-description "Referee Lights"',
+    '--copyright "Assist" --original-filename RefereeLights.exe'
+  ].join(' '), { cwd: launcherDir, env: { ...process.env, GOOS: '', GOARCH: '' } });
+  run(`go build -trimpath -ldflags "-s -w -H=windowsgui -X main.version=${version} -X main.nodeVersion=${NODE_VERSION}" -o "${exePath}" .`, { cwd: launcherDir, env: goEnv });
+  await rm(path.join(launcherDir, 'payload.tar.zst'), { force: true });
+  console.log(`   ${((await stat(exePath)).size / 1024 / 1024).toFixed(1)} MB → ${exePath}`);
+}
+
 async function createZip() {
   const zipPath = path.join(rootDir, 'dist', 'referee-lights-windows.zip');
   console.log('\n🗜️  Gerando referee-lights-windows.zip...');
@@ -448,6 +481,7 @@ async function main() {
   await downloadNode();
   await createScripts();
   await createZip();
+  await buildExe();
   await assertLocksUnchanged(locks);
 
   const { files, bytes } = await countFiles(outputDir);

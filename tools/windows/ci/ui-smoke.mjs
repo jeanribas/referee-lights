@@ -77,10 +77,9 @@ for (const [name, p] of Object.entries(pages)) {
   const frames = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('response', (r) => {
-    // /_vercel/insights só existe na Vercel: no pacote o script do Vercel
-    // Essa rota dá 404 por design (não afeta a tela).
+    // Nenhum 404 no pacote (o analytics da Vercel, que dava 404, saiu dele)
     const u = new URL(r.url());
-    if (u.hostname === host && r.status() >= 400 && !u.pathname.startsWith('/_vercel/insights/')) errors.push(`HTTP ${r.status()} ${r.url()}`);
+    if (u.hostname === host && r.status() >= 400) errors.push(`HTTP ${r.status()} ${r.url()}`);
   });
   const wsP = page.waitForEvent('websocket', { timeout: 20_000 }).catch(() => null);
   const res = await page.goto(base + p, { waitUntil: 'load' });

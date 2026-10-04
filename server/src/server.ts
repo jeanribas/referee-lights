@@ -876,6 +876,46 @@ export async function createServer() {
     return null;
   });
 
+  // Rotas do lançador (exe): desligar com calma (fila e banco gravados) e
+  // registrar erros do próprio lançador (extração, porta, antivírus...).
+  // Só existem com LAUNCHER_TOKEN e só respondem a loopback com o token.
+  if (config.LAUNCHER_TOKEN) {
+    const launcherAuth = (request: { headers: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string }; ip: string }) =>
+      isLoopback(request.socket?.remoteAddress ?? request.ip) &&
+      request.headers['x-launcher-token'] === config.LAUNCHER_TOKEN;
+
+    app.post('/__launcher/shutdown', async (request, reply) => {
+      if (!launcherAuth(request)) { reply.code(404); return { error: 'not_found' }; }
+      // SQLite grava na hora (síncrono) e a fila vai para o disco aqui; o
+      // close espera conexões abertas (navegadores, keep-alive) por no
+      // máximo 2 s antes de sair.
+      setTimeout(() => {
+        telemetry.persistNow();
+        void Promise.race([app.close(), new Promise((r) => setTimeout(r, 2000))]).finally(() => process.exit(0));
+      }, 50);
+      reply.code(202);
+      return { ok: true };
+    });
+
+    app.post('/__launcher/error', { bodyLimit: 16 * 1024 }, async (request, reply) => {
+      if (!launcherAuth(request)) { reply.code(404); return { error: 'not_found' }; }
+      const body = request.body;
+      if (!isRecord(body) || typeof body.message !== 'string' || !body.message) {
+        reply.code(400);
+        return { error: 'invalid_payload' };
+      }
+      const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : undefined);
+      telemetry.trackError(`launcher ${str(body.context, 40) ?? ''}`.trim(), body.message, {
+        origin: 'launcher',
+        kind: str(body.kind, 64) ?? 'launcher_error',
+        stack: str(body.detail, 1000),
+        userAgent: str(body.system, 200)
+      });
+      reply.code(204);
+      return null;
+    });
+  }
+
   // Erros são registrados: saber ONDE o app quebra em campo orienta
   // correções. Mantém a resposta padrão do Fastify.
   app.setErrorHandler((error, request, reply) => {
