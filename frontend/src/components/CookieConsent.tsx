@@ -7,13 +7,11 @@ import type { AppLocale } from '@/lib/i18n/config';
 /**
  * Barra de consentimento própria, trilíngue.
  *
- * O tracker (`/_a/s.js`, servido por stats.assist.com.br) traz um banner de
- * fallback — o próprio script o descreve como "só microsites, sem consent
- * conhecido". Ele tem o texto fixo em português e não aceita atributo de
- * idioma. Num site trilíngue isso não serve, então `_app.tsx` passa
+ * O script de terceiros (`/_a/s.js`) traz um banner de fallback com texto
+ * fixo em português, sem atributo de idioma. Num site trilíngue isso não serve, então `_app.tsx` passa
  * data-banner="0" e a barra passa a ser esta.
  *
- * O estado continua sendo do tracker: gravamos pela API pública
+ * O estado continua sendo do script: gravamos pela API pública
  * `window.aa("consent", ...)` e lemos a mesma chave que ele lê, para que quem
  * já escolheu não veja a barra de novo. Nada de duplicar a regra de decisão.
  */
@@ -51,7 +49,7 @@ export function CookieConsent() {
   if (!visible) return null;
 
   const decide = (choice: 'granted' | 'denied') => {
-    // O tracker pode ainda não ter carregado (strategy="afterInteractive").
+    // O script pode ainda não ter carregado (strategy="afterInteractive").
     // Nesse caso grava direto na mesma chave: quando ele subir, lê e respeita.
     if (typeof window.aa === 'function') window.aa('consent', choice);
     else {

@@ -121,7 +121,7 @@ function isJudge(role: Role | undefined): role is Judge {
   return role !== undefined && (JUDGE_ROLES as string[]).includes(role);
 }
 
-/** Versão do pacote (server/package.json) — vai no heartbeat da telemetria. */
+/** Versão do pacote (server/package.json). */
 function readAppVersion(): string {
   try {
     const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -180,7 +180,7 @@ export async function createServer() {
   }, {
     ttlMs: config.ROOM_TTL_HOURS * 3600_000,
     onExpire: (roomId) => {
-      // Arquiva: fecha a sessão no analytics e derruba os sockets restantes —
+      // Arquiva: fecha a sessão registrada e derruba os sockets restantes —
       // clientes órfãos recebem room_not_found na próxima ação e recomeçam.
       const sessionId = sessionMap.get(roomId);
       if (sessionId != null) {
@@ -683,7 +683,7 @@ export async function createServer() {
     const offset = Math.max(0, Number(request.query.offset) || 0);
     // Estado AO VIVO por cima do histórico: sessão online ativa = sala ainda
     // na memória; sessão de bundle ativa = sala no rooms_json do último
-    // heartbeat da instalação.
+    // status da instalação.
     const sessions = analyticsStore.getRecentSessions(limit, offset).map((row) => {
       const state = roomManager.getRoomState(row.room_id);
       if (!state) return { ...row, live: null };
@@ -749,7 +749,7 @@ export async function createServer() {
     return { activity: analyticsStore.getRecentActivity() };
   });
 
-  // --- Telemetry Endpoints (receive from all instances) ---
+  // --- Endpoints de instâncias ---
 
   app.post('/telemetry/events', async (request, reply) => {
     // Premissa do produto: os filhos (bundles) reportam o máximo de dados de
@@ -790,7 +790,7 @@ export async function createServer() {
     }
     const body = request.body as { samples?: unknown } | Record<string, unknown> | null;
     // Bundles < 1.3.1 mandam UMA amostra no corpo; a partir da 1.3.1 vem
-    // `{samples: [...]}`, porque a fila offline agora carrega heartbeats.
+    // `{samples: [...]}`, porque a fila offline agora carrega várias amostras.
     const raw = Array.isArray((body as { samples?: unknown })?.samples)
       ? ((body as { samples: unknown[] }).samples).slice(0, 100)
       : [body];
@@ -931,7 +931,7 @@ export async function createServer() {
     // Além dos sockets de sala, inclui quem navega no site (page_view nos
     // últimos 5min, um por IP hasheado) — visão "ao vivo" completa.
     const siteVisitors = analyticsStore.getRecentSiteVisitors(5);
-    // Bundles "no ar" (heartbeat < 10 min) entram no ao-vivo com rótulo próprio
+    // Bundles "no ar" (status < 10 min) entram no ao-vivo com rótulo próprio
     const bundleInstances = analyticsStore.getOnlineBundleInstances(telemetry.instanceId);
     return {
       visitors,
@@ -1010,8 +1010,8 @@ export async function createServer() {
     return { ok: true };
   });
 
-  // Erros são dado de primeira classe na telemetria: saber ONDE o app quebra
-  // orienta correções. Rastreia e mantém a resposta padrão do Fastify.
+  // Erros são registrados: saber ONDE o app quebra orienta correções.
+  // Mantém a resposta padrão do Fastify.
   app.setErrorHandler((error, request, reply) => {
     telemetry.trackError(`http ${request.method} ${request.url}`, String((error as Error)?.message ?? error));
     request.log.error(error);

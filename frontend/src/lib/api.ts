@@ -79,12 +79,11 @@ export function trackLinkClick(url: string) {
 
 export function trackPageView(path: string, opts?: { locale?: string; includeReferrer?: boolean }): void {
   // Só o pathname — query string carrega PINs e tokens de sala e nunca
-  // pode sair do navegador em telemetria.
+  // pode sair do navegador.
   const clean = path.split('?')[0].split('#')[0];
   if (!clean.startsWith('/')) return;
   try {
-    // Crawlers que renderizam JS (Google/Bing) e automação não contam
-    // como visita — poluíam o dashboard com geo de datacenter.
+    // Crawlers que renderizam JS (Google/Bing) e automação são ignorados.
     if ((navigator as { webdriver?: boolean }).webdriver) return;
     if (/bot|crawler|spider|crawling|bingpreview|headless|lighthouse/i.test(navigator.userAgent)) return;
     const width = window.innerWidth;
@@ -106,7 +105,7 @@ export function trackPageView(path: string, opts?: { locale?: string; includeRef
       keepalive: true
     }).catch(() => {});
   } catch {
-    // telemetria nunca pode quebrar navegação
+    // falha aqui nunca pode quebrar a navegação
   }
 }
 
