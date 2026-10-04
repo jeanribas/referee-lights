@@ -45,7 +45,7 @@ export interface PersistedRoom {
 interface RoomManagerOptions {
   /** Sala sem NENHUMA atividade por este tempo é arquivada (código volta ao pool). */
   ttlMs?: number;
-  /** Chamado ao arquivar — fecha a sessão no analytics, avisa telemetria etc. */
+  /** Chamado ao arquivar — fecha a sessão registrada e notifica quem precisa. */
   onExpire?: (roomId: string) => void;
   /** Persistência para recuperação pós-restart (salas voltam em até TTL). */
   store?: {

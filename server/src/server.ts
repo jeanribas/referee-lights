@@ -3,7 +3,7 @@ import Fastify from 'fastify';
 import { readFileSync } from 'node:fs';
 import { Server as SocketIOServer, type Socket } from 'socket.io';
 
-/** Versão do pacote (server/package.json) — vai no heartbeat da telemetria. */
+/** Versão do pacote (server/package.json). */
 function readAppVersion(): string {
   try {
     const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -180,7 +180,7 @@ export async function createServer() {
   }, {
     ttlMs: config.ROOM_TTL_HOURS * 3600_000,
     onExpire: (roomId) => {
-      // Arquiva: fecha a sessão no analytics e derruba os sockets restantes —
+      // Arquiva: fecha a sessão registrada e derruba os sockets restantes —
       // clientes órfãos recebem room_not_found na próxima ação e recomeçam.
       const sessionId = sessionMap.get(roomId);
       if (sessionId != null) {
@@ -641,7 +641,7 @@ export async function createServer() {
     });
   });
 
-  // --- Master Admin Endpoints ---
+  // --- Endpoints administrativos ---
 
   app.post<{ Body: { user?: string; password?: string } }>('/master/auth', async (request, reply) => {
     const user = request.body?.user?.trim() ?? '';
@@ -710,7 +710,7 @@ export async function createServer() {
     return { activity: analyticsStore.getRecentActivity() };
   });
 
-  // --- Telemetry Endpoints (receive from all instances) ---
+  // --- Endpoints de instâncias ---
 
   app.post('/telemetry/events', async () => {
     // Receive event batches from instances (fire-and-forget on their side)
@@ -847,8 +847,8 @@ export async function createServer() {
     return { ok: true };
   });
 
-  // Erros são dado de primeira classe na telemetria: saber ONDE o app quebra
-  // em campo orienta correções. Rastreia e mantém a resposta padrão do Fastify.
+  // Erros são registrados: saber ONDE o app quebra em campo orienta
+  // correções. Mantém a resposta padrão do Fastify.
   app.setErrorHandler((error, request, reply) => {
     telemetry.trackError(`http ${request.method} ${request.url}`, String((error as Error)?.message ?? error));
     request.log.error(error);

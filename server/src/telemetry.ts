@@ -28,16 +28,15 @@ export interface InstanceSnapshot {
   totalSessions: number;
   totalConnections: number;
   uniqueIps: number;
-  /** Salas abertas AGORA (código, árbitros conectados, fase) — dá ao master a
-   * mesma granularidade do online. Limitado a 20 para o payload não crescer. */
+  /** Salas abertas AGORA (código, árbitros conectados, fase). Limitado a 20
+   * para o payload não crescer. */
   rooms?: Array<{ id: string; createdAt: number; connectedJudges: number; phase: string }>;
 }
 
 /**
- * Telemetria dos filhos para o master — premissa do produto: reportar o
- * máximo de dados de uso possível. Sai daqui:
+ * Envio de diagnósticos da instalação para a API central:
  *  - eventos por sala (sessão criada, conexão, desconexão) a cada 30s;
- *  - heartbeat com contadores agregados a cada 5 min.
+ *  - status periódico com contadores agregados.
  * Nunca sai: IP cru (só hash irreversível), nomes, decisões de arbitragem.
  * Desligável com TELEMETRY_ENABLED=false (declarado no LEIA-ME do bundle).
  *
@@ -48,7 +47,7 @@ export interface InstanceSnapshot {
  *
  * Observabilidade: o estado da conexão com a API central é logado no
  * console do server (a janela "Referee-Server" no bundle) — uma linha a
- * cada mudança de estado, sem spam. Falha de telemetria NUNCA é silenciosa.
+ * cada mudança de estado, sem spam. Falha de envio NUNCA é silenciosa.
  */
 const MAX_EVENTS = 1000;
 const MAX_SAMPLES = 500;
@@ -96,8 +95,8 @@ export class Telemetry {
     this.flushTimer = setInterval(() => void this.flush(), 30_000);
     if (this.flushTimer.unref) this.flushTimer.unref();
 
-    // Cadência adaptativa: com sala ativa o heartbeat sai a cada 1 min (o
-    // master mostra as salas dos bundles quase ao vivo); parado, a cada 5 min.
+    // Cadência adaptativa: com sala ativa o status sai a cada 1 min;
+    // parado, a cada 5 min.
     this.heartbeatTimer = setInterval(() => {
       const active = (this.statsProvider?.()?.activeRooms ?? 0) > 0;
       const elapsed = Date.now() - this.lastHeartbeatAt;
@@ -136,7 +135,7 @@ export class Telemetry {
     this.push('decision', { roomId, white: counts.white, red: counts.red });
   }
 
-  /** Sala arquivada por inatividade — fecha o ciclo de vida no master. */
+  /** Sala arquivada por inatividade — fecha o ciclo de vida da sala. */
   trackRoomArchived(roomId: string): void {
     this.push('room_archived', { roomId });
   }
