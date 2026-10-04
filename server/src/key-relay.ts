@@ -219,7 +219,7 @@ function sendLinuxCombo(modifiers: string[], key: string): Promise<void> {
 
 function runCommand(cmd: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { stdio: 'ignore' });
+    const child = spawn(cmd, args, { stdio: 'ignore', windowsHide: true });
     child.once('error', (err) => reject(err));
     child.once('exit', (code) => code === 0 ? resolve() : reject(new Error(`exit ${code}`)));
   });
