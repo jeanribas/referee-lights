@@ -91,6 +91,25 @@ for (const [name, p] of Object.entries(pages)) {
   opened[name] = { page, errors, frames };
 }
 
+// Painel aberto em localhost (como no computador do servidor): os links do
+// display e do timer precisam levar o IP da rede, não "localhost" (abrem em
+// OUTRO computador). Regressão: link relativo herdava localhost.
+{
+  const page = await context.newPage();
+  const port = new URL(base).port || '80';
+  const local = `http://localhost:${port}`;
+  await context.route(`${local}/**`, (route) => route.continue());
+  await page.goto(`${local}${pages.admin}`, { waitUntil: 'load' });
+  await page.waitForFunction(() => [...document.querySelectorAll('a[href*="/display?"]')].some((a) => /^https?:\/\//.test(a.getAttribute('href') ?? '')), null, { timeout: 15_000 }).catch(() => undefined);
+  const hrefs = await page.evaluate(() => ['/display?', '/timer?'].map((p) => document.querySelector(`a[href*="${p}"]`)?.getAttribute('href') ?? ''));
+  for (const h of hrefs) {
+    let host = '';
+    try { host = new URL(h).hostname; } catch { /* relativo */ }
+    if (!host || ['localhost', '127.0.0.1'].includes(host)) failures.push(`admin em localhost: link "${h}" não leva o IP da rede`);
+  }
+  await page.close();
+}
+
 // Tags de sessão depois do register
 const expectedRole = { admin: 'admin', display: 'display', legend: 'legend', timer: 'timer', left: 'left', center: 'center', right: 'right' };
 for (const [name, { page }] of Object.entries(opened)) {

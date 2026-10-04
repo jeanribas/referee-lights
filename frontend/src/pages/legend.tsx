@@ -235,7 +235,11 @@ export default function LegendPage() {
 
   const handleCopyShareLink = useCallback(async () => {
     if (typeof window === 'undefined' || !shareLink) return;
-    const absoluteShareLink = `${window.location.origin}${shareLink}`;
+    // Endereço de rede vindo do painel (outro computador/OBS não alcança
+    // "localhost"); só aceita uma origem http(s) simples.
+    const requested = typeof router.query.shareOrigin === 'string' ? router.query.shareOrigin : '';
+    const origin = /^https?:\/\/[^/?#\s]+$/.test(requested) ? requested : window.location.origin;
+    const absoluteShareLink = `${origin}${shareLink}`;
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(absoluteShareLink);
@@ -252,7 +256,7 @@ export default function LegendPage() {
     } catch {
       setCopiedShareLink(false);
     }
-  }, [shareLink]);
+  }, [shareLink, router.query.shareOrigin]);
 
   const handleSaveLegendConfig = useCallback(() => {
     if (typeof window === 'undefined' || isShareView) return;
