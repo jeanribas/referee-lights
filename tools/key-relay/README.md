@@ -96,4 +96,4 @@ Caso a rede bloqueie o acesso direto, abra as portas necessárias ou use o mesmo
 
 ## Incluindo no pacote Windows
 
-Ao montar o bundle descrito em `docs/windows-package.md`, copie a pasta `tools/key-relay` e distribua junto. O operador só precisa abrir `start.bat`. Certifique-se de que o PowerShell tenha permissão para usar `WScript.Shell`.
+Ao montar o bundle, copie a pasta `tools/key-relay` e distribua junto. O operador só precisa abrir `start.bat`. Certifique-se de que o PowerShell tenha permissão para usar `WScript.Shell`.
