@@ -1,7 +1,10 @@
 # Bundle Windows: build NATIVO no Windows + teste automatizado do zip.
 # Linha do bundle = release/* (hoje release/1.3; nunca main).
 #
-#  - push/PR em release/**  -> checks + build + testes (artefato fica 14 dias)
+#  - push/PR em release/**  -> checks + build (zip E RefereeLights.exe) +
+#                               testes do zip + testes do exe + soak de
+#                               média duração com todas as telas
+#                               (artefatos ficam 14 dias)
 #  - workflow_dispatch       -> idem; com publish_teste=true atualiza o
 #                               pre-release ROLANTE `teste` (sem versão nova).
 #  Tag de versão / Latest continua MANUAL, só após teste humano aprovar.
@@ -16,9 +19,13 @@ on:
   workflow_dispatch:
     inputs:
       publish_teste:
-        description: 'Publicar o zip testado no pre-release rolante "teste"'
+        description: 'Publicar zip + exe testados no pre-release rolante "teste"'
         type: boolean
         default: false
+      soak_minutes:
+        description: 'Duração do soak (minutos)'
+        type: string
+        default: '25'
 
 permissions:
   contents: read
@@ -54,6 +61,17 @@ jobs:
           npm ci
           npx tsc --noEmit
           npm run lint
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: tools/windows/launcher/go.mod
+          cache-dependency-path: tools/windows/launcher/go.sum
+      - name: Lançador (Go) — testes e vet para Windows
+        working-directory: tools/windows/launcher
+        run: |
+          test -z "$(gofmt -l .)" || { gofmt -l .; echo "::error::gofmt"; exit 1; }
+          go test ./...
+          touch payload.tar.zst
+          GOOS=windows GOARCH=amd64 go vet ./...
 
   build:
     needs: checks
@@ -72,6 +90,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ steps.nodever.outputs.v }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: tools/windows/launcher/go.mod
+          cache-dependency-path: tools/windows/launcher/go.sum
 
       - name: Guard — só release/*
         shell: bash
@@ -97,7 +120,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: referee-lights-windows
-          path: dist/referee-lights-windows.zip
+          path: |
+            dist/referee-lights-windows.zip
+            dist/RefereeLights.exe
           retention-days: 14
 
   test:
@@ -217,10 +242,101 @@ jobs:
         shell: pwsh
         run: Get-ChildItem -LiteralPath (Join-Path $env:BUNDLE_DIR 'server\data') -ErrorAction SilentlyContinue
 
+  test-exe:
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Playwright (só para os testes)
+        working-directory: frontend
+        shell: pwsh
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install chromium
+      - uses: actions/download-artifact@v4
+        with:
+          name: referee-lights-windows
+          path: dist
+      - name: Extrair o zip (dados "antigos" para a migração)
+        shell: pwsh
+        run: Expand-Archive -LiteralPath dist/referee-lights-windows.zip -DestinationPath "$env:RUNNER_TEMP\zip-antigo" -Force
+      # Exe em pasta com espaço/acento, LOCALAPPDATA isolado: migração do zip,
+      # smoke/segurança/UI na 3000, nenhuma janela de console (inclusive o
+      # PowerShell do Key Relay), instância única, node morto → reerguido,
+      # canal de erros do lançador, --quit libera a porta, Job Object, porta
+      # ocupada → 3001.
+      - name: RefereeLights.exe — bateria completa
+        shell: pwsh
+        run: node tools/windows/ci/run-exe-e2e.mjs dist/RefereeLights.exe "$env:RUNNER_TEMP\zip-antigo"
+
+  soak:
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      SOAK_MINUTES: ${{ inputs.soak_minutes || '25' }}
+      LOCALAPPDATA_TEST: 'C:\Soak Árbitro\LocalAppData'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Playwright (só para os testes)
+        working-directory: frontend
+        shell: pwsh
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install chromium
+      - uses: actions/download-artifact@v4
+        with:
+          name: referee-lights-windows
+          path: dist
+      - name: Subir o RefereeLights.exe
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path $env:LOCALAPPDATA_TEST | Out-Null
+          $env:LOCALAPPDATA = $env:LOCALAPPDATA_TEST
+          $env:RL_NO_BROWSER = '1'
+          Start-Process -FilePath (Resolve-Path dist/RefereeLights.exe)
+          $deadline = (Get-Date).AddSeconds(90)
+          while ((Get-Date) -lt $deadline) {
+            try { if ((Invoke-WebRequest http://127.0.0.1:3000/admin -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200) { break } } catch { Start-Sleep 1 }
+          }
+          Invoke-WebRequest http://127.0.0.1:3000/health -UseBasicParsing | Out-Null
+      # Todas as telas num Chromium real pelo IP da LAN, decisões com cliques
+      # dos árbitros, timer/intervalo/legenda/idioma, node derrubado no meio
+      # (o lançador reergue), F5 em telas, memória do node e das telas.
+      - name: Soak (${{ env.SOAK_MINUTES }} min)
+        shell: pwsh
+        run: |
+          $ip = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } | Select-Object -First 1).IPAddress
+          $app = Get-ChildItem -Directory (Join-Path $env:LOCALAPPDATA_TEST 'RefereeLights\app') | Select-Object -First 1
+          node tools/windows/ci/soak.mjs "http://${ip}:3000" (Join-Path $app.FullName 'frontend') `
+            --minutes $env:SOAK_MINUTES `
+            --restart-cmd "powershell -NoProfile -ExecutionPolicy Bypass -File tools/windows/ci/kill-node.ps1" `
+            --server-log (Join-Path $env:LOCALAPPDATA_TEST 'RefereeLights\logs\server.log') `
+            --node-match 'RefereeLights\runtime' `
+            --report soak-report.json
+      - name: Relatório do soak
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: soak-report
+          path: soak-report.json
+          retention-days: 14
+      - name: Logs em caso de falha
+        if: failure()
+        shell: pwsh
+        run: Get-ChildItem (Join-Path $env:LOCALAPPDATA_TEST 'RefereeLights\logs') | ForEach-Object { Write-Host "--- $($_.Name)"; Get-Content $_.FullName -Tail 80 }
+
   publish-teste:
-    # Só manualmente, só release/*, só depois do teste passar. Nunca versão.
+    # Só manualmente, só release/*, só depois de TODOS os testes. Nunca versão.
     if: github.event_name == 'workflow_dispatch' && inputs.publish_teste && startsWith(github.ref_name, 'release/')
-    needs: [build, test]
+    needs: [build, test, test-exe, soak]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -233,6 +349,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete teste --yes --cleanup-tag -R "$GITHUB_REPOSITORY" 2>/dev/null || true
-          gh release create teste referee-lights-windows.zip -R "$GITHUB_REPOSITORY" \
+          # Duas formas juntas (R1): exe principal, zip como alternativa
+          gh release create teste RefereeLights.exe referee-lights-windows.zip -R "$GITHUB_REPOSITORY" \
             --prerelease --target "$GITHUB_SHA" --title "Build de teste" \
             --notes "Build ${GITHUB_SHA::7} de ${GITHUB_REF_NAME}, aprovado nos testes automáticos no Windows. Validação interna — não usar em competição."

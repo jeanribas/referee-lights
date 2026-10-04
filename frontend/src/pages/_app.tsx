@@ -56,7 +56,8 @@ export default function App({ Component, pageProps }: AppProps) {
       <ErrorBoundary>
         <Component {...pageProps} />
       </ErrorBoundary>
-      <Analytics />
+      {/* Analytics da Vercel só existe na Vercel: no pacote era um 404 por tela */}
+      {!IS_BUNDLE && <Analytics />}
       {!IS_BUNDLE && (
         <Script id="microsoft-clarity" strategy="afterInteractive">
           {SESSION_SNIPPET}

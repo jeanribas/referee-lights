@@ -286,7 +286,11 @@ export class Telemetry {
         return;
       }
       fs.mkdirSync(path.dirname(QUEUE_FILE), { recursive: true });
-      fs.writeFileSync(QUEUE_FILE, JSON.stringify({ events: this.events, samples: this.samples }));
+      // Atômico (temporário + rename): processo encerrado no meio da escrita
+      // deixava o arquivo truncado e a fila inteira era descartada.
+      const tmp = `${QUEUE_FILE}.${process.pid}.tmp`;
+      fs.writeFileSync(tmp, JSON.stringify({ events: this.events, samples: this.samples }));
+      fs.renameSync(tmp, QUEUE_FILE);
     } catch {
       // sem disco disponível: segue só com a fila em memória
     }
