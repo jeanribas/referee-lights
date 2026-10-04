@@ -138,7 +138,7 @@ export default function WindowsPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 1, minWidth: 0 }}>
               <LanguageSelector />
               <a
-                href="https://github.com/jeanribas/referee-lights/releases/latest/download/referee-lights-windows.zip"
+                href="https://github.com/jeanribas/referee-lights/releases/latest/download/RefereeLights.exe"
                 style={{
                   background: 'linear-gradient(to right, #0ea5e9, #6366f1, #3b82f6)',
                   color: '#fff',
@@ -286,7 +286,7 @@ export default function WindowsPage() {
         {/* CTA */}
         <section style={{ padding: '48px 24px 64px', textAlign: 'center' }}>
           <a
-            href="https://github.com/jeanribas/referee-lights/releases/latest/download/referee-lights-windows.zip"
+            href="https://github.com/jeanribas/referee-lights/releases/latest/download/RefereeLights.exe"
             style={{
               background: 'linear-gradient(to right, #0ea5e9, #6366f1, #3b82f6)',
               color: '#fff',
@@ -300,6 +300,11 @@ export default function WindowsPage() {
           >
             {t.cta}
           </a>
+          <div style={{ marginTop: 16 }}>
+            <a href="https://github.com/jeanribas/referee-lights/releases/latest/download/referee-lights-windows.zip" style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
+              {t.ctaAlt}
+            </a>
+          </div>
         </section>
 
         {/* Footer */}
