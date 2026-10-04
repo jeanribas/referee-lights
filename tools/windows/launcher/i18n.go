@@ -6,7 +6,8 @@ import "strings"
 type texts struct {
 	Tooltip, OpenPanel, Addresses, NoAddress, CopyHint, Copied, ViewLogs, Firewall,
 	ImportData, ImportPick, ImportDone, ImportFail, RemoveData, RemoveConfirm1, RemoveConfirm2,
-	Quit, PortChanged, CrashLoop, StartFailed, Migrated, AlreadyRunning string
+	Quit, PortChanged, CrashLoop, StartFailed, Migrated, AlreadyRunning,
+	UpdateCheck, UpdateInstall, UpdatePrompt, UpdateNone, UpdateDeferred, UpdateFailed string
 }
 
 var allTexts = map[string]texts{
@@ -31,6 +32,12 @@ var allTexts = map[string]texts{
 		CrashLoop:      "O servidor do Referee Lights caiu várias vezes seguidas.\n\nVeja os logs em:\n%s",
 		StartFailed:    "Não foi possível iniciar o Referee Lights:\n%s\n\nLogs em:\n%s",
 		Migrated:       "Dados da versão antiga importados de:\n%s",
+		UpdateCheck:    "Verificar atualização",
+		UpdateInstall:  "Instalar versão %s",
+		UpdatePrompt:   "Nova versão do Referee Lights: %s\n\n%s\n\nSim = atualizar agora (leva alguns segundos)\nNão = depois\nCancelar = pular esta versão",
+		UpdateNone:     "Você já está na versão mais recente (%s).",
+		UpdateDeferred: "Há uma competição em andamento. A versão %s será instalada quando o Referee Lights for fechado.",
+		UpdateFailed:   "Não foi possível verificar ou baixar a atualização:\n%s",
 	},
 	"en": {
 		Tooltip:        "Referee Lights",
@@ -53,6 +60,12 @@ var allTexts = map[string]texts{
 		CrashLoop:      "The Referee Lights server crashed several times in a row.\n\nSee the logs at:\n%s",
 		StartFailed:    "Could not start Referee Lights:\n%s\n\nLogs at:\n%s",
 		Migrated:       "Data from the old version imported from:\n%s",
+		UpdateCheck:    "Check for updates",
+		UpdateInstall:  "Install version %s",
+		UpdatePrompt:   "New Referee Lights version: %s\n\n%s\n\nYes = update now (takes a few seconds)\nNo = later\nCancel = skip this version",
+		UpdateNone:     "You already have the latest version (%s).",
+		UpdateDeferred: "A competition is in progress. Version %s will be installed when Referee Lights is closed.",
+		UpdateFailed:   "Could not check or download the update:\n%s",
 	},
 	"es": {
 		Tooltip:        "Referee Lights",
@@ -75,6 +88,12 @@ var allTexts = map[string]texts{
 		CrashLoop:      "El servidor de Referee Lights se cayó varias veces seguidas.\n\nRevisa los registros en:\n%s",
 		StartFailed:    "No se pudo iniciar Referee Lights:\n%s\n\nRegistros en:\n%s",
 		Migrated:       "Datos de la versión anterior importados de:\n%s",
+		UpdateCheck:    "Buscar actualización",
+		UpdateInstall:  "Instalar versión %s",
+		UpdatePrompt:   "Nueva versión de Referee Lights: %s\n\n%s\n\nSí = actualizar ahora (tarda unos segundos)\nNo = después\nCancelar = omitir esta versión",
+		UpdateNone:     "Ya tienes la versión más reciente (%s).",
+		UpdateDeferred: "Hay una competencia en curso. La versión %s se instalará al cerrar Referee Lights.",
+		UpdateFailed:   "No se pudo buscar o descargar la actualización:\n%s",
 	},
 }
 

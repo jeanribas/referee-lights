@@ -7,7 +7,11 @@
 #                               (artefatos ficam 14 dias)
 #  - workflow_dispatch       -> idem; com publish_teste=true atualiza o
 #                               pre-release ROLANTE `teste` (sem versão nova).
-#  Tag de versão / Latest continua MANUAL, só após teste humano aprovar.
+#  - workflow_dispatch com release_version=X.Y.Z -> build no canal "stable",
+#                               TODOS os testes e, passando, a tag vX.Y.Z vira
+#                               a Latest (exe + zip + manifesto estável
+#                               assinado). Só depois do teste manual aprovar o
+#                               build "teste" do mesmo commit.
 name: windows-bundle
 
 on:
@@ -22,6 +26,14 @@ on:
         description: 'Publicar zip + exe testados no pre-release rolante "teste"'
         type: boolean
         default: false
+      release_version:
+        description: 'Versão estável a publicar como Latest (ex.: 1.4.0). Vazio = build de teste.'
+        type: string
+        default: ''
+      release_notes_pt:
+        description: 'Novidades (pt) para a release e o aviso de atualização'
+        type: string
+        default: ''
       soak_minutes:
         description: 'Duração do soak (minutos)'
         type: string
@@ -111,7 +123,16 @@ jobs:
           NEXT_PUBLIC_API_URL: ''
           NEXT_PUBLIC_WS_URL: ''
           BUNDLE_VERIFY_RUNTIME: '0'
+          # Canal embutido no exe: "stable" só no build de release
+          RL_CHANNEL: ${{ inputs.release_version != '' && 'stable' || 'teste' }}
         run: node tools/windows/build-package.mjs
+
+      - name: Versão do build = versão pedida (release)
+        if: inputs.release_version != ''
+        shell: bash
+        run: |
+          got=$(node -p "require('./dist/build-info.json').version")
+          [ "$got" = "${{ inputs.release_version }}" ] || { echo "::error::server/package.json está em $got, release pedida ${{ inputs.release_version }}"; exit 1; }
 
       - name: Lockfiles intactos (build não pode reescrever dependências)
         shell: bash
@@ -123,6 +144,7 @@ jobs:
           path: |
             dist/referee-lights-windows.zip
             dist/RefereeLights.exe
+            dist/build-info.json
           retention-days: 14
 
   test:
@@ -273,6 +295,33 @@ jobs:
         shell: pwsh
         run: node tools/windows/ci/run-exe-e2e.mjs dist/RefereeLights.exe "$env:RUNNER_TEMP\zip-antigo"
 
+  test-update:
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: tools/windows/launcher/go.mod
+          cache-dependency-path: tools/windows/launcher/go.sum
+      - uses: actions/download-artifact@v4
+        with:
+          name: referee-lights-windows
+          path: dist
+      - name: Extrair o zip (conteúdo das versões de teste)
+        shell: pwsh
+        run: Expand-Archive -LiteralPath dist/referee-lights-windows.zip -DestinationPath "$env:RUNNER_TEMP\pacote" -Force
+      # 1.90.0 → 1.91.0 (adiada com juiz conectado, depois trocada) → 1.92.0
+      # quebrada (volta sozinha para a 1.91.0); hash e assinatura adulterados
+      # recusados; sem manifesto o início não atrasa.
+      - name: Canal de atualização — ponta a ponta
+        shell: pwsh
+        run: node tools/windows/ci/run-update-e2e.mjs "$env:RUNNER_TEMP\pacote"
+
   soak:
     needs: build
     runs-on: windows-latest
@@ -335,21 +384,80 @@ jobs:
 
   publish-teste:
     # Só manualmente, só release/*, só depois de TODOS os testes. Nunca versão.
-    if: github.event_name == 'workflow_dispatch' && inputs.publish_teste && startsWith(github.ref_name, 'release/')
-    needs: [build, test, test-exe, soak]
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_teste && inputs.release_version == '' && startsWith(github.ref_name, 'release/')
+    needs: [build, test, test-exe, test-update, soak]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: tools/windows/launcher/go.mod
+          cache-dependency-path: tools/windows/launcher/go.sum
       - uses: actions/download-artifact@v4
         with:
           name: referee-lights-windows
+          path: dist
+      - name: Manifesto do canal "teste", assinado
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          node tools/windows/make-manifest.mjs --url "https://github.com/${GITHUB_REPOSITORY}/releases/download/teste/RefereeLights.exe" \
+            --notes-pt "Build de teste ${GITHUB_SHA::7}" --notes-en "Test build ${GITHUB_SHA::7}" --notes-es "Build de prueba ${GITHUB_SHA::7}"
+          (cd tools/windows/launcher && go run ./cmd/signmanifest -sign ../../../dist/manifest-teste.json)
       - name: Atualizar pre-release rolante "teste"
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete teste --yes --cleanup-tag -R "$GITHUB_REPOSITORY" 2>/dev/null || true
           # Duas formas juntas (R1): exe principal, zip como alternativa
-          gh release create teste RefereeLights.exe referee-lights-windows.zip -R "$GITHUB_REPOSITORY" \
+          cd dist
+          gh release create teste RefereeLights.exe referee-lights-windows.zip manifest-teste.json manifest-teste.json.sig -R "$GITHUB_REPOSITORY" \
             --prerelease --target "$GITHUB_SHA" --title "Build de teste" \
             --notes "Build ${GITHUB_SHA::7} de ${GITHUB_REF_NAME}, aprovado nos testes automáticos no Windows. Validação interna — não usar em competição."
+
+  publish-release:
+    # Versão estável (Latest): só manualmente, só release/*, só com TODOS os
+    # testes verdes no MESMO artefato que vai ser publicado.
+    if: github.event_name == 'workflow_dispatch' && inputs.release_version != '' && startsWith(github.ref_name, 'release/')
+    needs: [build, test, test-exe, test-update, soak]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ inputs.release_version }}
+      NOTES_PT: ${{ inputs.release_notes_pt }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: tools/windows/launcher/go.mod
+          cache-dependency-path: tools/windows/launcher/go.sum
+      - uses: actions/download-artifact@v4
+        with:
+          name: referee-lights-windows
+          path: dist
+      - name: Manifesto estável, assinado
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          test "$(node -p "require('./dist/build-info.json').channel")" = stable
+          notes="${NOTES_PT:-Versão $VERSION}"
+          node tools/windows/make-manifest.mjs --url "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/RefereeLights.exe" \
+            --notes-pt "$notes" --notes-en "Version $VERSION" --notes-es "Versión $VERSION"
+          (cd tools/windows/launcher && go run ./cmd/signmanifest -sign ../../../dist/manifest-stable.json)
+      - name: Release vX.Y.Z (Latest)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "v$VERSION" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::v$VERSION já existe: versão não se reaproveita"; exit 1
+          fi
+          cd dist
+          gh release create "v$VERSION" RefereeLights.exe referee-lights-windows.zip manifest-stable.json manifest-stable.json.sig \
+            -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --latest --title "Referee Lights $VERSION" \
+            --notes "${NOTES_PT:-Referee Lights $VERSION}
+
+          **RefereeLights.exe** — baixe e abra (sem instalar). Se o Windows avisar, clique em *Mais informações* → *Executar assim mesmo*.
+          **referee-lights-windows.zip** — versão alternativa: extraia e abra o Iniciar.cmd."

@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+func listenLoopback() (net.Listener, error) { return net.Listen("tcp", "127.0.0.1:0") }
+
 // Porta: 3000 por padrão; ocupada → 3001…3010. A escolhida fica gravada em
 // data\launcher.json e é a primeira tentada da próxima vez (QR impresso
 // continua valendo).
@@ -19,6 +21,12 @@ const (
 
 type launcherState struct {
 	Port int `json:"port"`
+	// Atualizador
+	LastGood        string `json:"lastGood,omitempty"`
+	PendingVersion  string `json:"pendingVersion,omitempty"`
+	PreviousVersion string `json:"previousVersion,omitempty"`
+	BadVersion      string `json:"badVersion,omitempty"`
+	SkipVersion     string `json:"skipVersion,omitempty"`
 }
 
 func statePath(p Paths) string { return filepath.Join(p.Data, "launcher.json") }
@@ -67,8 +75,9 @@ func choosePort(p Paths, free func(int) bool) (int, bool, error) {
 	}
 	for _, port := range candidates {
 		if free(port) {
-			if port != preferred || loadState(p).Port != port {
-				_ = saveState(p, launcherState{Port: port})
+			if st := loadState(p); st.Port != port {
+				st.Port = port
+				_ = saveState(p, st)
 			}
 			return port, port != preferred, nil
 		}

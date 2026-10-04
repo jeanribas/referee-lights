@@ -6,6 +6,7 @@ import { Analytics } from '@vercel/analytics/react';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Seo } from '@/components/Seo';
+import { UpdateBanner } from '@/components/UpdateBanner';
 import { installGlobalErrorReporting } from '@/lib/error-report';
 import { inlineSameOriginStylesheets } from '@/lib/inline-css';
 
@@ -35,7 +36,7 @@ function useBundleInlineCss() {
   }, []);
 }
 
-export default function App({ Component, pageProps }: AppProps) {
+export default function App({ Component, pageProps, router }: AppProps) {
   useBundleInlineCss();
   useEffect(() => {
     installGlobalErrorReporting();
@@ -56,6 +57,7 @@ export default function App({ Component, pageProps }: AppProps) {
       <ErrorBoundary>
         <Component {...pageProps} />
       </ErrorBoundary>
+      {IS_BUNDLE && router.pathname === '/admin' && <UpdateBanner />}
       {/* Analytics da Vercel só existe na Vercel: no pacote era um 404 por tela */}
       {!IS_BUNDLE && <Analytics />}
       {!IS_BUNDLE && (

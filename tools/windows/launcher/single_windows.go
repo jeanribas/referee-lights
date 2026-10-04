@@ -19,8 +19,11 @@ const (
 func acquireSingleInstance() (already bool, err error) {
 	name, _ := windows.UTF16PtrFromString(mutexName)
 	// O handle fica aberto até o processo terminar (o Windows libera)
-	_, err = windows.CreateMutex(nil, false, name)
+	h, err := windows.CreateMutex(nil, false, name)
 	if errors.Is(err, windows.ERROR_ALREADY_EXISTS) {
+		// Fecha: um handle aberto aqui manteria o mutex vivo depois que a
+		// outra instância saísse (troca de versão espera por isso)
+		windows.CloseHandle(h)
 		return true, nil
 	}
 	return false, err

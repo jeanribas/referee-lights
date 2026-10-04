@@ -22,6 +22,16 @@ export const config = {
   // Segredo por execução que o lançador do exe passa ao server: libera as
   // rotas /__launcher/* (só loopback). Vazio = rotas inexistentes.
   LAUNCHER_TOKEN: process.env.LAUNCHER_TOKEN ?? '',
+  // Endereço de controle do lançador (127.0.0.1:<porta>), para o aviso de
+  // atualização no /admin. Vazio = pacote zip (sem atualizador).
+  LAUNCHER_CONTROL_URL: process.env.LAUNCHER_CONTROL_URL ?? '',
+  // Atividade nos últimos N minutos conta como competição em andamento
+  BUSY_ACTIVITY_MINUTES: Number(process.env.BUSY_ACTIVITY_MINUTES ?? 15),
+  // Pacote zip: consulta a versão estável publicada para avisar no /admin
+  UPDATE_MANIFEST_URL:
+    process.env.UPDATE_MANIFEST_URL ??
+    'https://github.com/jeanribas/referee-lights/releases/latest/download/manifest-stable.json',
+  UPDATE_CHECK: (process.env.UPDATE_CHECK ?? 'true') === 'true',
   TELEMETRY_URL: process.env.TELEMETRY_URL ?? 'https://api-luzes-ipf.assist.com.br',
   TELEMETRY_ENABLED: (process.env.TELEMETRY_ENABLED ?? 'true') === 'true',
   KEY_RELAY_AVAILABLE: (process.env.KEY_RELAY_AVAILABLE ?? 'false') === 'true',

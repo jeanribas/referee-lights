@@ -211,6 +211,20 @@ export class RoomManager {
     });
   }
 
+  /**
+   * Ocupado = competição em andamento: algum árbitro conectado ou atividade
+   * recente em alguma sala. O atualizador do exe nunca troca de versão assim.
+   */
+  busyState(activityWindowMs: number): { busy: boolean; reason: string } {
+    const now = Date.now();
+    for (const room of this.rooms.values()) {
+      const { connected } = room.state.getSnapshot();
+      if (connected.left || connected.center || connected.right) return { busy: true, reason: `judge_connected:${room.id}` };
+      if (now - room.lastActivityAt < activityWindowMs) return { busy: true, reason: `recent_activity:${room.id}` };
+    }
+    return { busy: false, reason: '' };
+  }
+
   roomCount(): number {
     return this.rooms.size;
   }
