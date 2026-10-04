@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { config } from './config.js';
 
-const ID_FILE = path.resolve('data', 'instance.id');
+const ID_FILE = path.join(config.DATA_DIR, 'instance.id');
 
 export function getInstanceId(): string {
   try {

@@ -4,7 +4,9 @@ import Script from 'next/script';
 import { useEffect } from 'react';
 import { Analytics } from '@vercel/analytics/react';
 
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Seo } from '@/components/Seo';
+import { installGlobalErrorReporting } from '@/lib/error-report';
 import { inlineSameOriginStylesheets } from '@/lib/inline-css';
 
 import '@/styles/globals.css';
@@ -35,6 +37,9 @@ function useBundleInlineCss() {
 
 export default function App({ Component, pageProps }: AppProps) {
   useBundleInlineCss();
+  useEffect(() => {
+    installGlobalErrorReporting();
+  }, []);
   return (
     <>
       <Head>
@@ -48,7 +53,9 @@ export default function App({ Component, pageProps }: AppProps) {
         <link rel="apple-touch-icon" href="/images/icon-192.png" />
       </Head>
       <Seo />
-      <Component {...pageProps} />
+      <ErrorBoundary>
+        <Component {...pageProps} />
+      </ErrorBoundary>
       <Analytics />
       {!IS_BUNDLE && (
         <Script id="microsoft-clarity" strategy="afterInteractive">

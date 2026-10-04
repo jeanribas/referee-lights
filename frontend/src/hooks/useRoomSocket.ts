@@ -3,6 +3,7 @@ import { io, Socket } from 'socket.io-client';
 
 import { tagSession } from '@/lib/session-tags';
 import { getWsUrl } from '@/lib/config';
+import { reportClientError } from '@/lib/error-report';
 import { AppState, CardValue, ClientRole, LegendConfig, VoteValue } from '@/types/state';
 import type { AppLocale } from '@/lib/i18n/config';
 
@@ -69,7 +70,12 @@ export function useRoomSocket(role: ClientRole, options: UseRoomSocketOptions = 
       host: typeof window !== 'undefined' ? window.location.hostname : ''
     };
 
+    // Falhas seguidas de conexão (servidor fora do ar, firewall, porta
+    // errada) são reportadas uma vez quando passam do limite.
+    let failedAttempts = 0;
+
     socket.on('connect', () => {
+      failedAttempts = 0;
       setStatus('connected');
       socket.emit('client:register', registerPayload, (response: AckResponse) => {
         if ('error' in response) {
@@ -89,6 +95,10 @@ export function useRoomSocket(role: ClientRole, options: UseRoomSocketOptions = 
     socket.on('connect_error', (err: Error) => {
       setStatus('disconnected');
       setError(err.message);
+      failedAttempts += 1;
+      if (failedAttempts === 5) {
+        reportClientError({ kind: 'socket_connect_loop', message: `${role}: ${err.message}` });
+      }
     });
 
     socket.on('state:update', (snapshot: AppState) => {

@@ -1,10 +1,18 @@
+// Pacote Windows: API, socket e páginas no mesmo processo e na mesma porta —
+// tudo na origem da própria página. Fora dele (dev local), API na :3333.
+const SAME_ORIGIN = process.env.NEXT_PUBLIC_BUNDLE_TARGET === 'windows';
+
 const DEFAULT_WS = typeof window === 'undefined'
   ? 'http://localhost:3333'
-  : `${window.location.protocol === 'https:' ? 'https' : 'http'}://${window.location.hostname}:3333`;
+  : SAME_ORIGIN
+    ? window.location.origin
+    : `${window.location.protocol === 'https:' ? 'https' : 'http'}://${window.location.hostname}:3333`;
 
 const DEFAULT_API = typeof window === 'undefined'
   ? 'http://localhost:3333'
-  : `${window.location.protocol}//${window.location.hostname}:3333`;
+  : SAME_ORIGIN
+    ? window.location.origin
+    : `${window.location.protocol}//${window.location.hostname}:3333`;
 
 const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1']);
 

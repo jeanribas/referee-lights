@@ -4,12 +4,14 @@
 // frontend é varrido por "Cannot find module", ENOENT, MODULE_NOT_FOUND...).
 //
 // Uso: node run-bundle-e2e.mjs <pastaDoPacote> [--node <node.exe>] [--skip-ui]
-//   Portas 3333 (API) e 3000 (frontend) precisam estar livres — o client do
-//   pacote fala com <host>:3333, como no Windows.
-// Nunca fala com produção: envio externo desligado, e no teste da fila local o
-// destino é 127.0.0.1:9 (porta fechada).
+//   Um processo só (API + socket + telas) na porta 3000, que precisa estar
+//   livre — como no Windows.
+// Nunca fala com produção: envio externo desligado; nos testes da fila local e
+// do canal de erros o destino é 127.0.0.1:9 (porta fechada) ou um receptor
+// local deste script.
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
+import http from 'node:http';
 import { rm } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
@@ -20,15 +22,15 @@ const bundleDir = path.resolve(process.argv[2] ?? '');
 const argv = process.argv.slice(3);
 const nodeBin = argv.includes('--node') ? argv[argv.indexOf('--node') + 1] : process.execPath;
 const skipUi = argv.includes('--skip-ui');
-const API = 'http://127.0.0.1:3333';
-const WEB = 'http://127.0.0.1:3000';
+const API = 'http://127.0.0.1:3000';
+const WEB = API;
 const serverDir = path.join(bundleDir, 'server');
 const frontendDir = path.join(bundleDir, 'frontend');
 
 const BAD_LOG = /Cannot find module|MODULE_NOT_FOUND|ERR_MODULE_NOT_FOUND|ENOENT|ERR_DLOPEN_FAILED|Failed to open database|uncaughtException|unhandledRejection|socket_handler_error/i;
 
 const procs = [];
-const logs = { server: '', frontend: '' };
+const logs = { server: '' };
 
 function start(name, cwd, script, env) {
   const child = spawn(nodeBin, [script], {
@@ -61,7 +63,7 @@ async function waitOk(url, seconds) {
     } catch { /* subindo */ }
     await new Promise((r) => setTimeout(r, 300));
   }
-  throw new Error(`timeout esperando ${url}\n--- server ---\n${logs.server.slice(-3000)}\n--- frontend ---\n${logs.frontend.slice(-3000)}`);
+  throw new Error(`timeout esperando ${url}\n--- server ---\n${logs.server.slice(-3000)}`);
 }
 
 function step(cmd, args, label) {
@@ -85,10 +87,9 @@ async function main() {
   await rm(path.join(serverDir, 'data'), { recursive: true, force: true });
 
   let server = start('server', serverDir, path.join('dist', 'index.js'), {});
-  start('frontend', frontendDir, 'server.js', { PORT: '3000', HOSTNAME: '0.0.0.0' });
   await waitOk(`${API}/health`, 60);
   await waitOk(`${WEB}/admin`, 60);
-  console.log(`OK pacote no ar (node ${execFileSync(nodeBin, ['--version']).toString().trim()})`);
+  console.log(`OK pacote no ar, API e telas na mesma porta (node ${execFileSync(nodeBin, ['--version']).toString().trim()})`);
 
   // SQLite: banco criado e gravado
   const db = path.join(serverDir, 'data', 'analytics.db');
@@ -107,6 +108,7 @@ async function main() {
   await stop(server);
   server = start('server', serverDir, path.join('dist', 'index.js'), {});
   await waitOk(`${API}/health`, 60);
+  await waitOk(`${WEB}/admin`, 60);
   const after = await post(`/rooms/${room.roomId}/access`, { adminPin: room.adminPin });
   assert(after.status === 200, `sala ${room.roomId} recuperada após restart (SQLite leitura) — HTTP ${after.status}`);
   assert(statSync(db).size > 0, 'SQLite com dados após restart');
@@ -124,7 +126,50 @@ async function main() {
   assert(existsSync(queue), 'fila local gravada em disco quando o destino está fora do ar');
   const q = JSON.parse(readFileSync(queue, 'utf8'));
   assert((q.events?.length ?? 0) + (q.samples?.length ?? 0) > 0, 'fila com eventos pendentes');
+
+  // Canal de erros das telas, sem internet: o erro entra na fila local
+  const uiErr = await fetch(`${API}/client-errors`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ kind: 'TypeError', message: 'erro forçado pelo teste (offline)', screen: 'admin', roomId: room.roomId })
+  });
+  assert(uiErr.status === 204, `POST /client-errors aceito (HTTP ${uiErr.status})`);
   await stop(server);
+  const queued = JSON.parse(readFileSync(queue, 'utf8')).events ?? [];
+  assert(queued.some((e) => e.event === 'error' && e.data?.origin === 'ui' && e.data?.kind === 'TypeError'),
+    'erro da tela guardado na fila local enquanto offline');
+
+  // Internet de volta: receptor local no lugar da API central. A fila
+  // (incluindo o erro da tela) precisa ser reenviada.
+  const received = [];
+  const receiver = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (d) => { body += d; });
+    req.on('end', () => {
+      try { if (req.url === '/telemetry/events') received.push(...(JSON.parse(body).events ?? [])); } catch { /* ignora */ }
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{"ok":true}');
+    });
+  });
+  await new Promise((r) => receiver.listen(0, '127.0.0.1', r));
+  const receiverUrl = `http://127.0.0.1:${receiver.address().port}`;
+  server = start('server', serverDir, path.join('dist', 'index.js'), { TELEMETRY_ENABLED: 'true', TELEMETRY_URL: receiverUrl });
+  await waitOk(`${API}/health`, 60);
+  await fetch(`${API}/client-errors`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ kind: 'RangeError', message: 'erro forçado pelo teste (online)', screen: 'ref/left' })
+  });
+  const sentBy = Date.now() + 45_000;
+  const hasUi = (kind) => received.some((e) => e.event === 'error' && e.data?.origin === 'ui' && e.data?.kind === kind);
+  while (!(hasUi('TypeError') && hasUi('RangeError')) && Date.now() < sentBy) await new Promise((r) => setTimeout(r, 500));
+  assert(hasUi('TypeError'), 'erro da tela guardado offline foi reenviado quando a conexão voltou');
+  assert(hasUi('RangeError'), 'erro da tela enviado direto quando há conexão');
+  const uiEvent = received.find((e) => e.data?.kind === 'RangeError');
+  assert(uiEvent.data.screen === 'ref/left' && typeof uiEvent.data.appVersion === 'string' && uiEvent.data.appVersion,
+    'erro da tela leva tela e versão do app');
+  await stop(server);
+  receiver.close();
   // Volta ao modo desligado para o resto
   server = start('server', serverDir, path.join('dist', 'index.js'), {});
   await waitOk(`${API}/health`, 60);

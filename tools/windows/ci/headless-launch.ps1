@@ -2,6 +2,7 @@
 # Gera uma cópia do Iniciar.cmd sem o "pause" final, sem o taskkill que vem
 # depois dele e sem abrir o navegador — o resto (cd /d "%~dp0", PATH com o
 # node embutido, start /min ... cmd /k, detecção de IP) roda igual.
+# Um processo só: API, socket e telas na porta 3000.
 # Uso: pwsh headless-launch.ps1 -BundleDir "C:\...\Referee Lights"
 param([Parameter(Mandatory = $true)][string]$BundleDir)
 $ErrorActionPreference = 'Stop'
@@ -40,5 +41,5 @@ function Wait-Url([string]$url, [int]$seconds) {
   throw "Timeout esperando $url"
 }
 
-Write-Host "server  /health  -> $(Wait-Url 'http://127.0.0.1:3333/health' 60)"
-Write-Host "frontend /admin  -> $(Wait-Url 'http://127.0.0.1:3000/admin' 60)"
+Write-Host "api     /health  -> $(Wait-Url 'http://127.0.0.1:3000/health' 60)"
+Write-Host "telas   /admin   -> $(Wait-Url 'http://127.0.0.1:3000/admin' 60)"

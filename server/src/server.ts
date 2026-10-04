@@ -18,6 +18,7 @@ import { AnalyticsStore } from './analytics.js';
 import { config } from './config.js';
 import { resolveClientIp } from './client-ip.js';
 import { KeyRelay } from './key-relay.js';
+import { attachFrontend } from './next-host.js';
 import { failureBlocked, rateLimitOk, recordFailure } from './rate-limit.js';
 import { generateMasterToken, validateCredentials, verifyMasterToken } from './master-auth.js';
 import { RoomManager } from './rooms.js';
@@ -369,7 +370,7 @@ export async function createServer() {
         try {
           handler(...args);
         } catch (error) {
-          telemetry.trackError(`socket ${event}`, String((error as Error)?.message ?? error));
+          telemetry.trackError(`socket ${event}`, String((error as Error)?.message ?? error), errorDetails(error));
           app.log.error({ err: error, event }, 'socket_handler_error');
         }
       }) as never);
@@ -847,10 +848,38 @@ export async function createServer() {
     return { ok: true };
   });
 
+  // Erros das telas (window.onerror, promessas rejeitadas, Error Boundary,
+  // socket que não reconecta). Entram pelo mesmo canal e fila offline dos
+  // erros do servidor. Sem dados pessoais: mensagem, stack resumido, tela,
+  // código da sala e navegador.
+  app.post('/client-errors', { bodyLimit: 8 * 1024 }, async (request, reply) => {
+    if (!rateLimitOk(`clienterr:${extractIp(request)}`, 20, 60_000)) {
+      reply.code(429);
+      return { error: 'rate_limited' };
+    }
+    const body = request.body;
+    if (!isRecord(body) || typeof body.message !== 'string' || !body.message) {
+      reply.code(400);
+      return { error: 'invalid_payload' };
+    }
+    const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : undefined);
+    const screen = (str(body.screen, 32) ?? 'desconhecida').replace(/[^\w/-]/g, '');
+    telemetry.trackError(`ui ${screen}`, body.message, {
+      origin: 'ui',
+      kind: str(body.kind, 64) ?? 'Error',
+      stack: str(body.stack, 1000),
+      screen,
+      roomId: str(body.roomId, 16),
+      userAgent: str(request.headers['user-agent'], 200)
+    });
+    reply.code(204);
+    return null;
+  });
+
   // Erros são registrados: saber ONDE o app quebra em campo orienta
   // correções. Mantém a resposta padrão do Fastify.
   app.setErrorHandler((error, request, reply) => {
-    telemetry.trackError(`http ${request.method} ${request.url}`, String((error as Error)?.message ?? error));
+    telemetry.trackError(`http ${request.method} ${request.url}`, String((error as Error)?.message ?? error), errorDetails(error));
     request.log.error(error);
     reply.send(error);
   });
@@ -859,15 +888,23 @@ export async function createServer() {
   if (!g.__rlProcessErrorHooks) {
     g.__rlProcessErrorHooks = true;
     process.on('uncaughtException', (err) => {
-      telemetry.trackError('uncaughtException', String((err as Error)?.message ?? err));
+      telemetry.trackError('uncaughtException', String((err as Error)?.message ?? err), errorDetails(err));
       telemetry.persistNow();
       console.error('[fatal]', err);
       process.exit(1);
     });
     process.on('unhandledRejection', (reason) => {
-      telemetry.trackError('unhandledRejection', String(reason));
+      telemetry.trackError('unhandledRejection', String(reason), errorDetails(reason));
       telemetry.persistNow();
     });
+  }
+
+  if (config.FRONTEND_DIR) {
+    await attachFrontend(app, config.FRONTEND_DIR, config.PORT, (error, url) => {
+      telemetry.trackError(`next ${url.split('?')[0]}`, String((error as Error)?.message ?? error), errorDetails(error));
+      app.log.error({ err: error, url }, 'next_handler_error');
+    });
+    app.log.info(`frontend servido na mesma porta (${config.FRONTEND_DIR})`);
   }
 
   return app;
@@ -963,6 +1000,14 @@ function isHexColor(value: unknown): value is string {
 
 
 type AckFn = (response: AckResponse) => void;
+
+/** Tipo (código ou classe) e stack resumido de um erro, para agrupar no master. */
+function errorDetails(error: unknown): { kind: string; stack?: string } {
+  const e = error as { code?: unknown; name?: unknown; stack?: unknown } | null;
+  const kind = typeof e?.code === 'string' ? e.code : typeof e?.name === 'string' ? e.name : typeof error;
+  const stack = typeof e?.stack === 'string' ? e.stack.split('\n').slice(0, 6).join('\n') : undefined;
+  return { kind, stack };
+}
 
 /**
  * O "ack" vem do cliente: qualquer um pode mandar um não-função no lugar do

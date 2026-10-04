@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { config } from './config.js';
 import { getInstanceId } from './instance-id.js';
 
 interface TelemetryEvent {
@@ -21,6 +22,15 @@ interface HeartbeatSample {
   uptimeSeconds: number;
   timestamp: string;
   stats: InstanceSnapshot | null;
+}
+
+export interface ErrorDetails {
+  origin?: 'server' | 'ui' | 'launcher';
+  kind?: string;
+  stack?: string;
+  screen?: string;
+  roomId?: string;
+  userAgent?: string;
 }
 
 export interface InstanceSnapshot {
@@ -51,7 +61,7 @@ export interface InstanceSnapshot {
  */
 const MAX_EVENTS = 1000;
 const MAX_SAMPLES = 500;
-const QUEUE_FILE = path.resolve('data', 'telemetry-queue.json');
+const QUEUE_FILE = path.join(config.DATA_DIR, 'telemetry-queue.json');
 
 export class Telemetry {
   private events: TelemetryEvent[] = [];
@@ -140,12 +150,22 @@ export class Telemetry {
     this.push('room_archived', { roomId });
   }
 
-  /** Erro de runtime — essencial para saber onde o app quebra em campo. */
-  trackError(context: string, message: string): void {
+  /**
+   * Erro de runtime — essencial para saber onde o app quebra em campo.
+   * `origin` separa servidor / tela / lançador; `kind` é a classe ou código do
+   * erro (TypeError, socket_disconnect_loop...) para agrupar no master.
+   */
+  trackError(context: string, message: string, extra: ErrorDetails = {}): void {
     this.push('error', {
       context: context.slice(0, 64),
       message: message.slice(0, 300),
-      appVersion: this.appVersion
+      appVersion: this.appVersion,
+      origin: extra.origin ?? 'server',
+      kind: (extra.kind ?? '').slice(0, 64),
+      ...(extra.stack ? { stack: extra.stack.slice(0, 1000) } : {}),
+      ...(extra.screen ? { screen: extra.screen.slice(0, 32) } : {}),
+      ...(extra.roomId ? { roomId: extra.roomId.slice(0, 16) } : {}),
+      ...(extra.userAgent ? { userAgent: extra.userAgent.slice(0, 200) } : {})
     });
     void this.flush();
   }
