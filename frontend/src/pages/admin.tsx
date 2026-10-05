@@ -941,24 +941,6 @@ function RoomSetup(props: {
       <div className="absolute inset-x-0 top-0 -z-10 h-80 bg-gradient-to-b from-indigo-500/30 via-transparent" />
       <div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[460px] w-[460px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-indigo-700/20 blur-3xl" />
 
-      {/* Mesmo lugar e estilo do seletor do painel da sala */}
-      <div className="absolute right-6 top-6 z-10">
-        <label htmlFor="setup-locale-select" className="sr-only">
-          {common.languageLabel}
-        </label>
-        <select
-          id="setup-locale-select"
-          value={locale}
-          onChange={onLocaleChange}
-          className="min-w-[8rem] rounded-xl border border-white/10 bg-[#1A2231] px-3 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white [color-scheme:dark] shadow-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
-        >
-          {localeOptions.map((option) => (
-            <option key={option.code} value={option.code} className="bg-[#1A2231] text-white">
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </div>
 
       <div
         ref={fitRef}
@@ -966,18 +948,39 @@ function RoomSetup(props: {
         className="w-full max-w-6xl space-y-10"
         style={fitScale < 1 ? { transform: `scale(${fitScale})`, transformOrigin: 'center center' } : undefined}
       >
-        {/* Mesma grade dos cartões: identidade sobre o cartão de criar,
-            explicação alinhada à borda do cartão de entrar */}
-        <header className="grid items-center gap-6 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] md:gap-10">
-          <div className="flex items-center gap-6">
-            <BrandLogo size={40} />
-            <div className="h-14 w-px shrink-0 bg-white/15" aria-hidden="true" />
-            <h1 className="min-w-0 text-4xl font-semibold leading-tight tracking-tight text-white md:text-[2.5rem]">
-              {messages.roomSetup.title}
-            </h1>
+        <div className="space-y-6">
+          {/* No fluxo (nunca sobre o texto), alinhado à borda direita dos
+              cartões; mesmo estilo do seletor do painel da sala */}
+          <div className="flex justify-end">
+            <label htmlFor="setup-locale-select" className="sr-only">
+              {common.languageLabel}
+            </label>
+            <select
+              id="setup-locale-select"
+              value={locale}
+              onChange={onLocaleChange}
+              className="min-w-[8rem] rounded-xl border border-white/10 bg-[#1A2231] px-3 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white [color-scheme:dark] shadow-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
+            >
+              {localeOptions.map((option) => (
+                <option key={option.code} value={option.code} className="bg-[#1A2231] text-white">
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
-          <p className="max-w-md text-[15px] leading-relaxed text-slate-400">{messages.roomSetup.description}</p>
-        </header>
+          {/* Mesma grade dos cartões: identidade sobre o cartão de criar,
+              explicação alinhada à borda do cartão de entrar */}
+          <header className="grid items-center gap-6 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] md:gap-10">
+            <div className="flex items-center gap-6">
+              <BrandLogo size={40} />
+              <div className="h-14 w-px shrink-0 bg-white/15" aria-hidden="true" />
+              <h1 className="min-w-0 text-4xl font-semibold leading-tight tracking-tight text-white md:text-[2.5rem]">
+                {messages.roomSetup.title}
+              </h1>
+            </div>
+            <p className="max-w-md text-[15px] leading-relaxed text-slate-400">{messages.roomSetup.description}</p>
+          </header>
+        </div>
 
         <section className="grid gap-10 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
           <article className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#101b2f] via-[#0d1728] to-[#091120] p-10 shadow-[0_26px_90px_rgba(6,11,24,0.6)]">
