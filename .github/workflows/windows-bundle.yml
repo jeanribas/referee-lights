@@ -289,8 +289,8 @@ jobs:
       # Exe em pasta com espaço/acento, LOCALAPPDATA isolado: migração do zip,
       # smoke/segurança/UI na 3000, nenhuma janela de console (inclusive o
       # PowerShell do Key Relay), instância única, node morto → reerguido,
-      # canal de erros do lançador, --quit libera a porta, Job Object, porta
-      # ocupada → 3001.
+      # canal de erros do lançador, --quit libera a porta e encerra as
+      # sessões, Job Object (salas continuam após queda), porta ocupada → 3001.
       - name: RefereeLights.exe — bateria completa
         shell: pwsh
         run: node tools/windows/ci/run-exe-e2e.mjs dist/RefereeLights.exe "$env:RUNNER_TEMP\zip-antigo"
@@ -315,7 +315,7 @@ jobs:
       - name: Extrair o zip (conteúdo das versões de teste)
         shell: pwsh
         run: Expand-Archive -LiteralPath dist/referee-lights-windows.zip -DestinationPath "$env:RUNNER_TEMP\pacote" -Force
-      # 1.90.0 → 1.91.0 (adiada com juiz conectado, depois trocada) → 1.92.0
+      # 1.90.0 → 1.91.0 (troca na hora com juiz conectado, sessões encerradas) → 1.92.0
       # quebrada (volta sozinha para a 1.91.0); hash e assinatura adulterados
       # recusados; sem manifesto o início não atrasa.
       - name: Canal de atualização — ponta a ponta

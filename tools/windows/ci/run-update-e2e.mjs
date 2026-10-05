@@ -7,8 +7,8 @@
 //   - "Atualizar agora" (pedido da pessoa) troca na hora, mesmo com juiz
 //     conectado: fecha tudo e encerra as sessões; instance.id preservado;
 //   - hash adulterado e assinatura de outra chave → recusados;
-//   - 1.92.0 quebrada → troca, não fica saudável em 60 s → volta a 1.91.0 e
-//     marca 1.92.0 como ruim (não é oferecida de novo).
+//   - 1.92.0 quebrada → troca, não fica saudável em 60 s → volta a 1.91.0
+//     (funcionando) e marca 1.92.0 como ruim (não é oferecida de novo).
 //
 // Uso: node run-update-e2e.mjs <pastaDoZipExtraído>
 // (fora do Windows roda o mesmo roteiro com um pacote de desenvolvimento
@@ -213,7 +213,9 @@ async function main() {
   await waitFor(() => state().badVersion === '1.92.0', 150_000, 'rollback marcou 1.92.0 como ruim');
   await waitFor(async () => (await healthy()) && (await updateView()).current === '1.91.0', 90_000, '1.91.0 de volta');
   assert(sha256(readFileSync(exe)) === sha256(readFileSync(v191)), 'RefereeLights.exe voltou a ser a 1.91.0');
-  assert((await post(`/rooms/${room2.roomId}/access`, { adminPin: room2.adminPin })).status === 200, 'sala continua após o rollback');
+  assert((await post(`/rooms/${room2.roomId}/access`, { adminPin: room2.adminPin })).status === 404, 'sessões encerradas pelo "Atualizar" da 1.92.0');
+  const room3 = (await post('/rooms')).body;
+  assert((await post(`/rooms/${room3.roomId}/access`, { adminPin: room3.adminPin })).status === 200, 'a 1.91.0 restaurada cria sala normalmente');
   await updateAction('check');
   await sleep(5000);
   assert((await updateView()).state === 'none', '1.92.0 não é oferecida de novo');
