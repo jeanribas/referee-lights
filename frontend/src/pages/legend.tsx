@@ -235,7 +235,11 @@ export default function LegendPage() {
 
   const handleCopyShareLink = useCallback(async () => {
     if (typeof window === 'undefined' || !shareLink) return;
-    const absoluteShareLink = `${window.location.origin}${shareLink}`;
+    // Endereço de rede vindo do painel (outro computador/OBS não alcança
+    // "localhost"); só aceita uma origem http(s) simples.
+    const requested = typeof router.query.shareOrigin === 'string' ? router.query.shareOrigin : '';
+    const origin = /^https?:\/\/[^/?#\s]+$/.test(requested) ? requested : window.location.origin;
+    const absoluteShareLink = `${origin}${shareLink}`;
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(absoluteShareLink);
@@ -252,7 +256,7 @@ export default function LegendPage() {
     } catch {
       setCopiedShareLink(false);
     }
-  }, [shareLink]);
+  }, [shareLink, router.query.shareOrigin]);
 
   const handleSaveLegendConfig = useCallback(() => {
     if (typeof window === 'undefined' || isShareView) return;
@@ -289,7 +293,7 @@ export default function LegendPage() {
       />
 
       <main
-        className="flex min-h-screen flex-col gap-8 px-[clamp(12px,3vw,30px)] py-[clamp(10px,2.6vh,30px)] text-slate-100"
+        className={`flex min-h-screen flex-col gap-[clamp(12px,3vh,32px)] px-[clamp(12px,3vw,30px)] py-[clamp(10px,2.6vh,30px)] text-slate-100 ${isShareView ? 'h-screen overflow-hidden' : ''}`}
         style={{ backgroundColor: bgColor }}
       >
         {!isShareView && (
@@ -428,7 +432,7 @@ export default function LegendPage() {
         )}
 
         <section className="flex flex-1 items-center justify-center">
-          <div className="flex w-full max-w-[1700px] flex-col items-center justify-center gap-[clamp(20px,8vh,100px)]">
+          <div className="flex w-full max-w-[1700px] flex-col items-center justify-center gap-[clamp(12px,5vh,80px)]">
             <div className="flex w-full justify-center">
               {state ? (
                 <div className={lightsFrameClassName}>
@@ -454,7 +458,8 @@ export default function LegendPage() {
             </div>
           </div>
         </section>
-        <div className="fixed bottom-2 left-1/2 -translate-x-1/2 opacity-60 hover:opacity-100 transition">
+        {/* No fluxo (não fixo): em telas baixas o rodapé ficava por cima do timer */}
+        <div data-legend-footer className="flex justify-center opacity-60 transition hover:opacity-100">
           <FooterBadges />
         </div>
       </main>
@@ -465,7 +470,8 @@ export default function LegendPage() {
 function LegendIntervalCard({ intervalLabel, color }: { intervalLabel: string; color: string }) {
   return (
     <div
-      className="font-display text-[clamp(3rem,14vw,9rem)] font-black leading-none tracking-tight"
+      data-legend-timer
+      className="font-display text-[clamp(3rem,min(14vw,15vh),9rem)] font-black leading-none tracking-tight"
       style={{ color }}
     >
       {intervalLabel}

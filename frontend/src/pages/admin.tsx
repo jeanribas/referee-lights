@@ -289,9 +289,17 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
     ];
   }, [adminMessages.qrMenu.targets.center, adminMessages.qrMenu.targets.left, adminMessages.qrMenu.targets.right, appOrigin, roomAccess, roomId]);
 
-  const displayLink = buildRoomViewHref('/display', roomId, adminPin);
-  const legendLink = buildRoomViewHref('/legend', roomId, adminPin);
-  const timerLink = buildRoomViewHref('/timer', roomId, adminPin);
+  // Display e timer costumam abrir em OUTRO computador: mesmo endereço de
+  // rede dos QR dos árbitros (com o painel em localhost, um link relativo
+  // levaria "localhost" para a outra máquina). A legenda abre aqui (prévia),
+  // mas o "copiar link" dela usa esse endereço (shareOrigin).
+  const displayLink = `${appOrigin}${buildRoomViewHref('/display', roomId, adminPin)}`;
+  const timerLink = `${appOrigin}${buildRoomViewHref('/timer', roomId, adminPin)}`;
+  const legendLink = useMemo(() => {
+    const href = buildRoomViewHref('/legend', roomId, adminPin);
+    if (!appOrigin) return href;
+    return `${href}${href.includes('?') ? '&' : '?'}shareOrigin=${encodeURIComponent(appOrigin)}`;
+  }, [appOrigin, roomId, adminPin]);
   const roomErrorMessage = formatApiError(roomErrorCode, commonMessages.errors);
   const socketErrorMessage = formatApiError(socketError, commonMessages.errors);
 
@@ -485,7 +493,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
         </header>
 
         <section className="grid min-h-0 w-full flex-1 gap-6 md:grid-cols-[320px_1fr]">
-          <aside className="flex flex-col gap-6 overflow-y-auto rounded-3xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-700">
+          <aside className="flex flex-col gap-4 overflow-y-auto rounded-3xl border border-slate-800 bg-slate-900/80 p-5 shadow-2xl [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-700">
             <div className="flex flex-col gap-4 rounded-2xl border border-slate-800 bg-[#0F141F] p-5">
               <h3 className={`text-xs font-semibold uppercase ${cardHeadingTracking} text-slate-300`}>
                 {adminMessages.timer.title}

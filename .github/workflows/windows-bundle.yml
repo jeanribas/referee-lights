@@ -370,6 +370,15 @@ jobs:
             --server-log (Join-Path $env:LOCALAPPDATA_TEST 'RefereeLights\logs\server.log') `
             --node-match 'RefereeLights\runtime' `
             --report soak-report.json
+      # Pressão nas telas dos árbitros: latência, rajadas de cliques, várias
+      # abas por juiz, F5 e queda de Wi-Fi (voto nunca pode sumir).
+      - name: Pressão nas telas dos árbitros (4 min)
+        shell: pwsh
+        run: |
+          $ip = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } | Select-Object -First 1).IPAddress
+          $app = Get-ChildItem -Directory (Join-Path $env:LOCALAPPDATA_TEST 'RefereeLights\app') | Select-Object -First 1
+          node tools/windows/ci/stress-ref.mjs "http://${ip}:3000" (Join-Path $app.FullName 'frontend') --minutes 4
+
       - name: Relatório do soak
         if: always()
         uses: actions/upload-artifact@v4

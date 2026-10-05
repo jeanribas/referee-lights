@@ -91,6 +91,60 @@ for (const [name, p] of Object.entries(pages)) {
   opened[name] = { page, errors, frames };
 }
 
+// Painel aberto em localhost (como no computador do servidor): os links do
+// display e do timer precisam levar o IP da rede, não "localhost" (abrem em
+// OUTRO computador). Regressão: link relativo herdava localhost.
+{
+  const page = await context.newPage();
+  const port = new URL(base).port || '80';
+  const local = `http://localhost:${port}`;
+  await context.route(`${local}/**`, (route) => route.continue());
+  await page.goto(`${local}${pages.admin}`, { waitUntil: 'load' });
+  await page.waitForFunction(() => [...document.querySelectorAll('a[href*="/display?"]')].some((a) => /^https?:\/\//.test(a.getAttribute('href') ?? '')), null, { timeout: 15_000 }).catch(() => undefined);
+  const hrefs = await page.evaluate(() => ['/display?', '/timer?'].map((p) => document.querySelector(`a[href*="${p}"]`)?.getAttribute('href') ?? ''));
+  for (const h of hrefs) {
+    let host = '';
+    try { host = new URL(h).hostname; } catch { /* relativo */ }
+    if (!host || ['localhost', '127.0.0.1'].includes(host)) failures.push(`admin em localhost: link "${h}" não leva o IP da rede`);
+  }
+  await page.close();
+}
+
+// Legenda em telas comuns (inclui a prévia dentro do painel, ~1150x790):
+// rodapé nunca por cima do timer; no modo de transmissão (OBS) tudo cabe.
+for (const [w, h] of [[1150, 790], [1280, 720], [1366, 768], [1920, 1080]]) {
+  for (const share of [false, true]) {
+    const page = await context.newPage();
+    await page.setViewportSize({ width: w, height: h });
+    await page.goto(`${base}${pages.legend}${share ? '&view=share' : ''}`, { waitUntil: 'load' });
+    await page.waitForSelector('[data-legend-timer]', { timeout: 15_000 }).catch(() => undefined);
+    const m = await page.evaluate(() => {
+      const t = document.querySelector('[data-legend-timer]')?.getBoundingClientRect();
+      const f = document.querySelector('[data-legend-footer]')?.getBoundingClientRect();
+      return t && f ? { tBottom: t.bottom, fTop: f.top, vh: innerHeight } : null;
+    });
+    const label = `legenda ${share ? 'transmissão' : 'controle'} ${w}x${h}`;
+    if (!m) failures.push(`${label}: timer/rodapé não encontrados`);
+    else {
+      if (m.fTop < m.tBottom) failures.push(`${label}: rodapé por cima do timer (rodapé ${m.fTop.toFixed(0)} < timer ${m.tBottom.toFixed(0)})`);
+      if (share && m.tBottom > m.vh) failures.push(`${label}: timer cortado (fundo ${m.tBottom.toFixed(0)} > ${m.vh})`);
+    }
+    await page.close();
+  }
+}
+
+// Coluna de controles do admin sem rolagem à toa nas resoluções comuns
+for (const [w, h] of [[1280, 720], [1366, 768], [1920, 1080]]) {
+  const page = await context.newPage();
+  await page.setViewportSize({ width: w, height: h });
+  await page.goto(`${base}${pages.admin}`, { waitUntil: 'load' });
+  await page.waitForSelector('aside', { timeout: 15_000 }).catch(() => undefined);
+  await page.waitForTimeout(800);
+  const extra = await page.evaluate(() => { const a = document.querySelector('aside'); return a ? a.scrollHeight - a.clientHeight : -1; });
+  if (extra > 0) failures.push(`admin ${w}x${h}: coluna de controles com rolagem (${extra}px a mais)`);
+  await page.close();
+}
+
 // Tags de sessão depois do register
 const expectedRole = { admin: 'admin', display: 'display', legend: 'legend', timer: 'timer', left: 'left', center: 'center', right: 'right' };
 for (const [name, { page }] of Object.entries(opened)) {
