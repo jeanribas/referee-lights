@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
+import { getMessages } from '../../src/lib/i18n/messages';
+
 const API_BASE_URL = process.env.E2E_API_URL ?? 'http://localhost:3333';
 
 interface RoomResponse {
@@ -28,7 +30,7 @@ test('platform smoke: sala criada, 5 clientes conectam e votos sincronizam', asy
   const adminPage = page;
   await adminPage.goto(`/admin?roomId=${payload.roomId}&pin=${payload.adminPin}`);
   await expect(adminPage.getByText(payload.roomId).first()).toBeVisible({ timeout: 15_000 });
-  await expect(adminPage.getByText('connected').first()).toBeVisible({ timeout: 10_000 });
+  await expect(adminPage.getByText(getMessages('pt-BR').common.connection.connected).first()).toBeVisible({ timeout: 10_000 });
 
   const displayPage = await context.newPage();
   await displayPage.goto(`/display?roomId=${payload.roomId}&pin=${payload.adminPin}`);

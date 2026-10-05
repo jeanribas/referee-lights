@@ -7,12 +7,15 @@ import type { ChangeEvent, FormEvent, MouseEvent } from 'react';
 
 import { DecisionLights } from '@/components/DecisionLights';
 import TimerDisplay from '@/components/TimerDisplay';
+import { IntervalCard, TimerCard, cardTitle, controlButton } from '@/components/TimerControls';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
+import { useRouterReady } from '@/hooks/useRouterReady';
 import { createRoom, accessRoom, refreshRefereeTokens, getKeyRelayStatus, startKeyRelay, stopKeyRelay, type JoinQrCodesResponse, type KeyRelayStatus } from '@/lib/api';
 import { FooterBadges } from '@/components/FooterBadges';
 import type { Judge } from '@/types/state';
 import { getMessages, type Messages } from '@/lib/i18n/messages';
 import { APP_LOCALES, type AppLocale } from '@/lib/i18n/config';
+import { BrandLogo } from '@/components/BrandLogo';
 import { Seo } from '@/components/Seo';
 
 interface AdminPageProps {
@@ -57,14 +60,6 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
   const messages = useMemo(() => getMessages(locale), [locale]);
   const adminMessages = messages.admin;
   const commonMessages = messages.common;
-  const isSpanishLocale = Boolean(locale?.startsWith('es'));
-  const cardHeadingTracking = isSpanishLocale ? 'tracking-[0.25em]' : 'tracking-[0.3em]';
-  const labelTracking = isSpanishLocale ? 'tracking-[0.12em]' : 'tracking-[0.16em]';
-  const smallLabelTracking = isSpanishLocale ? 'tracking-[0.18em]' : 'tracking-[0.26em]';
-  const buttonTracking = isSpanishLocale ? 'tracking-[0.08em]' : 'tracking-[0.14em]';
-  const buttonTextSize = isSpanishLocale ? 'text-[9px]' : 'text-[10px]';
-  const controlButtonBase = `min-h-[48px] rounded-lg px-3 py-2.5 ${buttonTextSize} font-semibold uppercase ${buttonTracking} leading-tight text-center whitespace-normal transition`;
-  const controlButtonFull = `${controlButtonBase} w-full sm:w-auto`;
   const currentLocale = useMemo<AppLocale>(() => {
     if (locale && APP_LOCALES.includes(locale as AppLocale)) {
       return locale as AppLocale;
@@ -75,6 +70,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
     () => APP_LOCALES.map((code) => ({ code, label: commonMessages.languages[code] ?? code })),
     [commonMessages.languages]
   );
+  const routerReady = useRouterReady();
   const roomId = typeof router.query.roomId === 'string' ? router.query.roomId : undefined;
   const adminPin = typeof router.query.pin === 'string' ? router.query.pin : undefined;
 
@@ -204,8 +200,6 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
     intervalStart,
     intervalStop,
     intervalReset,
-    intervalShow,
-    intervalHide,
     changeLocale,
     error: socketError
   } = useRoomSocket('admin', socketOptions);
@@ -227,11 +221,6 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
   };
 
   const intervalDisplay = useMemo(() => formatHMS(state?.intervalMs ?? 0), [state?.intervalMs]);
-
-  const intervalConfiguredDisplay = useMemo(
-    () => formatHMS(state?.intervalConfiguredMs ?? 0),
-    [state?.intervalConfiguredMs]
-  );
 
   const lightsPreviewStyle = useMemo(
     () => ({
@@ -286,9 +275,17 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
     ];
   }, [adminMessages.qrMenu.targets.center, adminMessages.qrMenu.targets.left, adminMessages.qrMenu.targets.right, appOrigin, roomAccess, roomId]);
 
-  const displayLink = buildRoomViewHref('/display', roomId, adminPin);
-  const legendLink = buildRoomViewHref('/legend', roomId, adminPin);
-  const timerLink = buildRoomViewHref('/timer', roomId, adminPin);
+  // Display e timer costumam abrir em OUTRO computador: mesmo endereço de
+  // rede dos QR dos árbitros (com o painel em localhost, um link relativo
+  // levaria "localhost" para a outra máquina). A legenda abre aqui (prévia),
+  // mas o "copiar link" dela usa esse endereço (shareOrigin).
+  const displayLink = `${appOrigin}${buildRoomViewHref('/display', roomId, adminPin)}`;
+  const timerLink = `${appOrigin}${buildRoomViewHref('/timer', roomId, adminPin)}`;
+  const legendLink = useMemo(() => {
+    const href = buildRoomViewHref('/legend', roomId, adminPin);
+    if (!appOrigin) return href;
+    return `${href}${href.includes('?') ? '&' : '?'}shareOrigin=${encodeURIComponent(appOrigin)}`;
+  }, [appOrigin, roomId, adminPin]);
   const roomErrorMessage = formatApiError(roomErrorCode, commonMessages.errors);
   const socketErrorMessage = formatApiError(socketError, commonMessages.errors);
 
@@ -383,16 +380,16 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
     !hasCredentials ||
     (!hasAccess && !roomLoading && (roomErrorMessage || !credentialsReady));
 
-  const shouldShowConnecting = hasCredentials && roomLoading && !hasAccess;
+  // Com sala e PIN na URL, "conectando" cobre também o instante antes da
+  // primeira consulta começar (antes caía na tela de login por um render)
+  const shouldShowConnecting = hasCredentials && !hasAccess && !roomErrorMessage;
 
-  if (!router.isReady) {
+  // Até ler a URL, só o fundo: sem piscar a tela de login ao recarregar
+  if (!routerReady) {
     return (
       <>
         {pageHead}
-        <FullPageMessage
-          title={adminMessages.fullPage.loadingTitle}
-          description={adminMessages.fullPage.loadingDescription}
-        />
+        <div className="min-h-screen bg-slate-950" />
       </>
     );
   }
@@ -410,6 +407,9 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
           initialPin={adminPin}
           messages={adminMessages}
           common={commonMessages}
+          locale={currentLocale}
+          localeOptions={localeOptions}
+          onLocaleChange={handleLocaleChange}
         />
       </>
     );
@@ -422,6 +422,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
         <FullPageMessage
           title={adminMessages.fullPage.connectingTitle}
           description={adminMessages.fullPage.connectingDescription}
+          delayed
         />
       </>
     );
@@ -440,6 +441,9 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
           initialPin={adminPin}
           messages={adminMessages}
           common={commonMessages}
+          locale={currentLocale}
+          localeOptions={localeOptions}
+          onLocaleChange={handleLocaleChange}
         />
       </>
     );
@@ -450,7 +454,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
       {pageHead}
       <div className="h-screen w-screen overflow-hidden bg-slate-950">
       <main
-        className="flex h-screen flex-col gap-6 bg-slate-950 px-10 py-6 text-slate-100 overflow-hidden"
+        className="flex h-screen flex-col gap-4 bg-slate-950 px-10 py-5 text-slate-100 overflow-hidden"
         style={viewportScale < 1 ? {
           transformOrigin: 'top left',
           transform: `scale(${viewportScale})`,
@@ -458,224 +462,117 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
           height: `${100 / viewportScale}vh`,
         } : undefined}
       >
-        <header className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <h1 className="text-2xl font-semibold uppercase tracking-[0.45em]">
-              {adminMessages.header.title}
-            </h1>
-            {roomId && adminPin && (
-              <div className="flex flex-wrap gap-6 text-xs uppercase tracking-[0.35em] text-slate-400">
-                <span>
-                  {commonMessages.labels.room}: {roomId}
-                </span>
-                <span>
-                  {commonMessages.labels.adminPinShort}: {adminPin}
-                </span>
-              </div>
-            )}
+        {/* Mesmas colunas da tela: logo centrada sobre o menu da esquerda;
+            título, sala e PIN numa linha só alinhados com o painel */}
+        <header className="grid items-center gap-6 md:grid-cols-[360px_1fr]">
+          <div className="flex justify-center">
+            <BrandLogo size={45} />
           </div>
-          <div className="flex flex-col items-start gap-1 text-sm uppercase tracking-[0.35em] text-slate-400">
-            <span>
-              {commonMessages.labels.status}: {status}
-            </span>
-            {tokenRefreshing && <span>{adminMessages.header.generatingLinks}</span>}
-          </div>
-          <div className="flex flex-col items-start gap-1 text-xs uppercase tracking-[0.3em] text-slate-400">
-            <label htmlFor="locale-select" className="block">
-              {commonMessages.languageLabel}
-            </label>
-            <select
-              id="locale-select"
-              value={currentLocale}
-              onChange={handleLocaleChange}
-              className="min-w-32 rounded-xl border border-white/10 bg-[#1A2231] px-3 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white shadow-xs transition focus:border-indigo-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-400/40"
-            >
-              {localeOptions.map((option) => (
-                <option key={option.code} value={option.code} className="text-slate-900">
-                  {option.label}
-                </option>
-              ))}
-            </select>
+          <div className="flex items-center justify-between gap-6">
+            <div className="flex flex-wrap items-center gap-3 uppercase">
+              <h1 className="text-lg font-semibold tracking-[0.3em] text-slate-300">
+                {adminMessages.header.title}
+              </h1>
+              {roomId && adminPin && (
+                <>
+                  <span className="h-6 w-px bg-white/15" aria-hidden="true" />
+                  <span className="rounded-lg bg-white/10 px-3 py-1 text-lg font-bold tracking-[0.2em] text-white">
+                    {commonMessages.labels.room}: {roomId}
+                  </span>
+                  <span className="rounded-lg bg-white/5 px-3 py-1 text-lg font-semibold tracking-[0.2em] text-slate-200">
+                    {commonMessages.labels.adminPinShort}: {adminPin}
+                  </span>
+                </>
+              )}
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-300">
+                <span
+                  aria-hidden="true"
+                  className={`h-2.5 w-2.5 rounded-full ${status === 'connected' ? 'bg-emerald-400' : status === 'connecting' ? 'bg-amber-400' : 'bg-red-500'}`}
+                />
+                {commonMessages.labels.status}: {commonMessages.connection[status]}
+                {tokenRefreshing && <span className="text-slate-400"> · {adminMessages.header.generatingLinks}</span>}
+              </span>
+              <label htmlFor="locale-select" className="sr-only">
+                {commonMessages.languageLabel}
+              </label>
+              <select
+                id="locale-select"
+                value={currentLocale}
+                onChange={handleLocaleChange}
+                className="min-w-32 rounded-xl border border-white/10 bg-[#1A2231] px-3 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white scheme-dark shadow-xs transition focus:border-indigo-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-400/40"
+              >
+                {localeOptions.map((option) => (
+                  <option key={option.code} value={option.code} className="bg-[#1A2231] text-white">
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </header>
 
-        <section className="grid min-h-0 w-full flex-1 gap-6 md:grid-cols-[320px_1fr]">
-          <aside className="flex flex-col gap-6 overflow-y-auto rounded-3xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-700">
-            <div className="flex flex-col gap-4 rounded-2xl border border-slate-800 bg-[#0F141F] p-5">
-              <h3 className={`text-xs font-semibold uppercase ${cardHeadingTracking} text-slate-300`}>
-                {adminMessages.timer.title}
-              </h3>
-              <TimerDisplay remainingMs={state?.timerMs ?? 60_000} running={state?.running ?? false} variant="panel" />
-              <div className="grid grid-cols-3 gap-2 text-sm">
-                <button
-                  className={`${controlButtonBase} bg-emerald-500 text-slate-900 hover:bg-emerald-400/90`}
-                  onClick={timerStart}
-                >
-                  {adminMessages.timer.start}
-                </button>
-                <button
-                  className={`${controlButtonBase} bg-amber-400 text-slate-900 hover:bg-amber-300/90`}
-                  onClick={timerStop}
-                >
-                  {adminMessages.timer.stop}
-                </button>
-                <button
-                  className={`${controlButtonBase} bg-slate-700 text-white hover:bg-slate-600`}
-                  onClick={timerReset}
-                >
-                  {adminMessages.timer.resetDefault}
-                </button>
-              </div>
-              <div className="flex flex-col gap-3 text-sm sm:flex-row sm:items-end sm:gap-3">
-                <label className="flex flex-1 flex-col gap-1">
-                  <span className={`text-[10px] uppercase ${labelTracking} text-slate-400`}>
-                    {adminMessages.timer.minutesLabel}
-                  </span>
-                  <input
-                    type="number"
-                    min={0}
-                    step={0.5}
-                    value={customMinutes}
-                    onChange={(event) => setCustomMinutes(Number(event.target.value))}
-                    className="w-full min-h-[44px] rounded-sm border border-slate-700 bg-slate-950 px-3 text-sm font-semibold text-white outline-hidden transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
-                  />
-                </label>
-                <button
-                  className={`${controlButtonFull} bg-slate-200 text-slate-900 hover:bg-slate-100`}
-                  onClick={setMinutes}
-                >
-                  {adminMessages.timer.set}
-                </button>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-4 rounded-2xl border border-slate-800 bg-[#0F141F] p-5">
-              <header className="flex flex-col gap-1">
-                <h3 className={`text-xs font-semibold uppercase ${cardHeadingTracking} text-slate-300`}>
-                  {adminMessages.interval.title}
-                </h3>
-                <span className={`text-[10px] uppercase ${smallLabelTracking} text-slate-500`}>
-                  {adminMessages.interval.configured}: {intervalConfiguredDisplay}
-                </span>
-                <span className={`text-[10px] uppercase ${smallLabelTracking} text-slate-500`}>
-                  {adminMessages.interval.remaining}: {intervalDisplay}
-                </span>
-              </header>
-
-              <div className="grid grid-cols-3 gap-3 text-sm">
-                <label className="flex flex-col gap-1">
-                  <span className={`text-[10px] uppercase ${labelTracking} text-slate-400`}>
-                    {adminMessages.interval.hours}
-                  </span>
-                  <input
-                    type="number"
-                    min={0}
-                    value={intervalHours}
-                    onChange={(event) => setIntervalHours(Number(event.target.value))}
-                    className="min-h-[44px] rounded-sm border border-slate-700 bg-slate-950 px-3 text-center text-sm font-medium text-white/90 outline-hidden transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
-                  />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className={`text-[10px] uppercase ${labelTracking} text-slate-400`}>
-                    {adminMessages.interval.minutes}
-                  </span>
-                  <input
-                    type="number"
-                    min={0}
-                    value={intervalMinutes}
-                    onChange={(event) => setIntervalMinutes(Number(event.target.value))}
-                    className="min-h-[44px] rounded-sm border border-slate-700 bg-slate-950 px-3 text-center text-sm font-medium text-white/90 outline-hidden transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
-                  />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className={`text-[10px] uppercase ${labelTracking} text-slate-400`}>
-                    {adminMessages.interval.seconds}
-                  </span>
-                  <input
-                    type="number"
-                    min={0}
-                    value={intervalSeconds}
-                    onChange={(event) => setIntervalSeconds(Number(event.target.value))}
-                    className="min-h-[44px] rounded-sm border border-slate-700 bg-slate-950 px-3 text-center text-sm font-medium text-white/90 outline-hidden transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
-                  />
-                </label>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <button
-                  className={`${controlButtonBase} bg-slate-200 text-slate-900 hover:bg-slate-100`}
-                  onClick={handleIntervalSet}
-                >
-                  {adminMessages.interval.set}
-                </button>
-                <button
-                  className={`${controlButtonBase} bg-emerald-500 text-slate-900 hover:bg-emerald-400/90`}
-                  onClick={intervalStart}
-                >
-                  {adminMessages.interval.start}
-                </button>
-                <button
-                  className={`${controlButtonBase} bg-amber-400 text-slate-900 hover:bg-amber-300/90`}
-                  onClick={intervalStop}
-                >
-                  {adminMessages.interval.pause}
-                </button>
-                <button
-                  className={`${controlButtonBase} bg-slate-700 text-white hover:bg-slate-600`}
-                  onClick={intervalReset}
-                >
-                  {adminMessages.interval.reset}
-                </button>
-                <button
-                  className={`col-span-2 ${controlButtonBase} bg-white/20 text-white hover:bg-white/30`}
-                  onClick={intervalShow}
-                >
-                  {adminMessages.interval.showInterval}
-                </button>
-                <button
-                  className={`col-span-2 ${controlButtonBase} bg-white/20 text-white hover:bg-white/30`}
-                  onClick={intervalHide}
-                >
-                  {adminMessages.interval.showLights}
-                </button>
-              </div>
-              <p className="text-xs text-slate-500">
-                {adminMessages.interval.note}
-              </p>
-            </div>
+        <section className="grid min-h-0 w-full flex-1 gap-6 md:grid-cols-[360px_1fr]">
+          <aside className="flex flex-col gap-4 overflow-y-auto rounded-3xl border border-slate-800 bg-[#0B1019] p-5 shadow-2xl [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-700">
+            {/* Mesmos cartões da tela do cronometrista */}
+            <TimerCard
+              messages={adminMessages.timer}
+              remainingMs={state?.timerMs ?? 60_000}
+              running={state?.running ?? false}
+              minutes={customMinutes}
+              onMinutesChange={setCustomMinutes}
+              onStart={timerStart}
+              onStop={timerStop}
+              onReset={timerReset}
+              onSet={setMinutes}
+            />
+            <IntervalCard
+              messages={adminMessages.interval}
+              shortLabels={messages.referee.center}
+              display={intervalDisplay}
+              hours={intervalHours}
+              minutes={intervalMinutes}
+              seconds={intervalSeconds}
+              onHoursChange={setIntervalHours}
+              onMinutesChange={setIntervalMinutes}
+              onSecondsChange={setIntervalSeconds}
+              onSet={handleIntervalSet}
+              onStart={intervalStart}
+              onPause={intervalStop}
+              onReset={intervalReset}
+            />
 
             {status === 'connected' && roomId && keyRelayStatus?.available && (
-              <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-[#0F141F] p-5">
-                <div className="flex items-center justify-between">
-                  <h3 className={`text-xs font-semibold uppercase ${cardHeadingTracking} text-slate-300`}>
-                    Key Relay
-                  </h3>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setKrConfigOpen(true)}
-                      className="text-[10px] text-indigo-400 hover:text-indigo-300 transition"
-                    >
-                      {krValidKey}/{krInvalidKey}
-                    </button>
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
-                      keyRelayStatus?.active ? 'bg-emerald-500/15 text-emerald-400' : 'bg-slate-500/15 text-slate-500'
-                    }`}>
-                      <span className={`h-1.5 w-1.5 rounded-full ${keyRelayStatus?.active ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`} />
-                      {keyRelayStatus?.active ? 'Ativo' : 'Inativo'}
-                    </span>
-                  </div>
+              <section className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900 p-4" aria-label={adminMessages.automation.title}>
+                <div className="flex h-8 items-center justify-between gap-2">
+                  <h2 className={`${cardTitle} whitespace-nowrap`}>{adminMessages.automation.title}</h2>
+                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[13px] font-semibold ${
+                    keyRelayStatus?.active ? 'bg-emerald-500/15 text-emerald-300' : 'bg-slate-500/15 text-slate-400'
+                  }`}>
+                    <span className={`h-2 w-2 rounded-full ${keyRelayStatus?.active ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
+                    {keyRelayStatus?.active ? adminMessages.automation.active : adminMessages.automation.inactive}
+                  </span>
                 </div>
-                <p className="text-[11px] leading-snug text-slate-400">
-                  Ao revelar a decisão, envia a tecla para a janela em foco no computador do servidor.
+                <p className="text-[13px] leading-snug text-slate-400">
+                  {adminMessages.automation.description}
                 </p>
+                {/* Teclas configuradas: abre a configuração (antes era um link pequeno no título) */}
                 <button
-                  className={`${controlButtonBase} ${keyRelayStatus?.active ? 'bg-red-500/80 text-white hover:bg-red-500' : 'bg-emerald-500 text-slate-900 hover:bg-emerald-400/90'}`}
+                  type="button"
+                  onClick={() => setKrConfigOpen(true)}
+                  className="flex h-10 items-center justify-between rounded-xl border border-slate-700 bg-slate-950 px-3 text-[13px] text-slate-400 transition hover:border-slate-500"
+                >
+                  {adminMessages.automation.keys}
+                  <span className="text-[15px] font-semibold tabular-nums text-white">{krValidKey} / {krInvalidKey}</span>
+                </button>
+                <button
+                  className={`${controlButton} ${keyRelayStatus?.active ? 'bg-red-500 text-white hover:bg-red-400' : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400'}`}
                   onClick={handleKeyRelayToggle}
                 >
-                  {keyRelayStatus?.active ? 'Desativar' : 'Ativar Key Relay'}
+                  {keyRelayStatus?.active ? adminMessages.automation.disable : adminMessages.automation.enable}
                 </button>
-              </div>
+              </section>
             )}
 
           </aside>
@@ -741,10 +638,10 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
       {krConfigOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs" onClick={() => { setKrConfigOpen(false); setKrCapturing(null); }}>
           <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-[0.3em] text-white">Configurar teclas</h2>
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-[0.3em] text-white">{adminMessages.automation.configTitle}</h2>
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-2">
-                <span className="text-[10px] uppercase tracking-[0.2em] text-emerald-400">Decisão válida (Good Lift)</span>
+                <span className="text-xs uppercase tracking-[0.2em] text-emerald-400">{adminMessages.automation.validDecision}</span>
                 <button
                   type="button"
                   onClick={() => setKrCapturing('valid')}
@@ -769,11 +666,11 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
                       : 'border-slate-700 bg-slate-950 text-white hover:border-slate-500'
                   }`}
                 >
-                  {krCapturing === 'valid' ? 'Pressione uma tecla...' : krValidKey}
+                  {krCapturing === 'valid' ? adminMessages.automation.pressKey : krValidKey}
                 </button>
               </div>
               <div className="flex flex-col gap-2">
-                <span className="text-[10px] uppercase tracking-[0.2em] text-red-400">Decisão inválida (No Lift)</span>
+                <span className="text-xs uppercase tracking-[0.2em] text-red-400">{adminMessages.automation.invalidDecision}</span>
                 <button
                   type="button"
                   onClick={() => setKrCapturing('invalid')}
@@ -798,7 +695,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
                       : 'border-slate-700 bg-slate-950 text-white hover:border-slate-500'
                   }`}
                 >
-                  {krCapturing === 'invalid' ? 'Pressione uma tecla...' : krInvalidKey}
+                  {krCapturing === 'invalid' ? adminMessages.automation.pressKey : krInvalidKey}
                 </button>
               </div>
             </div>
@@ -808,7 +705,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
                 onClick={() => { setKrConfigOpen(false); setKrCapturing(null); }}
                 className="rounded-lg bg-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.15em] text-slate-900 hover:bg-white transition"
               >
-                Fechar
+                {commonMessages.srOnly.close}
               </button>
             </div>
           </div>
@@ -863,19 +760,23 @@ function LegendPreviewModal({
       aria-modal="true"
       aria-label={title}
     >
-      <div className="relative h-[85vh] w-full max-w-[1600px] overflow-hidden rounded-3xl border border-white/10 bg-[#0F141F] shadow-[0_30px_80px_rgba(0,0,0,0.6)]">
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute right-6 top-6 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
-        >
-          <span className="sr-only">{closeLabel}</span>
-          ×
-        </button>
+      {/* Faixa própria para o título e o fechar: antes o X ficava por cima da barra da legenda */}
+      <div className="flex h-[85vh] w-full max-w-[1600px] flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#0F141F] shadow-[0_30px_80px_rgba(0,0,0,0.6)]">
+        <div className="flex h-12 shrink-0 items-center justify-between border-b border-white/10 px-4">
+          <span className="text-[15px] font-bold uppercase tracking-[0.12em] text-slate-200">{title}</span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 text-xl leading-none text-white transition hover:bg-white/20"
+          >
+            <span className="sr-only">{closeLabel}</span>
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
         <iframe
           src={src}
           title={title}
-          className="h-full w-full"
+          className="min-h-0 w-full flex-1"
           loading="lazy"
         />
       </div>
@@ -892,10 +793,33 @@ function RoomSetup(props: {
   initialPin?: string;
   messages: Messages['admin'];
   common: Messages['common'];
+  locale: AppLocale;
+  localeOptions: { code: AppLocale; label: string }[];
+  onLocaleChange: (event: ChangeEvent<HTMLSelectElement>) => void;
 }) {
-  const { onCreate, onJoin, loading, error, initialRoomId, initialPin, messages } = props;
+  const { onCreate, onJoin, loading, error, initialRoomId, initialPin, messages, common, locale, localeOptions, onLocaleChange } = props;
   const [roomId, setRoomId] = useState(initialRoomId ?? '');
   const [pin, setPin] = useState(initialPin ?? '');
+  // Cabe sempre na janela, sem rolagem: mede o conteúdo e reduz a escala
+  const fitRef = useRef<HTMLDivElement | null>(null);
+  const [fitScale, setFitScale] = useState(1);
+  useEffect(() => {
+    const el = fitRef.current;
+    if (!el) return;
+    const update = () => {
+      const pad = 32;
+      const s = Math.min(1, (window.innerHeight - pad) / el.offsetHeight, (window.innerWidth - pad) / el.offsetWidth);
+      setFitScale(Number.isFinite(s) && s > 0 ? s : 1);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    window.addEventListener('resize', update);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', update);
+    };
+  }, []);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -904,23 +828,53 @@ function RoomSetup(props: {
   };
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-6 py-16 text-white">
+    <main className="relative flex h-screen items-center justify-center overflow-hidden bg-slate-950 px-6 text-white">
       <div className="absolute inset-0 -z-20 bg-linear-to-br from-[#0B1220] via-[#0C1526] to-[#020617]" />
       <div className="absolute inset-x-0 top-0 -z-10 h-80 bg-linear-to-b from-indigo-500/30 via-transparent" />
       <div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[460px] w-[460px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-indigo-700/20 blur-3xl" />
 
-      <div className="w-full max-w-6xl space-y-14">
-        <header className="max-w-3xl space-y-4">
-          <span className="inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/90">
-            {messages.roomSetup.badge}
-          </span>
-          <h1 className="text-4xl font-semibold tracking-tight text-white md:text-5xl">
-            {messages.roomSetup.title}
-          </h1>
-          <p className="text-lg leading-relaxed text-slate-200">{messages.roomSetup.description}</p>
-        </header>
 
-        <section className="grid gap-10 md:grid-cols-[1.1fr_1fr]">
+      <div
+        ref={fitRef}
+        data-fit-scale={fitScale.toFixed(3)}
+        className="w-full max-w-6xl space-y-10"
+        style={fitScale < 1 ? { transform: `scale(${fitScale})`, transformOrigin: 'center center' } : undefined}
+      >
+        <div className="space-y-6">
+          {/* No fluxo (nunca sobre o texto), alinhado à borda direita dos
+              cartões; mesmo estilo do seletor do painel da sala */}
+          <div className="flex justify-end">
+            <label htmlFor="setup-locale-select" className="sr-only">
+              {common.languageLabel}
+            </label>
+            <select
+              id="setup-locale-select"
+              value={locale}
+              onChange={onLocaleChange}
+              className="min-w-32 rounded-xl border border-white/10 bg-[#1A2231] px-3 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white scheme-dark shadow-xs transition focus:border-indigo-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-400/40"
+            >
+              {localeOptions.map((option) => (
+                <option key={option.code} value={option.code} className="bg-[#1A2231] text-white">
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          {/* Mesma grade dos cartões: identidade sobre o cartão de criar,
+              explicação alinhada à borda do cartão de entrar */}
+          <header className="grid items-center gap-6 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] md:gap-10">
+            <div className="flex items-center gap-6">
+              <BrandLogo size={40} />
+              <div className="h-14 w-px shrink-0 bg-white/15" aria-hidden="true" />
+              <h1 className="min-w-0 text-4xl font-semibold leading-tight tracking-tight text-white md:text-[2.5rem]">
+                {messages.roomSetup.title}
+              </h1>
+            </div>
+            <p className="max-w-md text-[15px] leading-relaxed text-slate-400">{messages.roomSetup.description}</p>
+          </header>
+        </div>
+
+        <section className="grid gap-10 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
           <article className="relative overflow-hidden rounded-3xl border border-white/10 bg-linear-to-br from-[#101b2f] via-[#0d1728] to-[#091120] p-10 shadow-[0_26px_90px_rgba(6,11,24,0.6)]">
             <div className="pointer-events-none absolute inset-0 bg-linear-to-br from-white/6 via-transparent to-transparent" />
 
@@ -958,7 +912,7 @@ function RoomSetup(props: {
                 >
                   {messages.roomSetup.create.cta}
                 </button>
-                <span className="text-sm text-slate-200">{messages.roomSetup.create.note}</span>
+                <span className="text-balance text-[13px] text-slate-200 xl:whitespace-nowrap">{messages.roomSetup.create.note}</span>
               </div>
             </div>
           </article>
@@ -1082,7 +1036,7 @@ function QrMenu({
               type="button"
               onClick={handleRefreshClick}
               disabled={refreshing}
-              className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.35em] text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {refreshing ? messages.regenerating : messages.regenerate}
             </button>
@@ -1103,7 +1057,7 @@ function QrMenu({
                 </div>
                 <div className="flex flex-col gap-1">
                   <span className="text-xs font-semibold uppercase tracking-[0.4em] text-slate-200">{target.label}</span>
-                  <span className="text-[10px] text-slate-500 break-all">{target.href}</span>
+                  <span className="text-xs text-slate-500 break-all">{target.href}</span>
                 </div>
               </div>
             ))}
@@ -1114,7 +1068,15 @@ function QrMenu({
   );
 }
 
-function FullPageMessage({ title, description }: { title: string; description: string }) {
+function FullPageMessage({ title, description, delayed = false }: { title: string; description: string; delayed?: boolean }) {
+  // delayed: o texto só aparece se demorar (conexão rápida não pisca mensagem)
+  const [visible, setVisible] = useState(!delayed);
+  useEffect(() => {
+    if (!delayed) return;
+    const id = window.setTimeout(() => setVisible(true), 500);
+    return () => window.clearTimeout(id);
+  }, [delayed]);
+  if (!visible) return <main className="min-h-screen bg-slate-950" />;
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-950 px-6 py-12 text-center text-white">
       <h1 className="text-2xl font-semibold uppercase tracking-[0.45em]">{title}</h1>

@@ -7,6 +7,24 @@ import type { AppLocale } from '@/lib/i18n/config';
 
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
 
+// Estado da conexão da tela atual, para o aviso global de conexão perdida
+// (ConnectionLost no _app): qualquer tela de sala avisa quando cai.
+type ConnectionSnapshot = { active: boolean; status: ConnectionStatus; error: string | null };
+let connectionSnapshot: ConnectionSnapshot = { active: false, status: 'disconnected', error: null };
+const connectionListeners = new Set<() => void>();
+function publishConnection(next: ConnectionSnapshot) {
+  connectionSnapshot = next;
+  for (const l of connectionListeners) l();
+}
+export const connectionStore = {
+  subscribe(listener: () => void) {
+    connectionListeners.add(listener);
+    return () => connectionListeners.delete(listener);
+  },
+  get: () => connectionSnapshot,
+  getServer: () => connectionSnapshot
+};
+
 interface UseRoomSocketResult {
   status: ConnectionStatus;
   state: AppState | null;
@@ -41,10 +59,22 @@ export function useRoomSocket(role: ClientRole, options: UseRoomSocketOptions = 
   const [state, setState] = useState<AppState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
+  // Só depois do client:register aceito o servidor reconhece este socket.
+  // Antes disso (ou com a conexão caída) nada é enviado: o socket.io guarda
+  // eventos offline e os manda na reconexão ANTES do register, e o servidor
+  // os recusava — um voto tocado durante a queda sumia em silêncio.
+  const registeredRef = useRef(false);
+  const requirementsRef = useRef(false);
+
+  useEffect(() => {
+    publishConnection({ active: requirementsRef.current, status, error });
+  }, [status, error]);
+  useEffect(() => () => publishConnection({ active: false, status: 'disconnected', error: null }), []);
   const { roomId, adminPin, refereeToken } = options;
 
   useEffect(() => {
     const requirementsMet = canConnect(role, { roomId, adminPin, refereeToken });
+    requirementsRef.current = requirementsMet;
     if (!requirementsMet) {
       setStatus('disconnected');
       setState(null);
@@ -69,18 +99,21 @@ export function useRoomSocket(role: ClientRole, options: UseRoomSocketOptions = 
     };
 
     socket.on('connect', () => {
-      setStatus('connected');
+      registeredRef.current = false;
       socket.emit('client:register', registerPayload, (response: AckResponse) => {
         if ('error' in response) {
           setError(response.error);
           socket.disconnect();
           return;
         }
+        registeredRef.current = true;
+        setStatus('connected');
         setError(null);
       });
     });
 
     socket.on('disconnect', () => {
+      registeredRef.current = false;
       setStatus('disconnected');
     });
 
@@ -107,7 +140,7 @@ export function useRoomSocket(role: ClientRole, options: UseRoomSocketOptions = 
   const send = useMemo(() => {
     return (event: string, payload?: unknown) => {
       const socket = socketRef.current;
-      if (!socket) return;
+      if (!socket || !socket.connected || !registeredRef.current) return;
       socket.emit(event, payload); // fire-and-forget for simplicidade
     };
   }, []);

@@ -6,7 +6,7 @@ test('admin troca idioma → display, legenda, timer e 3 árbitros seguem', asyn
   test.setTimeout(90_000);
   const room = await createRoom('pt-BR');
   await page.goto(urls.admin(room));
-  await expect(page.getByText(`${msg('pt-BR').common.labels.status}: connected`)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(`${msg('pt-BR').common.labels.status}: ${msg('pt-BR').common.connection.connected}`)).toBeVisible({ timeout: 15_000 });
 
   const others = [
     await open(context, urls.display(room)),
@@ -44,8 +44,8 @@ test('legenda: salvar configuração propaga para outra legenda da sala', async 
   const m = msg('pt-BR').legend;
   const editor = await open(context, urls.legend(room));
   const viewer = await open(context, urls.legend(room));
-  await expect(editor.getByText(/: connected/)).toBeVisible({ timeout: 15_000 });
-  await expect(viewer.getByText(/: connected/)).toBeVisible({ timeout: 15_000 });
+  await expect(editor.getByText(new RegExp(`: ${msg('pt-BR').common.connection.connected}`))).toBeVisible({ timeout: 15_000 });
+  await expect(viewer.getByText(new RegExp(`: ${msg('pt-BR').common.connection.connected}`))).toBeVisible({ timeout: 15_000 });
 
   await editor.getByRole('button', { name: m.buttons.paletteOpen }).click();
   await editor.getByRole('button', { name: m.palette.selectColor.replace('{color}', '#012A4A') }).click();
@@ -53,11 +53,12 @@ test('legenda: salvar configuração propaga para outra legenda da sala', async 
   await editor.getByRole('button', { name: m.buttons.frameHide }).click();
   await editor.getByRole('button', { name: m.buttons.digits.replace('{mode}', m.digitsModes.hhmmss) }).click();
   await expect(editor.getByText('00:00', { exact: true })).toBeVisible();
-  await editor.getByRole('button', { name: m.share.save }).click();
-  await expect(editor.getByRole('button', { name: m.share.saved })).toBeVisible();
+  // Concluir salva e mostra a confirmação com o link do OBS
+  await editor.getByRole('button', { name: new RegExp(`^${m.done.button}`) }).click();
+  await expect(editor.getByText(m.done.title)).toBeVisible();
 
   // o outro cliente recebe via legend:config
-  await expect(viewer.locator('main')).toHaveCSS('background-color', 'rgb(1, 42, 74)', { timeout: 10_000 });
+  await expect(viewer.locator('[data-legend-root]')).toHaveCSS('background-color', 'rgb(1, 42, 74)', { timeout: 10_000 });
   await expect(viewer.getByText('00:00', { exact: true })).toBeVisible();
   await expect(viewer.getByRole('button', { name: m.buttons.frameShow })).toBeVisible();
   await expect(viewer.getByRole('button', { name: m.buttons.placeholdersShow })).toBeVisible();
@@ -71,9 +72,9 @@ test('legenda: link de compartilhamento esconde os controles e aplica os parâme
     urls.legend(room, '&view=share&legendBg=%23000000&legendTimer=%23FF0000&legendDigits=mmss&legendPlaceholders=0&legendFrame=0')
   );
   await expect(share.getByText('00:00', { exact: true })).toBeVisible({ timeout: 15_000 });
-  await expect(share.getByRole('button', { name: m.share.save })).toHaveCount(0);
+  await expect(share.getByRole('button', { name: new RegExp(`^${m.done.button}`) })).toHaveCount(0);
   await expect(share.getByText('00:00', { exact: true })).toHaveCSS('color', 'rgb(255, 0, 0)');
-  await expect(share.locator('main')).toHaveCSS('background-color', 'rgb(0, 0, 0)');
+  await expect(share.locator('[data-legend-root]')).toHaveCSS('background-color', 'rgb(0, 0, 0)');
 });
 
 test('legenda: copiar link gera URL de share com a configuração atual', async ({ context }) => {
@@ -81,7 +82,8 @@ test('legenda: copiar link gera URL de share com a configuração atual', async 
   const room = await createRoom();
   const m = msg('pt-BR').legend;
   const legend = await open(context, urls.legend(room));
-  await expect(legend.getByText(/: connected/)).toBeVisible({ timeout: 15_000 });
+  await expect(legend.getByText(new RegExp(`: ${msg('pt-BR').common.connection.connected}`))).toBeVisible({ timeout: 15_000 });
+  await legend.getByRole('button', { name: new RegExp(`^${m.done.button}`) }).click();
   await legend.getByRole('button', { name: m.share.copy }).click();
   await expect(legend.getByRole('button', { name: m.share.copied })).toBeVisible();
   const copied = await legend.evaluate(() => navigator.clipboard.readText());

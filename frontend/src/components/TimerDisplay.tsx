@@ -13,6 +13,8 @@ interface TimerDisplayProps {
   hidden?: boolean;
   phase?: Phase;
   attemptNo?: number;
+  /** Só os dígitos, sem a caixa; o tamanho vem de quem usa (tela do cronometrista) */
+  large?: boolean;
 }
 
 interface CooldownEntry {
@@ -98,7 +100,7 @@ export function useCooldownBadges(phase?: Phase) {
 }
 
 function TimerDisplay(props: TimerDisplayProps) {
-  const { remainingMs, running, variant = 'panel', hidden = false, phase, attemptNo } = props;
+  const { remainingMs, running, variant = 'panel', hidden = false, phase, attemptNo, large = false } = props;
 
   const [cooldownEntries, setCooldownEntries] = useState<CooldownEntry[]>([]);
   const cooldownEntriesRef = useRef<CooldownEntry[]>([]);
@@ -240,14 +242,14 @@ function TimerDisplay(props: TimerDisplayProps) {
 
     return (
       <div
-        className="mx-auto grid w-full max-w-[min(88vw,1300px)] grid-cols-[max-content_auto_max-content] items-end gap-14"
+        className="mx-auto grid w-full max-w-[min(88cqw,1300px)] grid-cols-[max-content_auto_max-content] items-end gap-14"
         style={displayScaleStyle}
       >
         <AttemptColumn badges={cooldownBadges} ghost attemptNo={attemptNo} />
         <div className="flex flex-col items-center gap-6">
           <div
             className={`font-display font-black leading-none tracking-tight [font-variant-numeric:tabular-nums] ${urgencyColor}`}
-            style={{ fontSize: 'clamp(6rem, 24vw, 20rem)' }}
+            style={{ fontSize: 'clamp(6rem, 24cqw, 20rem)' }}
           >
             {timerText}
           </div>
@@ -260,9 +262,18 @@ function TimerDisplay(props: TimerDisplayProps) {
     );
   }
 
+  if (large) {
+    return (
+      <span className={`font-display font-bold leading-none tabular-nums tracking-tight transition-colors ${
+        isZero ? 'text-[#ff1f1f]' : urgency ? 'text-[#ff4d4f]' : 'text-slate-50'
+      }`}>
+        {timerText}
+      </span>
+    );
+  }
+
   return (
     <div className="flex w-full flex-col items-center gap-2">
-      <span className="text-xs uppercase tracking-[0.4em] text-slate-400">Timer</span>
       <div
         className={`rounded-3xl border border-slate-700 bg-slate-900/80 px-12 py-6 text-6xl font-bold font-display tracking-widest shadow-inner transition-colors ${
           isZero ? 'text-[#ff1f1f]' : urgency ? 'text-[#ff4d4f]' : 'text-slate-50'

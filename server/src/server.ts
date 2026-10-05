@@ -163,6 +163,24 @@ export async function createServer() {
   const keyRelayAvailable = config.KEY_RELAY_AVAILABLE;
 
   const lastPhaseByRoom = new Map<string, string>();
+  // Conexões vivas por árbitro (sala:juiz). O árbitro só aparece como
+  // desconectado quando a ÚLTIMA cai: com Wi-Fi instável o celular reconecta
+  // antes de o servidor perceber a morte da conexão antiga (até ~45 s), e
+  // essa queda atrasada apagava a luz de um árbitro que estava votando.
+  const judgeConnections = new Map<string, number>();
+  const judgeKey = (roomId: string, judge: Judge) => `${roomId}:${judge}`;
+  const judgeUp = (roomId: string, judge: Judge) => {
+    const k = judgeKey(roomId, judge);
+    judgeConnections.set(k, (judgeConnections.get(k) ?? 0) + 1);
+    roomManager.getRoomState(roomId)?.setConnected(judge, true);
+  };
+  const judgeDown = (roomId: string, judge: Judge) => {
+    const k = judgeKey(roomId, judge);
+    const left = Math.max(0, (judgeConnections.get(k) ?? 1) - 1);
+    if (left === 0) judgeConnections.delete(k);
+    else judgeConnections.set(k, left);
+    if (left === 0) roomManager.getRoomState(roomId)?.setConnected(judge, false);
+  };
   const roomManager = new RoomManager((roomId, snapshot) => {
     io.to(roomChannel(roomId)).emit('state:update', snapshot);
     const snap = snapshot as { phase: string; votes: Record<string, string | null> };
@@ -413,11 +431,8 @@ export async function createServer() {
         }
       }
 
-      if (isJudge(socket.data.role) && socket.data.roomId) {
-        const previousState = roomManager.getRoomState(socket.data.roomId);
-        if (previousState && socket.data.judgeRole) {
-          previousState.setConnected(socket.data.judgeRole, false);
-        }
+      if (isJudge(socket.data.role) && socket.data.roomId && socket.data.judgeRole) {
+        judgeDown(socket.data.roomId, socket.data.judgeRole);
       }
 
       if (socket.data.roomId) {
@@ -433,7 +448,7 @@ export async function createServer() {
       socket.data.frontendHost = payload.host ?? '';
 
       if (socket.data.judgeRole) {
-        state.setConnected(socket.data.judgeRole, true);
+        judgeUp(payload.roomId, socket.data.judgeRole);
       }
 
       const clientHost = payload.host ?? socketHost(socket);
@@ -634,8 +649,7 @@ export async function createServer() {
       app.log.info({ event: 'disconnect', role: socket.data.role, reason });
       const { roomId, judgeRole, connectionId } = socket.data;
       if (roomId && judgeRole) {
-        const state = roomManager.getRoomState(roomId);
-        state?.setConnected(judgeRole, false);
+        judgeDown(roomId, judgeRole);
       }
       if (connectionId) analyticsStore.logDisconnection(connectionId);
       telemetry.trackDisconnection(roomId ?? '', socket.data.role ?? '');

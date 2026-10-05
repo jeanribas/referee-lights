@@ -65,7 +65,7 @@ function RefereeView({ judge, messages }: { judge: Judge; messages: Messages }) 
   const refereeMessages = messages.referee;
   const roomId = typeof router.query.roomId === 'string' ? router.query.roomId : undefined;
   const token = typeof router.query.token === 'string' ? router.query.token : undefined;
-  const { state, status, sendVote, sendCard, timerStart, timerStop, timerReset, error } = useRoomSocket(judge, {
+  const { state, status, sendVote, sendCard, timerStart, timerStop, timerReset } = useRoomSocket(judge, {
     roomId,
     refereeToken: token
   });
@@ -186,13 +186,12 @@ function RefereeView({ judge, messages }: { judge: Judge; messages: Messages }) 
           commonMessages={commonMessages}
         />
       )}
-      {error && <StatusBanner message={error} errors={commonMessages.errors} />}
     </>
   );
 }
 
 function CenterLayout(props: {
-  status: string;
+  status: 'disconnected' | 'connecting' | 'connected';
   timerSeconds: number;
   running: boolean;
   vote: VoteValue;
@@ -235,7 +234,7 @@ function CenterLayout(props: {
       <header className="flex flex-col items-center gap-1 text-xs uppercase tracking-[0.5em] text-slate-400">
         <span>{messages.center.title}</span>
         <span>
-          {commonMessages.labels.status}: {status}
+          {commonMessages.labels.status}: {commonMessages.connection[status]}
         </span>
       </header>
 
@@ -252,6 +251,7 @@ function CenterLayout(props: {
               running ? 'ring-4 ring-emerald-300/60' : 'opacity-80'
             }`}
             onClick={onStart}
+            disabled={status !== 'connected'}
           >
             {messages.center.start}
           </button>
@@ -260,12 +260,14 @@ function CenterLayout(props: {
               isPaused ? 'ring-4 ring-amber-200/70' : 'opacity-80'
             }`}
             onClick={onPause}
+            disabled={status !== 'connected'}
           >
             {messages.center.pause}
           </button>
           <button
             className="flex-1 transform rounded-xl bg-red-500 px-4 py-3 font-semibold text-white transition duration-150 active:scale-95 active:brightness-95"
             onClick={onReset}
+            disabled={status !== 'connected'}
           >
             {messages.center.reset}
           </button>
@@ -278,6 +280,7 @@ function CenterLayout(props: {
             isValidActive ? 'ring-4 ring-white/70' : 'opacity-80'
           }`}
           onClick={onValid}
+          disabled={status !== 'connected'}
         >
           {messages.center.valid}
         </button>
@@ -290,6 +293,7 @@ function CenterLayout(props: {
                 option.color
               } ${isActive ? 'ring-4 ring-white/70' : 'opacity-80'}`}
               onClick={() => onToggleCard(option.value)}
+              disabled={status !== 'connected'}
             >
               {isActive ? '✓' : option.glyph}
             </button>
@@ -307,7 +311,7 @@ function CenterLayout(props: {
 
 function SideLayout(props: {
   judge: Judge;
-  status: string;
+  status: 'disconnected' | 'connecting' | 'connected';
   vote: VoteValue;
   cards: CardValue[];
   onValid: () => void;
@@ -332,7 +336,7 @@ function SideLayout(props: {
       <header className="flex flex-col items-center gap-1 text-center text-xs uppercase tracking-[0.4em] text-slate-400">
         <span>{sideLabel}</span>
         <span>
-          {commonMessages.labels.status}: {status}
+          {commonMessages.labels.status}: {commonMessages.connection[status]}
         </span>
       </header>
 
@@ -382,15 +386,6 @@ function MissingRefCredentials({ judge, messages }: { judge: Judge; messages: Me
         <FooterBadges />
       </div>
     </main>
-  );
-}
-
-function StatusBanner({ message, errors }: { message: string; errors: Record<string, string> }) {
-  const text = errors[message] ?? message;
-  return (
-    <div className="fixed left-1/2 top-6 z-40 -translate-x-1/2 rounded-full border border-white/20 bg-white/15 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white">
-      {text}
-    </div>
   );
 }
 
