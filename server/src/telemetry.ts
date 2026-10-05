@@ -53,6 +53,15 @@ const MAX_EVENTS = 1000;
 const MAX_SAMPLES = 500;
 const QUEUE_FILE = path.resolve('data', 'telemetry-queue.json');
 
+export interface ErrorDetails {
+  origin?: 'server' | 'ui';
+  kind?: string;
+  stack?: string;
+  screen?: string;
+  roomId?: string;
+  userAgent?: string;
+}
+
 export class Telemetry {
   private events: TelemetryEvent[] = [];
   private samples: HeartbeatSample[] = [];
@@ -140,13 +149,26 @@ export class Telemetry {
     this.push('room_archived', { roomId });
   }
 
-  /** Erro de runtime — essencial para saber onde o app quebra em campo. */
-  trackError(context: string, message: string): void {
+  /**
+   * Erro de runtime — essencial para saber onde o app quebra em campo.
+   * `origin` separa servidor / tela; `kind` é a classe ou código do erro
+   * (TypeError, socket_connect_loop...) para agrupar os iguais.
+   */
+  trackError(context: string, message: string, extra: ErrorDetails = {}): void {
     this.push('error', {
       context: context.slice(0, 64),
       message: message.slice(0, 300),
-      appVersion: this.appVersion
+      appVersion: this.appVersion,
+      origin: extra.origin ?? 'server',
+      kind: (extra.kind ?? '').slice(0, 64),
+      ...(extra.stack ? { stack: extra.stack.slice(0, 1000) } : {}),
+      ...(extra.screen ? { screen: extra.screen.slice(0, 32) } : {}),
+      ...(extra.roomId ? { roomId: extra.roomId.slice(0, 16) } : {}),
+      ...(extra.userAgent ? { userAgent: extra.userAgent.slice(0, 200) } : {})
     });
+    // Erro vai para o disco na hora: se o processo cair antes do próximo
+    // envio, ele não se perde.
+    this.saveQueue();
     void this.flush();
   }
 

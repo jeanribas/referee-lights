@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 
 import { getWsUrl } from '@/lib/config';
+import { reportClientError } from '@/lib/error-report';
 import { AppState, CardValue, ClientRole, LegendConfig, VoteValue } from '@/types/state';
 import type { AppLocale } from '@/lib/i18n/config';
 
@@ -98,7 +99,9 @@ export function useRoomSocket(role: ClientRole, options: UseRoomSocketOptions = 
       host: typeof window !== 'undefined' ? window.location.hostname : ''
     };
 
+    let failedAttempts = 0;
     socket.on('connect', () => {
+      failedAttempts = 0;
       registeredRef.current = false;
       socket.emit('client:register', registerPayload, (response: AckResponse) => {
         if ('error' in response) {
@@ -120,6 +123,11 @@ export function useRoomSocket(role: ClientRole, options: UseRoomSocketOptions = 
     socket.on('connect_error', (err: Error) => {
       setStatus('disconnected');
       setError(err.message);
+      failedAttempts += 1;
+      // Uma falha isolada é rede oscilando; cinco seguidas é tela sem servidor.
+      if (failedAttempts === 5) {
+        reportClientError({ kind: 'socket_connect_loop', message: `${role}: ${err.message}` });
+      }
     });
 
     socket.on('state:update', (snapshot: AppState) => {

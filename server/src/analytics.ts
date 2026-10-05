@@ -1077,6 +1077,101 @@ export class AnalyticsStore {
   }
 
   /**
+   * Relatório de erros do recorte, agrupando os iguais (onde × camada × tipo ×
+   * contexto × mensagem). `online` = o próprio servidor central e as telas da
+   * web (que reportam por ele); `bundle` = as instalações.
+   */
+  getErrorReport(period?: string, tz = 0, selfInstanceId = ''): {
+    total: number;
+    online: number;
+    bundle: number;
+    instancesAffected: number;
+    groups: Array<{
+      target: 'online' | 'bundle';
+      origin: string;
+      kind: string;
+      context: string;
+      message: string;
+      count: number;
+      instances: number;
+      versions: string;
+      first_seen: string;
+      last_seen: string;
+      screen: string | null;
+      stack: string | null;
+      last_instance: string;
+    }>;
+    daily: Array<{ date: string; online: number; bundle: number }>;
+  } {
+    const empty = { total: 0, online: 0, bundle: 0, instancesAffected: 0, groups: [], daily: [] };
+    if (!this.db) return empty;
+    try {
+      const win = periodWindow(period, tz);
+      const field = (key: string) => `json_extract(${VALID_PAYLOAD}, '$.${key}')`;
+      const base = `FROM instance_events WHERE event_type = 'error' AND ${this.inWindow('received_at', win)}`;
+      const summary = this.db
+        .prepare(
+          `SELECT COUNT(*) AS total,
+                  COALESCE(SUM(CASE WHEN instance_id = ? THEN 1 ELSE 0 END), 0) AS online,
+                  COUNT(DISTINCT CASE WHEN instance_id != ? THEN instance_id END) AS instancesAffected
+           ${base}`
+        )
+        .get(selfInstanceId, selfInstanceId) as { total: number; online: number; instancesAffected: number };
+      // MAX(id) faz o SQLite devolver tela/instalação da ocorrência mais recente do
+      // grupo; o stack vem da ocorrência mais recente que tem stack (versões
+      // antigas e alguns erros chegam sem).
+      const groups = this.db
+        .prepare(
+          `SELECT CASE WHEN instance_id = ? THEN 'online' ELSE 'bundle' END AS target,
+                  COALESCE(${field('origin')}, 'server') AS origin,
+                  COALESCE(NULLIF(${field('kind')}, ''), '—') AS kind,
+                  COALESCE(${field('context')}, '') AS context,
+                  substr(COALESCE(${field('message')}, ''), 1, 160) AS message,
+                  COUNT(*) AS count,
+                  COUNT(DISTINCT instance_id) AS instances,
+                  group_concat(DISTINCT NULLIF(${field('appVersion')}, '')) AS versions,
+                  MIN(received_at) AS first_seen,
+                  MAX(received_at) AS last_seen,
+                  MAX(id) AS last_id,
+                  MAX(CASE WHEN ${field('stack')} IS NOT NULL THEN id END) AS stack_id,
+                  ${field('screen')} AS screen,
+                  instance_id AS last_instance
+           ${base}
+           GROUP BY target, origin, kind, context, message
+           ORDER BY last_seen DESC
+           LIMIT 100`
+        )
+        .all(selfInstanceId) as Array<Record<string, unknown>>;
+      const stackStmt = this.db.prepare(`SELECT ${field('stack')} AS stack FROM instance_events WHERE id = ?`);
+      const stackOf = (id: unknown) => (stackStmt.get(id) as { stack: string | null } | undefined)?.stack ?? null;
+      const daily = this.db
+        .prepare(
+          `SELECT ${this.localDay('received_at', win)} AS date,
+                  SUM(CASE WHEN instance_id = ? THEN 1 ELSE 0 END) AS online,
+                  SUM(CASE WHEN instance_id != ? THEN 1 ELSE 0 END) AS bundle
+           ${base}
+           GROUP BY date ORDER BY date ASC`
+        )
+        .all(selfInstanceId, selfInstanceId) as Array<{ date: string; online: number; bundle: number }>;
+      return {
+        total: summary.total,
+        online: summary.online,
+        bundle: summary.total - summary.online,
+        instancesAffected: summary.instancesAffected,
+        groups: groups.map(({ last_id: _lastId, stack_id: stackId, ...g }) => ({
+          ...g,
+          versions: String(g.versions ?? ''),
+          stack: stackId == null ? null : stackOf(stackId)
+        })) as never,
+        daily
+      };
+    } catch (err) {
+      console.error('[analytics] getErrorReport error:', err);
+      return empty;
+    }
+  }
+
+  /**
    * Instalações por cidade — marcadores "bundle" do mapa. Com `period`, só as
    * que deram sinal dentro do recorte (status ou último contato): instalação
    * desligada some do dia/semana em que não rodou. Sem `period` = todas.

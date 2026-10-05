@@ -389,7 +389,7 @@ export async function createServer() {
         try {
           handler(...args);
         } catch (error) {
-          telemetry.trackError(`socket ${event}`, String((error as Error)?.message ?? error));
+          telemetry.trackError(`socket ${event}`, String((error as Error)?.message ?? error), errorDetails(error));
           app.log.error({ err: error, event }, 'socket_handler_error');
         }
       }) as never);
@@ -759,6 +759,11 @@ export async function createServer() {
     };
   });
 
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/errors', async (request, reply) => {
+    if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
+    return analyticsStore.getErrorReport(request.query.period, parseTz(request.query.tz), telemetry.instanceId);
+  });
+
   app.get<{ Querystring: { period?: string; tz?: string } }>('/master/duration', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
     return analyticsStore.getDurationStats(request.query.period, parseTz(request.query.tz));
@@ -862,6 +867,34 @@ export async function createServer() {
     const id = String(request.params.id ?? '').slice(0, 64);
     if (!id) { reply.code(400); return { error: 'missing_instance_id' }; }
     return analyticsStore.getInstanceActivity(id);
+  });
+
+  // Erros das telas (window.onerror, promessas rejeitadas, Error Boundary,
+  // socket que não reconecta). Entram pelo mesmo canal dos erros do servidor.
+  // Sem dados pessoais: mensagem, stack resumido, tela, código da sala e
+  // navegador.
+  app.post('/client-errors', { bodyLimit: 8 * 1024 }, async (request, reply) => {
+    if (!rateLimitOk(`clienterr:${extractIp(request)}`, 20, 60_000)) {
+      reply.code(429);
+      return { error: 'rate_limited' };
+    }
+    const body = request.body;
+    if (!isRecord(body) || typeof body.message !== 'string' || !body.message) {
+      reply.code(400);
+      return { error: 'invalid_payload' };
+    }
+    const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : undefined);
+    const screen = (str(body.screen, 32) ?? 'desconhecida').replace(/[^\w/-]/g, '');
+    telemetry.trackError(`ui ${screen}`, body.message, {
+      origin: 'ui',
+      kind: str(body.kind, 64) ?? 'Error',
+      stack: str(body.stack, 1000),
+      screen,
+      roomId: str(body.roomId, 16),
+      userAgent: str(request.headers['user-agent'], 200)
+    });
+    reply.code(204);
+    return null;
   });
 
   app.post<{ Body: { url?: string } }>('/track/click', async (request, reply) => {
@@ -1031,7 +1064,7 @@ export async function createServer() {
   // Erros são registrados: saber ONDE o app quebra orienta correções.
   // Mantém a resposta padrão do Fastify.
   app.setErrorHandler((error, request, reply) => {
-    telemetry.trackError(`http ${request.method} ${request.url}`, String((error as Error)?.message ?? error));
+    telemetry.trackError(`http ${request.method} ${request.url.split('?')[0]}`, String((error as Error)?.message ?? error), errorDetails(error));
     request.log.error(error);
     reply.send(error);
   });
@@ -1040,18 +1073,26 @@ export async function createServer() {
   if (!g.__rlProcessErrorHooks) {
     g.__rlProcessErrorHooks = true;
     process.on('uncaughtException', (err) => {
-      telemetry.trackError('uncaughtException', String((err as Error)?.message ?? err));
+      telemetry.trackError('uncaughtException', String((err as Error)?.message ?? err), errorDetails(err));
       telemetry.persistNow();
       console.error('[fatal]', err);
       process.exit(1);
     });
     process.on('unhandledRejection', (reason) => {
-      telemetry.trackError('unhandledRejection', String(reason));
+      telemetry.trackError('unhandledRejection', String(reason), errorDetails(reason));
       telemetry.persistNow();
     });
   }
 
   return app;
+}
+
+/** Tipo (código ou classe) e stack resumido de um erro, para agrupar os iguais. */
+function errorDetails(error: unknown): { kind: string; stack?: string } {
+  const e = error as { code?: unknown; name?: unknown; stack?: unknown } | null;
+  const kind = typeof e?.code === 'string' ? e.code : typeof e?.name === 'string' ? e.name : typeof error;
+  const stack = typeof e?.stack === 'string' ? e.stack.split('\n').slice(0, 6).join('\n') : undefined;
+  return { kind, stack };
 }
 
 function ensureJudgeContext(socket: AppSocket, roomManager: RoomManager) {

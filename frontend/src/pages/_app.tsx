@@ -6,9 +6,11 @@ import { useRouter } from 'next/router';
 import dynamic from 'next/dynamic';
 
 import { ConnectionLost } from '@/components/ConnectionLost';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { CookieConsent } from '@/components/CookieConsent';
 import { Seo } from '@/components/Seo';
 import { trackPageView } from '@/lib/api';
+import { installGlobalErrorReporting } from '@/lib/error-report';
 
 import '@/styles/globals.css';
 
@@ -54,6 +56,10 @@ export default function App({ Component, pageProps }: AppProps) {
   const lastPath = useRef<string | null>(null);
 
   useEffect(() => {
+    installGlobalErrorReporting();
+  }, []);
+
+  useEffect(() => {
     if (!router.isReady) return;
     lastPath.current = withoutLocale(window.location.pathname, router.locales);
     trackPageView(window.location.pathname, { locale: router.locale, includeReferrer: true });
@@ -88,7 +94,9 @@ export default function App({ Component, pageProps }: AppProps) {
         <link rel="apple-touch-icon" href="/images/icon-192.png" />
       </Head>
       <Seo />
-      <Component {...pageProps} />
+      <ErrorBoundary>
+        <Component {...pageProps} />
+      </ErrorBoundary>
       <ConnectionLost />
       {!IS_OFFLINE_BUNDLE && <VercelAnalytics />}
       {!IS_OFFLINE_BUNDLE && MARKETING_ROUTES.includes(router.pathname) && (
