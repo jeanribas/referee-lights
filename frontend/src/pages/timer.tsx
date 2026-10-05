@@ -46,11 +46,12 @@ export default function TimerPage() {
   const displayMessages = messages.display;
   const commonMessages = messages.common;
   const isSpanishLocale = Boolean(locale?.startsWith('es'));
-  const buttonTracking = isSpanishLocale ? 'tracking-[0.08em]' : 'tracking-[0.14em]';
-  const buttonTextSize = isSpanishLocale ? 'text-[9px]' : 'text-[10px]';
+  const buttonTracking = isSpanishLocale ? 'tracking-[0.03em]' : 'tracking-[0.06em]';
+  // Lido a um braço de distância, em tablet/celular em pé: mesmo tamanho do painel
+  const buttonTextSize = isSpanishLocale ? 'text-[12px]' : 'text-[13px]';
   const labelTracking = isSpanishLocale ? 'tracking-[0.12em]' : 'tracking-[0.16em]';
   const smallLabelTracking = isSpanishLocale ? 'tracking-[0.18em]' : 'tracking-[0.26em]';
-  const cardHeadingTracking = isSpanishLocale ? 'tracking-[0.25em]' : 'tracking-[0.3em]';
+  const cardHeadingTracking = isSpanishLocale ? 'tracking-[0.16em]' : 'tracking-[0.2em]';
   const controlButtonBase = `min-h-[48px] rounded-lg px-3 py-2.5 ${buttonTextSize} font-semibold uppercase ${buttonTracking} leading-tight text-center whitespace-normal transition`;
 
   const roomId = typeof router.query.roomId === 'string' ? router.query.roomId : undefined;
@@ -111,15 +112,23 @@ export default function TimerPage() {
         noIndex
       />
       <div className="h-screen w-screen overflow-hidden bg-slate-950">
-      <main className="flex h-screen flex-col items-center justify-center gap-6 bg-slate-950 px-4 py-4 text-slate-100 overflow-hidden" style={scaleStyle}>
-        <BrandLogo size={30} />
+      {/* "safe center": se o conteúdo for mais alto que a tela, alinha pelo topo em vez de cortar o logo */}
+      <main className="flex h-screen flex-col items-center gap-6 bg-slate-950 px-4 py-4 text-slate-100 overflow-hidden [justify-content:safe_center]" style={scaleStyle}>
+        {/* Cabeçalho na largura dos cartões: logo legível à esquerda e a sala
+            à direita (mesmo chip do painel), em vez do logo solto e miúdo */}
+        <header className="flex w-full max-w-3xl items-center justify-between gap-4">
+          <BrandLogo size={40} />
+          <span className="rounded-lg bg-white/10 px-3 py-1 text-sm font-bold uppercase tracking-[0.2em] text-white">
+            {commonMessages.labels.room}: {roomId}
+          </span>
+        </header>
         <div className="flex w-full max-w-3xl flex-col gap-4 md:flex-row md:items-start">
           {/* Timer card */}
           <div className="flex flex-1 flex-col gap-3 rounded-3xl border border-slate-800 bg-slate-900/80 p-5 shadow-2xl">
-            <h3 className={`text-xs font-semibold uppercase ${cardHeadingTracking} text-slate-300`}>
+            <h3 className={`text-sm font-bold uppercase ${cardHeadingTracking} text-white`}>
               {adminMessages.timer.title}
             </h3>
-            <TimerDisplay remainingMs={state?.timerMs ?? 60_000} running={state?.running ?? false} variant="panel" />
+            <TimerDisplay remainingMs={state?.timerMs ?? 60_000} running={state?.running ?? false} variant="panel" large />
             <div className="flex h-[2.6rem] items-center gap-2 pl-2 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden">
               {cooldownBadges.map((b) => (
                 <span
@@ -153,7 +162,7 @@ export default function TimerPage() {
             </div>
             <div className="flex flex-col gap-3 text-sm sm:flex-row sm:items-end sm:gap-3">
               <label className="flex flex-1 flex-col gap-1">
-                <span className={`text-[10px] uppercase ${labelTracking} text-slate-400`}>
+                <span className={`text-[11px] font-semibold uppercase ${labelTracking} text-slate-300`}>
                   {adminMessages.timer.minutesLabel}
                 </span>
                 <input
@@ -162,7 +171,7 @@ export default function TimerPage() {
                   step={0.5}
                   value={customMinutes}
                   onChange={(e) => setCustomMinutes(Number(e.target.value))}
-                  className="w-full min-h-[44px] rounded border border-slate-700 bg-slate-950 px-3 text-sm font-semibold text-white outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
+                  className="w-full min-h-[44px] rounded border border-slate-700 bg-slate-950 px-3 text-base font-semibold tabular-nums text-white outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
                 />
               </label>
               <button
@@ -176,21 +185,26 @@ export default function TimerPage() {
 
           {/* Interval card */}
           <div className="flex flex-1 flex-col gap-3 rounded-3xl border border-slate-800 bg-slate-900/80 p-5 shadow-2xl">
-            <header className="flex flex-col gap-1">
-              <h3 className={`text-xs font-semibold uppercase ${cardHeadingTracking} text-slate-300`}>
+            <header className="flex flex-col gap-2">
+              <h3 className={`text-sm font-bold uppercase ${cardHeadingTracking} text-white`}>
                 {adminMessages.interval.title}
               </h3>
-              <span className={`text-[10px] uppercase ${smallLabelTracking} text-slate-500`}>
-                {adminMessages.interval.configured}: {intervalConfiguredDisplay}
-              </span>
-              <span className={`text-[10px] uppercase ${smallLabelTracking} text-slate-500`}>
-                {adminMessages.interval.remaining}: {intervalDisplay}
-              </span>
+              {/* Leitura do intervalo: rótulo discreto, valor legível e de largura fixa */}
+              <dl className={`grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px] uppercase ${smallLabelTracking}`}>
+                <div className="flex flex-col">
+                  <dt className="text-slate-400">{adminMessages.interval.configured}</dt>
+                  <dd className="text-sm font-semibold tabular-nums tracking-normal text-slate-200">{intervalConfiguredDisplay}</dd>
+                </div>
+                <div className="flex flex-col">
+                  <dt className="text-slate-400">{adminMessages.interval.remaining}</dt>
+                  <dd className="text-sm font-semibold tabular-nums tracking-normal text-slate-200">{intervalDisplay}</dd>
+                </div>
+              </dl>
             </header>
 
             <div className="grid grid-cols-3 gap-3 text-sm">
               <label className="flex flex-col gap-1">
-                <span className={`text-[10px] uppercase ${labelTracking} text-slate-400`}>
+                <span className={`text-[11px] font-semibold uppercase ${labelTracking} text-slate-300`}>
                   {adminMessages.interval.hours}
                 </span>
                 <input
@@ -198,11 +212,11 @@ export default function TimerPage() {
                   min={0}
                   value={intervalHours}
                   onChange={(e) => setIntervalHours(Number(e.target.value))}
-                  className="min-h-[44px] rounded border border-slate-700 bg-slate-950 px-3 text-center text-sm font-medium text-white/90 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
+                  className="min-h-[44px] rounded border border-slate-700 bg-slate-950 px-3 text-center text-base font-semibold tabular-nums text-white outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className={`text-[10px] uppercase ${labelTracking} text-slate-400`}>
+                <span className={`text-[11px] font-semibold uppercase ${labelTracking} text-slate-300`}>
                   {adminMessages.interval.minutes}
                 </span>
                 <input
@@ -210,11 +224,11 @@ export default function TimerPage() {
                   min={0}
                   value={intervalMinutes}
                   onChange={(e) => setIntervalMinutes(Number(e.target.value))}
-                  className="min-h-[44px] rounded border border-slate-700 bg-slate-950 px-3 text-center text-sm font-medium text-white/90 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
+                  className="min-h-[44px] rounded border border-slate-700 bg-slate-950 px-3 text-center text-base font-semibold tabular-nums text-white outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className={`text-[10px] uppercase ${labelTracking} text-slate-400`}>
+                <span className={`text-[11px] font-semibold uppercase ${labelTracking} text-slate-300`}>
                   {adminMessages.interval.seconds}
                 </span>
                 <input
@@ -222,7 +236,7 @@ export default function TimerPage() {
                   min={0}
                   value={intervalSeconds}
                   onChange={(e) => setIntervalSeconds(Number(e.target.value))}
-                  className="min-h-[44px] rounded border border-slate-700 bg-slate-950 px-3 text-center text-sm font-medium text-white/90 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
+                  className="min-h-[44px] rounded border border-slate-700 bg-slate-950 px-3 text-center text-base font-semibold tabular-nums text-white outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
                 />
               </label>
             </div>
@@ -265,7 +279,7 @@ export default function TimerPage() {
                 {adminMessages.interval.showLights}
               </button>
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs leading-relaxed text-slate-400">
               {adminMessages.interval.note}
             </p>
           </div>
