@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"unsafe"
 
@@ -23,18 +24,21 @@ import (
 // (o app segue na bandeja, telas continuam conectadas).
 
 var (
-	user32            = windows.NewLazySystemDLL("user32.dll")
-	procSetWindowLong = user32.NewProc("SetWindowLongPtrW")
-	procCallWindowPro = user32.NewProc("CallWindowProcW")
-	procShowWindow    = user32.NewProc("ShowWindow")
-	procSetForeground = user32.NewProc("SetForegroundWindow")
-	procIsWindowVis   = user32.NewProc("IsWindowVisible")
-	procIsIconic      = user32.NewProc("IsIconic")
-	procLoadImage     = user32.NewProc("LoadImageW")
-	procSendMessage   = user32.NewProc("SendMessageW")
-	procDestroyWindow = user32.NewProc("DestroyWindow")
-	procGetSysMetrics = user32.NewProc("GetSystemMetrics")
-	procMessageBoxW   = user32.NewProc("MessageBoxW")
+	user32             = windows.NewLazySystemDLL("user32.dll")
+	procSetWindowLong  = user32.NewProc("SetWindowLongPtrW")
+	procCallWindowPro  = user32.NewProc("CallWindowProcW")
+	procShowWindow     = user32.NewProc("ShowWindow")
+	procSetForeground  = user32.NewProc("SetForegroundWindow")
+	procIsWindowVis    = user32.NewProc("IsWindowVisible")
+	procIsIconic       = user32.NewProc("IsIconic")
+	procLoadImage      = user32.NewProc("LoadImageW")
+	procSendMessage    = user32.NewProc("SendMessageW")
+	procDestroyWindow  = user32.NewProc("DestroyWindow")
+	procGetSysMetrics  = user32.NewProc("GetSystemMetrics")
+	procMessageBoxW    = user32.NewProc("MessageBoxW")
+	procMonitorFromWin = user32.NewProc("MonitorFromWindow")
+	procGetMonitorInfo = user32.NewProc("GetMonitorInfoW")
+	procGetDpiForWin   = user32.NewProc("GetDpiForWindow")
 )
 
 const (
@@ -119,6 +123,11 @@ func (p *panelWindow) run() {
 	// vão para o navegador padrão; o painel fica onde está.
 	_ = w.Bind("rlOpenExternal", func(u string) {
 		if parsed, err := url.Parse(u); err == nil && (parsed.Scheme == "http" || parsed.Scheme == "https") {
+			// Timer: janela própria do Edge (estreita, altura da tela, à
+			// esquerda); se o Edge não abrir, navegador padrão como antes.
+			if isTimerURL(parsed) && p.openTimerWindow(parsed.String()) {
+				return
+			}
 			openBrowser(parsed.String())
 		}
 	})
@@ -147,6 +156,53 @@ const externalLinksScript = `(() => {
     try { window.rlOpenExternal(new URL(String(target), location.href).href); return null; } catch { return open.apply(window, arguments); }
   };
 })();`
+
+type monitorInfo struct {
+	cbSize    uint32
+	rcMonitor windows.Rect
+	rcWork    windows.Rect
+	dwFlags   uint32
+}
+
+// openTimerWindow abre o timer no Edge em modo app, encostado à esquerda da
+// área útil do monitor onde está o painel, na altura dela. O Edge mede a
+// janela em pixels "lógicos": a área útil (pixels físicos) é convertida pela
+// escala do monitor (DPI). Devolve false se não deu para abrir.
+func (p *panelWindow) openTimerWindow(target string) bool {
+	p.mu.Lock()
+	hwnd := p.hwnd
+	p.mu.Unlock()
+	x, y, height := 0, 0, 0
+	const monitorDefaultToNearest = 2
+	if mon, _, _ := procMonitorFromWin.Call(hwnd, monitorDefaultToNearest); mon != 0 {
+		mi := monitorInfo{cbSize: uint32(unsafe.Sizeof(monitorInfo{}))}
+		if ok, _, _ := procGetMonitorInfo.Call(mon, uintptr(unsafe.Pointer(&mi))); ok != 0 {
+			dpi := 96
+			if procGetDpiForWin.Find() == nil {
+				if d, _, _ := procGetDpiForWin.Call(hwnd); d != 0 {
+					dpi = int(d)
+				}
+			}
+			scale := func(v int32) int { return int(v) * 96 / dpi }
+			x, y = scale(mi.rcWork.Left), scale(mi.rcWork.Top)
+			height = scale(mi.rcWork.Bottom - mi.rcWork.Top)
+		}
+	}
+	if height <= 0 {
+		sh, _, _ := procGetSysMetrics.Call(1) // SM_CYSCREEN
+		height = int(sh)
+	}
+	args := edgeAppArgs(target, filepath.Join(p.app.paths.Root, "timer-window"), x, y, timerWindowWidth, height)
+	quoted := make([]string, len(args))
+	for i, a := range args {
+		quoted[i] = windows.EscapeArg(a)
+	}
+	if err := shellOpen("open", "msedge.exe", strings.Join(quoted, " "), windows.SW_SHOWNORMAL); err != nil {
+		p.app.log.Printf("timer no Edge: %v (abrindo no navegador padrão)", err)
+		return false
+	}
+	return true
+}
 
 func (p *panelWindow) setIcon() {
 	var hinst windows.Handle

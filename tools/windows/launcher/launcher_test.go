@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -366,5 +367,40 @@ func TestSupervisorKillsAfterGrace(t *testing.T) {
 	}
 	if s.PID() != 0 {
 		t.Fatal("processo continua registrado")
+	}
+}
+
+func TestIsTimerURL(t *testing.T) {
+	for raw, want := range map[string]bool{
+		"http://192.168.0.10:3000/timer?roomId=AB12&pin=1234":       true,
+		"http://192.168.0.10:3000/en-US/timer?roomId=AB12&pin=1234": true,
+		"https://refereelights.app/es-ES/timer/":                    true,
+		"http://192.168.0.10:3000/display?roomId=AB12&pin=1234":     false,
+		"http://192.168.0.10:3000/timers":                           false,
+		"http://192.168.0.10:3000/en-US/admin":                      false,
+		"file:///C:/timer":                                          false,
+	} {
+		u, err := url.Parse(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := isTimerURL(u); got != want {
+			t.Errorf("isTimerURL(%q) = %v, quer %v", raw, got, want)
+		}
+	}
+}
+
+func TestEdgeAppArgs(t *testing.T) {
+	args := edgeAppArgs("http://10.0.0.5:3000/timer?roomId=X&pin=1", `C:\Users\Jéan R\AppData\Local\RefereeLights\timer-window`, 0, 0, 480, 1040)
+	want := []string{
+		"--app=http://10.0.0.5:3000/timer?roomId=X&pin=1",
+		`--user-data-dir=C:\Users\Jéan R\AppData\Local\RefereeLights\timer-window`,
+		"--window-position=0,0",
+		"--window-size=480,1040",
+		"--no-first-run",
+		"--no-default-browser-check",
+	}
+	if strings.Join(args, "|") != strings.Join(want, "|") {
+		t.Fatalf("args = %q", args)
 	}
 }
