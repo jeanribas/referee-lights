@@ -279,6 +279,7 @@ type WindowsMessages = {
   requirements: { title: string; items: string[] };
   troubleshooting: { title: string; items: { q: string; a: string }[] };
   cta: string;
+  ctaAlt: string;
 };
 
 /**
@@ -455,36 +456,38 @@ const MESSAGES: Record<AppLocale, Messages> = {
     },
     windows: {
       metaTitle: 'Instalar no Windows',
-      metaDescription: 'Guia passo a passo para baixar e rodar o Referee Lights no Windows. Sem instalar nada — basta extrair o ZIP e clicar.',
+      metaDescription: 'Guia passo a passo para baixar e rodar o Referee Lights no Windows. Um arquivo só, sem instalar nada: baixe e abra.',
       title: 'Como usar no Windows',
-      subtitle: 'Pacote portátil — extraia, clique e use. Sem instalar nada.',
+      subtitle: 'Um arquivo só — baixe, abra e use. Sem instalar nada.',
       backHome: 'Voltar para a Home',
       steps: [
-        { title: 'Baixe o pacote', desc: 'Acesse a página de Releases no GitHub e baixe o arquivo referee-lights-windows.zip da versão mais recente.' },
-        { title: 'Extraia o ZIP', desc: 'Clique com o botão direito no arquivo baixado e escolha "Extrair tudo". Escolha uma pasta fácil de encontrar, como a Área de Trabalho ou C:\\referee-lights.' },
-        { title: 'Execute o Iniciar.cmd', desc: 'Abra a pasta extraída e dê dois cliques no arquivo Iniciar.cmd. Duas janelas de terminal vão abrir — uma para o servidor e outra para o frontend. Não feche essas janelas.' },
-        { title: 'Abra no navegador', desc: 'Após alguns segundos, abra o navegador e acesse http://localhost:3000. O painel admin vai aparecer. Crie uma sessão e distribua os QR Codes para os árbitros.' },
-        { title: 'Conecte os dispositivos', desc: 'Os árbitros devem estar na mesma rede WiFi. Eles acessam pelo IP da máquina (ex: http://192.168.1.100:3000) escaneando o QR Code.' },
+        { title: 'Baixe o RefereeLights.exe', desc: 'Clique em "Baixar para Windows". O arquivo RefereeLights.exe é o aplicativo inteiro: não precisa instalar nem extrair nada.' },
+        { title: 'Abra o arquivo', desc: 'Dê dois cliques no RefereeLights.exe. Na primeira vez o Windows pode avisar sobre arquivo baixado da internet: clique em "Mais informações" e depois em "Executar assim mesmo".' },
+        { title: 'Permita o acesso à rede', desc: 'Se o Windows perguntar sobre o firewall, permita o acesso em redes privadas. Isso é o que deixa os celulares dos árbitros se conectarem.' },
+        { title: 'Crie a sessão', desc: 'O navegador abre sozinho no painel. Crie uma sessão e distribua os QR Codes para os árbitros. O ícone do Referee Lights fica perto do relógio do Windows: por ele você reabre o painel, copia o endereço para os celulares ou fecha o aplicativo.' },
+        { title: 'Conecte os dispositivos', desc: 'Os árbitros devem estar na mesma rede Wi-Fi. Eles acessam pelo IP da máquina (ex.: http://192.168.1.100:3000) escaneando o QR Code.' },
       ],
       requirements: {
         title: 'Requisitos',
         items: [
           'Windows 10 ou superior (64 bits)',
-          'Nenhuma instalação necessária — Node.js já vem incluso no pacote',
-          'Rede WiFi para conectar os dispositivos dos árbitros',
+          'Nenhuma instalação necessária — tudo vem dentro do RefereeLights.exe',
+          'Rede Wi-Fi para conectar os dispositivos dos árbitros',
           'Navegador moderno (Chrome, Edge, Firefox)',
         ],
       },
       troubleshooting: {
         title: 'Problemas comuns',
         items: [
-          { q: 'O Windows bloqueou o Iniciar.cmd', a: 'Clique em "Mais informações" e depois em "Executar assim mesmo". É normal o Windows alertar sobre arquivos baixados da internet.' },
-          { q: 'A página não abre no navegador', a: 'Espere 10 a 15 segundos após executar o Iniciar.cmd. Se ainda não funcionar, verifique se as janelas de terminal não mostraram erros.' },
-          { q: 'Os árbitros não conseguem conectar', a: 'Verifique se todos estão na mesma rede WiFi. Use o IP da máquina (mostrado no painel admin) em vez de localhost.' },
-          { q: 'Erro de porta em uso', a: 'Feche outras aplicações que possam estar usando as portas 3000 ou 3333, ou edite o arquivo .env para mudar as portas.' },
+          { q: 'O Windows ou o antivírus bloqueou o arquivo', a: 'Clique em "Mais informações" e depois em "Executar assim mesmo". Se o antivírus não deixar abrir, use a versão alternativa (zip): extraia e dê dois cliques no Iniciar.cmd.' },
+          { q: 'Os árbitros não conseguem conectar', a: 'Verifique se todos estão na mesma rede Wi-Fi e se a rede do computador está como "Privada". No ícone do Referee Lights perto do relógio, use "Liberar no firewall" e "Endereço para celulares".' },
+          { q: 'Erro de porta em uso', a: 'Se a porta 3000 estiver ocupada, o Referee Lights escolhe outra sozinho (3001, 3002...) e mostra o endereço certo no painel e no ícone perto do relógio.' },
+          { q: 'Onde ficam as salas e como remover', a: 'Os dados ficam em %LOCALAPPDATA%\\RefereeLights e continuam entre atualizações. Para remover tudo, use "Remover dados e sair" no ícone perto do relógio e apague o RefereeLights.exe.' },
+          { q: 'Como atualizar', a: 'Quando houver versão nova, o painel avisa. Você escolhe quando atualizar — nunca durante uma competição em andamento.' },
         ],
       },
       cta: 'Baixar para Windows',
+      ctaAlt: 'Versão alternativa (zip)',
     },
     display: {
       metaDescription:
@@ -848,36 +851,38 @@ const MESSAGES: Record<AppLocale, Messages> = {
     },
     windows: {
       metaTitle: 'Install on Windows',
-      metaDescription: 'Step-by-step guide to download and run Referee Lights on Windows. No installation needed — just extract the ZIP and click.',
+      metaDescription: 'Step-by-step guide to download and run Referee Lights on Windows. One single file, nothing to install: download and open.',
       title: 'How to use on Windows',
-      subtitle: 'Portable package — extract, click, and use. No installation needed.',
+      subtitle: 'One single file — download, open and use. Nothing to install.',
       backHome: 'Back to Home',
       steps: [
-        { title: 'Download the package', desc: 'Go to the GitHub Releases page and download the referee-lights-windows.zip file from the latest version.' },
-        { title: 'Extract the ZIP', desc: 'Right-click the downloaded file and choose "Extract All". Pick an easy-to-find folder like the Desktop or C:\\referee-lights.' },
-        { title: 'Run Iniciar.cmd', desc: 'Open the extracted folder and double-click the Iniciar.cmd file. Two terminal windows will open — one for the server and one for the frontend. Do not close them.' },
-        { title: 'Open in the browser', desc: 'After a few seconds, open your browser and go to http://localhost:3000. The admin panel will appear. Create a session and share the QR Codes with the referees.' },
-        { title: 'Connect the devices', desc: 'Referees must be on the same WiFi network. They access via the machine\'s IP address (e.g., http://192.168.1.100:3000) by scanning the QR Code.' },
+        { title: 'Download RefereeLights.exe', desc: 'Click "Download for Windows". RefereeLights.exe is the whole app: nothing to install or extract.' },
+        { title: 'Open the file', desc: 'Double-click RefereeLights.exe. The first time, Windows may warn about a file downloaded from the internet: click "More info" and then "Run anyway".' },
+        { title: 'Allow network access', desc: 'If Windows asks about the firewall, allow access on private networks. This is what lets the referees\' phones connect.' },
+        { title: 'Create the session', desc: 'The browser opens the panel automatically. Create a session and share the QR Codes with the referees. The Referee Lights icon sits next to the Windows clock: use it to reopen the panel, copy the address for phones or quit the app.' },
+        { title: 'Connect the devices', desc: 'Referees must be on the same Wi-Fi network. They access via the machine\'s IP address (e.g., http://192.168.1.100:3000) by scanning the QR Code.' },
       ],
       requirements: {
         title: 'Requirements',
         items: [
           'Windows 10 or later (64-bit)',
-          'No installation needed — Node.js is included in the package',
-          'WiFi network to connect referee devices',
+          'No installation needed — everything is inside RefereeLights.exe',
+          'Wi-Fi network to connect the referees\' devices',
           'Modern browser (Chrome, Edge, Firefox)',
         ],
       },
       troubleshooting: {
         title: 'Common issues',
         items: [
-          { q: 'Windows blocked Iniciar.cmd', a: 'Click "More info" then "Run anyway". This is normal for files downloaded from the internet.' },
-          { q: 'The page won\'t open in the browser', a: 'Wait 10 to 15 seconds after running Iniciar.cmd. If it still doesn\'t work, check the terminal windows for errors.' },
-          { q: 'Referees can\'t connect', a: 'Make sure everyone is on the same WiFi network. Use the machine\'s IP (shown in the admin panel) instead of localhost.' },
-          { q: 'Port already in use error', a: 'Close other applications using ports 3000 or 3333, or edit the .env file to change the ports.' },
+          { q: 'Windows or the antivirus blocked the file', a: 'Click "More info" and then "Run anyway". If the antivirus will not let it open, use the alternative version (zip): extract it and double-click Iniciar.cmd.' },
+          { q: 'Referees cannot connect', a: 'Make sure everyone is on the same Wi-Fi network and the computer\'s network is set to "Private". On the Referee Lights icon next to the clock, use "Allow through firewall" and "Address for phones".' },
+          { q: 'Port already in use error', a: 'If port 3000 is busy, Referee Lights picks another one by itself (3001, 3002...) and shows the right address in the panel and in the icon next to the clock.' },
+          { q: 'Where rooms are stored and how to remove', a: 'Data is kept in %LOCALAPPDATA%\\RefereeLights and survives updates. To remove everything, use "Remove data and quit" on the icon next to the clock and delete RefereeLights.exe.' },
+          { q: 'How to update', a: 'When there is a new version, the panel tells you. You choose when to update — never during a competition in progress.' },
         ],
       },
       cta: 'Download for Windows',
+      ctaAlt: 'Alternative version (zip)',
     },
     display: {
       metaDescription:
@@ -1241,36 +1246,38 @@ const MESSAGES: Record<AppLocale, Messages> = {
     },
     windows: {
       metaTitle: 'Instalar en Windows',
-      metaDescription: 'Gu\u00eda paso a paso para descargar y ejecutar Referee Lights en Windows. Sin instalar nada.',
+      metaDescription: 'Gu\u00eda paso a paso para descargar y usar Referee Lights en Windows. Un solo archivo, sin instalar nada: descarga y abre.',
       title: 'C\u00f3mo usar en Windows',
-      subtitle: 'Paquete portable \u2014 extrae, haz clic y usa. Sin instalar nada.',
-      backHome: 'Volver al Inicio',
+      subtitle: 'Un solo archivo — descarga, abre y usa. Sin instalar nada.',
+      backHome: 'Volver al inicio',
       steps: [
-        { title: 'Descarga el paquete', desc: 'Ve a la p\u00e1gina de Releases en GitHub y descarga el archivo referee-lights-windows.zip de la versi\u00f3n m\u00e1s reciente.' },
-        { title: 'Extrae el ZIP', desc: 'Haz clic derecho en el archivo descargado y elige "Extraer todo". Elige una carpeta f\u00e1cil de encontrar.' },
-        { title: 'Ejecuta Iniciar.cmd', desc: 'Abre la carpeta extra\u00edda y haz doble clic en Iniciar.cmd. Se abrir\u00e1n dos ventanas de terminal. No las cierres.' },
-        { title: 'Abre en el navegador', desc: 'Despu\u00e9s de unos segundos, abre el navegador y ve a http://localhost:3000. Crea una sesi\u00f3n y comparte los QR Codes.' },
-        { title: 'Conecta los dispositivos', desc: 'Los jueces deben estar en la misma red WiFi. Acceden por la IP de la m\u00e1quina escaneando el QR Code.' },
+        { title: 'Descarga RefereeLights.exe', desc: 'Haz clic en "Descargar para Windows". RefereeLights.exe es la aplicaci\u00f3n completa: no hay que instalar ni extraer nada.' },
+        { title: 'Abre el archivo', desc: 'Haz doble clic en RefereeLights.exe. La primera vez Windows puede avisar sobre un archivo descargado de internet: haz clic en "M\u00e1s informaci\u00f3n" y luego en "Ejecutar de todas formas".' },
+        { title: 'Permite el acceso a la red', desc: 'Si Windows pregunta por el firewall, permite el acceso en redes privadas. As\u00ed los celulares de los \u00e1rbitros pueden conectarse.' },
+        { title: 'Crea la sesi\u00f3n', desc: 'El navegador abre el panel solo. Crea una sesi\u00f3n y comparte los QR Codes con los \u00e1rbitros. El \u00edcono de Referee Lights queda junto al reloj de Windows: desde ah\u00ed reabres el panel, copias la direcci\u00f3n para los celulares o cierras la aplicaci\u00f3n.' },
+        { title: 'Conecta los dispositivos', desc: 'Los \u00e1rbitros deben estar en la misma red Wi-Fi. Acceden por la IP de la m\u00e1quina (ej.: http://192.168.1.100:3000) escaneando el QR Code.' },
       ],
       requirements: {
         title: 'Requisitos',
         items: [
           'Windows 10 o superior (64 bits)',
-          'No se necesita instalar nada \u2014 Node.js ya viene incluido',
-          'Red WiFi para conectar los dispositivos de los jueces',
+          'No requiere instalaci\u00f3n — todo viene dentro de RefereeLights.exe',
+          'Red Wi-Fi para conectar los dispositivos de los \u00e1rbitros',
           'Navegador moderno (Chrome, Edge, Firefox)',
         ],
       },
       troubleshooting: {
         title: 'Problemas comunes',
         items: [
-          { q: 'Windows bloque\u00f3 Iniciar.cmd', a: 'Haz clic en "M\u00e1s informaci\u00f3n" y luego en "Ejecutar de todos modos".' },
-          { q: 'La p\u00e1gina no abre', a: 'Espera 10-15 segundos. Revisa si las ventanas de terminal muestran errores.' },
-          { q: 'Los jueces no pueden conectarse', a: 'Verifica que todos est\u00e9n en la misma red WiFi. Usa la IP de la m\u00e1quina.' },
-          { q: 'Error de puerto en uso', a: 'Cierra otras aplicaciones en los puertos 3000 o 3333.' },
+          { q: 'Windows o el antivirus bloque\u00f3 el archivo', a: 'Haz clic en "M\u00e1s informaci\u00f3n" y luego en "Ejecutar de todas formas". Si el antivirus no deja abrirlo, usa la versi\u00f3n alternativa (zip): extr\u00e1ela y haz doble clic en Iniciar.cmd.' },
+          { q: 'Los \u00e1rbitros no pueden conectarse', a: 'Verifica que todos est\u00e9n en la misma red Wi-Fi y que la red del equipo est\u00e9 como "Privada". En el \u00edcono de Referee Lights junto al reloj, usa "Permitir en el firewall" y "Direcci\u00f3n para celulares".' },
+          { q: 'Error de puerto en uso', a: 'Si el puerto 3000 est\u00e1 ocupado, Referee Lights elige otro solo (3001, 3002...) y muestra la direcci\u00f3n correcta en el panel y en el \u00edcono junto al reloj.' },
+          { q: 'D\u00f3nde quedan las salas y c\u00f3mo eliminar', a: 'Los datos quedan en %LOCALAPPDATA%\\RefereeLights y se mantienen entre actualizaciones. Para eliminar todo, usa "Eliminar datos y salir" en el \u00edcono junto al reloj y borra RefereeLights.exe.' },
+          { q: 'C\u00f3mo actualizar', a: 'Cuando haya una versi\u00f3n nueva, el panel avisa. T\u00fa eliges cu\u00e1ndo actualizar — nunca durante una competencia en curso.' },
         ],
       },
       cta: 'Descargar para Windows',
+      ctaAlt: 'Versi\u00f3n alternativa (zip)',
     },
     display: {
       metaDescription:
