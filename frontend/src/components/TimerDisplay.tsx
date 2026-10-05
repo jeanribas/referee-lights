@@ -5,6 +5,9 @@ import type { Phase } from '@/types/state';
 const LIFTER_COOLDOWN_SECONDS = 60;
 const COOLDOWN_TICK_MS = 250;
 const LIGHTS_REVEAL_DELAY_MS = 1500;
+// Em competição real não passa de 1–2 ao mesmo tempo; mostra as mais
+// urgentes e as outras entram quando as primeiras acabam (sem estourar a tela)
+const MAX_COOLDOWN_BADGES = 4;
 
 interface TimerDisplayProps {
   remainingMs: number;
@@ -13,6 +16,8 @@ interface TimerDisplayProps {
   hidden?: boolean;
   phase?: Phase;
   attemptNo?: number;
+  /** Tela do cronometrista: relógio na largura do cartão, dígitos grandes */
+  large?: boolean;
 }
 
 interface CooldownEntry {
@@ -67,6 +72,7 @@ export function useCooldownBadges(phase?: Phase) {
     if (phase === 'revealed' && prev !== 'revealed') {
       const timeoutId = window.setTimeout(() => {
         const startedAt = Date.now();
+        setNow(startedAt);
         setCooldownEntries((entries) => {
           const updated = [...entries, { id: cooldownIdRef.current++, startedAt }];
           cooldownEntriesRef.current = updated;
@@ -90,15 +96,16 @@ export function useCooldownBadges(phase?: Phase) {
     return cooldownEntries
       .map((entry) => {
         const elapsedSeconds = (current - entry.startedAt) / 1000;
-        const remaining = Math.max(0, LIFTER_COOLDOWN_SECONDS - elapsedSeconds);
+        const remaining = Math.min(LIFTER_COOLDOWN_SECONDS, Math.max(0, LIFTER_COOLDOWN_SECONDS - elapsedSeconds));
         return { id: entry.id, value: Math.ceil(remaining), gradient: getCooldownGradient(remaining) };
       })
-      .filter((e) => e.value > 0);
+      .filter((e) => e.value > 0)
+      .slice(0, MAX_COOLDOWN_BADGES);
   }, [cooldownEntries, now]);
 }
 
 function TimerDisplay(props: TimerDisplayProps) {
-  const { remainingMs, running, variant = 'panel', hidden = false, phase, attemptNo } = props;
+  const { remainingMs, running, variant = 'panel', hidden = false, phase, attemptNo, large = false } = props;
 
   const [cooldownEntries, setCooldownEntries] = useState<CooldownEntry[]>([]);
   const cooldownEntriesRef = useRef<CooldownEntry[]>([]);
@@ -143,6 +150,7 @@ function TimerDisplay(props: TimerDisplayProps) {
     if (phase === 'revealed' && prev !== 'revealed') {
       const timeoutId = window.setTimeout(() => {
         const startedAt = Date.now();
+        setNow(startedAt);
         setCooldownEntries((entries) => {
           const updated = [...entries, { id: cooldownIdRef.current++, startedAt }];
           cooldownEntriesRef.current = updated;
@@ -169,14 +177,15 @@ function TimerDisplay(props: TimerDisplayProps) {
     return cooldownEntries
       .map((entry) => {
         const elapsedSeconds = (current - entry.startedAt) / 1000;
-        const remaining = Math.max(0, LIFTER_COOLDOWN_SECONDS - elapsedSeconds);
+        const remaining = Math.min(LIFTER_COOLDOWN_SECONDS, Math.max(0, LIFTER_COOLDOWN_SECONDS - elapsedSeconds));
         return {
           id: entry.id,
           value: Math.ceil(remaining),
           gradient: getCooldownGradient(remaining)
         };
       })
-      .filter((entry) => entry.value > 0);
+      .filter((entry) => entry.value > 0)
+      .slice(0, MAX_COOLDOWN_BADGES);
   }, [cooldownEntries, now, variant]);
 
   const timerText = formatTime(remainingMs);
@@ -263,7 +272,9 @@ function TimerDisplay(props: TimerDisplayProps) {
   return (
     <div className="flex w-full flex-col items-center gap-2">
       <div
-        className={`rounded-3xl border border-slate-700 bg-slate-900/80 px-12 py-6 text-6xl font-bold font-display tracking-widest shadow-inner transition-colors ${
+        className={`rounded-3xl border border-slate-700 bg-slate-900/80 font-bold font-display shadow-inner transition-colors ${
+          large ? 'w-full py-5 text-center text-8xl tabular-nums tracking-wider' : 'px-12 py-6 text-6xl tracking-widest'
+        } ${
           isZero ? 'text-[#ff1f1f]' : urgency ? 'text-[#ff4d4f]' : 'text-slate-50'
         } ${running ? 'animate-pulse' : ''}`}
       >
