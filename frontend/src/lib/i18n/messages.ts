@@ -134,6 +134,11 @@ type AdminMessages = {
       center: string;
       right: string;
     };
+    shortTargets: {
+      left: string;
+      center: string;
+      right: string;
+    };
   };
   roomSetup: {
     title: string;
@@ -603,6 +608,11 @@ const MESSAGES: Record<AppLocale, Messages> = {
           left: 'Árbitro Esquerdo',
           center: 'Árbitro Central',
           right: 'Árbitro Direito'
+        },
+        shortTargets: {
+          left: 'Esquerdo',
+          center: 'Central',
+          right: 'Direito'
         }
       },
       roomSetup: {
@@ -1002,6 +1012,11 @@ const MESSAGES: Record<AppLocale, Messages> = {
           left: 'Left Referee',
           center: 'Center Referee',
           right: 'Right Referee'
+        },
+        shortTargets: {
+          left: 'Left',
+          center: 'Center',
+          right: 'Right'
         }
       },
       roomSetup: {
@@ -1401,6 +1416,11 @@ const MESSAGES: Record<AppLocale, Messages> = {
           left: 'Árbitro izquierdo',
           center: 'Árbitro central',
           right: 'Árbitro derecho'
+        },
+        shortTargets: {
+          left: 'Izquierdo',
+          center: 'Central',
+          right: 'Derecho'
         }
       },
       roomSetup: {

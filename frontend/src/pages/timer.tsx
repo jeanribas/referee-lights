@@ -7,6 +7,7 @@ import { FooterBadges } from '@/components/FooterBadges';
 import { useCooldownBadges } from '@/components/TimerDisplay';
 import { IntervalCard, TimerCard } from '@/components/TimerControls';
 import { BrandLogo } from '@/components/BrandLogo';
+import { ConnectionStatus } from '@/components/ConnectionStatus';
 import { RefereeQrModal } from '@/components/RefereeQrModal';
 import { useSessionQrTargets } from '@/hooks/useSessionQrTargets';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
@@ -47,7 +48,7 @@ export default function TimerPage() {
   const [intervalMinutes, setIntervalMinutes] = useState(10);
   const [intervalSeconds, setIntervalSeconds] = useState(0);
   const [qrOpen, setQrOpen] = useState(false);
-  const qr = useSessionQrTargets({ open: qrOpen, roomId, adminPin, labels: adminMessages.qrMenu.targets });
+  const qr = useSessionQrTargets({ open: qrOpen, roomId, adminPin, labels: adminMessages.qrMenu.targets, shortLabels: adminMessages.qrMenu.shortTargets });
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -86,16 +87,24 @@ export default function TimerPage() {
       />
       {/* Ocupa exatamente a janela (dvh: some a barra do navegador no celular); nada rola */}
       <main className="flex h-[100dvh] flex-col justify-center gap-3 overflow-hidden bg-slate-950 p-3 text-slate-100 sm:p-4">
+        {/* Topo: informação (logo, conexão, sala) sem cara de botão; o único
+            controle é o QR. */}
         <header className="mx-auto flex w-full max-w-5xl shrink-0 items-center justify-between gap-3">
-          <BrandLogo size={28} />
-          {/* Status da conexão como no admin e nos árbitros, ao lado da sala */}
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <BrandLogo size={28} />
+            <ConnectionStatus status={status} messages={commonMessages} size="sm" />
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex flex-col items-end leading-tight">
+              <span className="text-[13px] font-semibold uppercase tracking-[0.12em] text-slate-400">{commonMessages.labels.room}</span>
+              <span className="text-[18px] font-bold tracking-[0.12em] text-white">{roomId}</span>
+            </div>
             {/* QR dos árbitros aqui também: quem está no admin (speaker) não
                 precisa parar para reabrir a página de um árbitro */}
             <button
               type="button"
               onClick={() => setQrOpen(true)}
-              className="inline-flex min-h-[44px] items-center gap-2 whitespace-nowrap rounded-lg bg-slate-800 px-3 text-[15px] font-semibold text-slate-100 transition hover:bg-slate-700"
+              className="inline-flex min-h-[48px] items-center gap-2 whitespace-nowrap rounded-xl border border-white/20 bg-slate-800 px-4 text-[15px] font-semibold text-white shadow-md transition hover:bg-slate-700 active:bg-slate-600"
               aria-label={adminMessages.preview.showQr}
             >
               <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -107,17 +116,6 @@ export default function TimerPage() {
               <span className="max-sm:hidden">{adminMessages.preview.showQr}</span>
               <span className="sm:hidden">QR</span>
             </button>
-            <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-slate-800 px-2.5 py-1.5 text-[13px] font-semibold text-slate-300">
-              <span
-                aria-hidden="true"
-                className={`h-2.5 w-2.5 rounded-full ${status === 'connected' ? 'bg-emerald-400' : status === 'connecting' ? 'bg-amber-400' : 'bg-red-500'}`}
-              />
-              {/* No celular estreito fica só a bolinha + estado */}
-              <span className="max-sm:sr-only">{commonMessages.labels.status}:</span> {commonMessages.connection[status]}
-            </span>
-            <span className="whitespace-nowrap rounded-lg bg-slate-800 px-3 py-1.5 text-[15px] font-semibold text-slate-200">
-              {commonMessages.labels.room} <span className="font-bold tracking-[0.12em] text-white">{roomId}</span>
-            </span>
           </div>
         </header>
 

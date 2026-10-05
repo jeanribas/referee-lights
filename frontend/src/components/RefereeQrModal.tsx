@@ -77,7 +77,7 @@ export function RefereeQrModal({
           <span aria-hidden="true">×</span>
         </button>
         <div className="flex flex-col gap-2 pr-14">
-          <h2 className="text-lg font-semibold uppercase tracking-[0.3em] text-white">{messages.title}</h2>
+          <h2 className="text-lg font-semibold uppercase tracking-[0.12em] text-white sm:tracking-[0.3em]">{messages.title}</h2>
           <p className="text-[15px] text-slate-300">{description ?? messages.description}</p>
           {onRefreshTokens && (
             <div className="mt-3 flex flex-wrap gap-3">
@@ -110,11 +110,11 @@ export function RefereeQrModal({
                   role="tab"
                   aria-selected={selected === target.judge}
                   onClick={() => setSelected(target.judge)}
-                  className={`min-h-[52px] rounded-xl px-2 text-[15px] font-semibold transition ${
+                  className={`min-h-[52px] truncate whitespace-nowrap rounded-xl px-2 text-[15px] font-semibold transition ${
                     selected === target.judge ? 'bg-white text-slate-950' : 'bg-white/10 text-white hover:bg-white/20'
                   }`}
                 >
-                  {target.label}
+                  {target.shortLabel ?? target.label}
                 </button>
               ))}
             </div>
@@ -131,7 +131,7 @@ export function RefereeQrModal({
                     <QRCode value={target.href} size={220} bgColor="#ffffff" fgColor="#0F141F" />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <span className="text-[15px] font-semibold uppercase tracking-[0.25em] text-slate-100">{target.label}</span>
+                    <span className="text-[15px] font-semibold uppercase tracking-[0.15em] text-slate-100 sm:tracking-[0.25em]">{target.label}</span>
                     <span className="break-all text-[13px] text-slate-400">{target.href}</span>
                   </div>
                 </div>

@@ -15,12 +15,14 @@ export function useSessionQrTargets({
   open,
   roomId,
   adminPin,
-  labels
+  labels,
+  shortLabels
 }: {
   open: boolean;
   roomId: string | undefined;
   adminPin: string | undefined;
   labels: Labels;
+  shortLabels?: Labels;
 }) {
   const [targets, setTargets] = useState<QrTarget[]>([]);
   const [loading, setLoading] = useState(false);
@@ -38,9 +40,9 @@ export function useSessionQrTargets({
       .then((access) => {
         if (cancelled) return;
         setTargets([
-          { judge: 'left', label: labels.left, href: buildRefHref(origin, roomId, access.joinQRCodes.left.token, 'left') },
-          { judge: 'center', label: labels.center, href: buildRefHref(origin, roomId, access.joinQRCodes.center.token, 'center') },
-          { judge: 'right', label: labels.right, href: buildRefHref(origin, roomId, access.joinQRCodes.right.token, 'right') }
+          { judge: 'left', label: labels.left, shortLabel: shortLabels?.left, href: buildRefHref(origin, roomId, access.joinQRCodes.left.token, 'left') },
+          { judge: 'center', label: labels.center, shortLabel: shortLabels?.center, href: buildRefHref(origin, roomId, access.joinQRCodes.center.token, 'center') },
+          { judge: 'right', label: labels.right, shortLabel: shortLabels?.right, href: buildRefHref(origin, roomId, access.joinQRCodes.right.token, 'right') }
         ]);
       })
       .catch((err: unknown) => {
@@ -54,7 +56,7 @@ export function useSessionQrTargets({
     return () => {
       cancelled = true;
     };
-  }, [open, roomId, adminPin, labels.left, labels.center, labels.right]);
+  }, [open, roomId, adminPin, labels.left, labels.center, labels.right, shortLabels?.left, shortLabels?.center, shortLabels?.right]);
 
   return { targets, loading, errorCode, loopback };
 }

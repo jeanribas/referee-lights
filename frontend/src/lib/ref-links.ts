@@ -3,6 +3,8 @@ import type { Judge } from '@/types/state';
 export interface QrTarget {
   judge: Judge;
   label: string;
+  /** Rótulo curto do seletor em tela estreita ("Esquerdo"). */
+  shortLabel?: string;
   href: string;
 }
 

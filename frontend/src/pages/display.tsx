@@ -55,7 +55,7 @@ export default function DisplayPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [qrOpen, setQrOpen] = useState(false);
-  const qr = useSessionQrTargets({ open: qrOpen, roomId, adminPin, labels: messages.admin.qrMenu.targets });
+  const qr = useSessionQrTargets({ open: qrOpen, roomId, adminPin, labels: messages.admin.qrMenu.targets, shortLabels: messages.admin.qrMenu.shortTargets });
 
   const intervalVisible = Boolean(
     state && state.intervalVisible && state.intervalConfiguredMs > 0 && state.intervalMs > 0

@@ -14,6 +14,7 @@ import { FooterBadges } from '@/components/FooterBadges';
 import { getMessages, type Messages } from '@/lib/i18n/messages';
 import { APP_LOCALES, type AppLocale } from '@/lib/i18n/config';
 import { BrandLogo } from '@/components/BrandLogo';
+import { ConnectionStatus } from '@/components/ConnectionStatus';
 import { RefereeQrModal } from '@/components/RefereeQrModal';
 import { buildRefHref, buildRoomViewHref, resolveAppOrigin, type QrTarget } from '@/lib/ref-links';
 import { Seo } from '@/components/Seo';
@@ -236,20 +237,23 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
       {
         judge: 'left',
         label: adminMessages.qrMenu.targets.left,
+        shortLabel: adminMessages.qrMenu.shortTargets.left,
         href: buildRefHref(appOrigin, roomId, roomAccess.joinQRCodes.left.token, 'left')
       },
       {
         judge: 'center',
         label: adminMessages.qrMenu.targets.center,
+        shortLabel: adminMessages.qrMenu.shortTargets.center,
         href: buildRefHref(appOrigin, roomId, roomAccess.joinQRCodes.center.token, 'center')
       },
       {
         judge: 'right',
         label: adminMessages.qrMenu.targets.right,
+        shortLabel: adminMessages.qrMenu.shortTargets.right,
         href: buildRefHref(appOrigin, roomId, roomAccess.joinQRCodes.right.token, 'right')
       }
     ];
-  }, [adminMessages.qrMenu.targets.center, adminMessages.qrMenu.targets.left, adminMessages.qrMenu.targets.right, appOrigin, roomAccess, roomId]);
+  }, [adminMessages.qrMenu.targets, adminMessages.qrMenu.shortTargets, appOrigin, roomAccess, roomId]);
 
   // Display e timer costumam abrir em OUTRO computador: mesmo endereço de
   // rede dos QR dos árbitros (com o painel em localhost, um link relativo
@@ -462,13 +466,9 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
               )}
             </div>
             <div className="flex items-center gap-4">
-              <span className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-300">
-                <span
-                  aria-hidden="true"
-                  className={`h-2.5 w-2.5 rounded-full ${status === 'connected' ? 'bg-emerald-400' : status === 'connecting' ? 'bg-amber-400' : 'bg-red-500'}`}
-                />
-                {commonMessages.labels.status}: {commonMessages.connection[status]}
-                {tokenRefreshing && <span className="text-slate-400"> · {adminMessages.header.generatingLinks}</span>}
+              <span className="flex items-center gap-2">
+                <ConnectionStatus status={status} messages={commonMessages} />
+                {tokenRefreshing && <span className="text-[13px] text-slate-400">· {adminMessages.header.generatingLinks}</span>}
               </span>
               <label htmlFor="locale-select" className="sr-only">
                 {commonMessages.languageLabel}
