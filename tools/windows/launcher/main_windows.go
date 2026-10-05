@@ -68,6 +68,7 @@ func main() {
 		os.Exit(1)
 	}
 	app := newApp(paths, logFile, *noBrowser || *postUpdate || *rollback)
+	startKeepAwake(app.log)
 
 	exe, _ := os.Executable()
 	if *rollback {

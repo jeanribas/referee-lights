@@ -1,34 +1,15 @@
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useEffect, useMemo, useState } from 'react';
-import type { CSSProperties } from 'react';
 
 import { Seo } from '@/components/Seo';
 import { FooterBadges } from '@/components/FooterBadges';
-import TimerDisplay, { useCooldownBadges } from '@/components/TimerDisplay';
+import { useCooldownBadges } from '@/components/TimerDisplay';
+import { IntervalCard, TimerCard } from '@/components/TimerControls';
 import { BrandLogo } from '@/components/BrandLogo';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
+import { useRouterReady } from '@/hooks/useRouterReady';
 import { getMessages, type Messages } from '@/lib/i18n/messages';
-
-function useViewportScale() {
-  const [scale, setScale] = useState(1);
-  useEffect(() => {
-    const update = () => {
-      // In portrait/narrow: stack vertically, scale based on height only (width is fine)
-      // In landscape/wide: side by side, scale based on both
-      const isWide = window.innerWidth >= 768;
-      const dw = isWide ? 768 : 380;
-      const dh = isWide ? 650 : 1100;
-      const sx = window.innerWidth / dw;
-      const sy = window.innerHeight / dh;
-      setScale(Math.min(sx, sy, 1));
-    };
-    update();
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
-  }, []);
-  return scale;
-}
 
 function formatInterval(ms: number) {
   const totalSec = Math.max(0, Math.ceil(ms / 1000));
@@ -45,23 +26,17 @@ export default function TimerPage() {
   const adminMessages = messages.admin;
   const displayMessages = messages.display;
   const commonMessages = messages.common;
-  const isSpanishLocale = Boolean(locale?.startsWith('es'));
-  const buttonTracking = isSpanishLocale ? 'tracking-[0.03em]' : 'tracking-[0.06em]';
-  // Lido a um braço de distância, em tablet/celular em pé: mesmo tamanho do painel
-  const buttonTextSize = isSpanishLocale ? 'text-[12px]' : 'text-[13px]';
-  const labelTracking = isSpanishLocale ? 'tracking-[0.12em]' : 'tracking-[0.16em]';
-  const smallLabelTracking = isSpanishLocale ? 'tracking-[0.18em]' : 'tracking-[0.26em]';
-  const cardHeadingTracking = isSpanishLocale ? 'tracking-[0.16em]' : 'tracking-[0.2em]';
-  const controlButtonBase = `min-h-[48px] rounded-lg px-3 py-2.5 ${buttonTextSize} font-semibold uppercase ${buttonTracking} leading-tight text-center whitespace-normal transition`;
+  // Lado a lado na tela deitada, cada cartão com metade da largura
+  const card = 'rounded-2xl border border-slate-800 bg-slate-900 p-4 landscape:flex-1 landscape:basis-0';
 
+  const routerReady = useRouterReady();
   const roomId = typeof router.query.roomId === 'string' ? router.query.roomId : undefined;
   const adminPin = typeof router.query.pin === 'string' ? router.query.pin : undefined;
 
   const {
-    state, status, error,
+    state, status,
     timerStart, timerStop, timerReset, timerSet,
     intervalStart, intervalStop, intervalReset, intervalSet,
-    intervalShow, intervalHide
   } = useRoomSocket('display', { roomId, adminPin });
 
   const cooldownBadges = useCooldownBadges(state?.phase);
@@ -88,20 +63,14 @@ export default function TimerPage() {
     intervalSet(totalSeconds);
   };
 
-  const intervalConfiguredDisplay = formatInterval(state?.intervalConfiguredMs ?? 0);
   const intervalDisplay = formatInterval(state?.intervalMs ?? 0);
 
-  const viewportScale = useViewportScale();
-  const scaleStyle: CSSProperties | undefined = viewportScale < 1 ? {
-    transformOrigin: 'top left',
-    transform: `scale(${viewportScale})`,
-    width: `${100 / viewportScale}%`,
-    height: `${100 / viewportScale}vh`,
-  } : undefined;
-
+  // Até ler a URL, só o fundo (sem piscar "não configurado" ao recarregar)
+  if (!routerReady) return <div className="h-[100dvh] bg-slate-950" />;
   if (!roomId || !adminPin) {
     return <MissingTimerCredentials messages={displayMessages} />;
   }
+
 
   return (
     <>
@@ -111,195 +80,65 @@ export default function TimerPage() {
         canonicalPath="/timer"
         noIndex
       />
-      <div className="h-screen w-screen overflow-hidden bg-slate-950">
-      {/* "safe center": se o conteúdo for mais alto que a tela, alinha pelo topo em vez de cortar o logo */}
-      <main className="flex h-screen flex-col items-center gap-6 bg-slate-950 px-4 py-4 text-slate-100 overflow-hidden [justify-content:safe_center]" style={scaleStyle}>
-        {/* Cabeçalho na largura dos cartões: logo legível à esquerda e a sala
-            à direita (mesmo chip do painel), em vez do logo solto e miúdo */}
-        <header className="flex w-full max-w-3xl items-center justify-between gap-4">
-          <BrandLogo size={40} />
-          <span className="rounded-lg bg-white/10 px-3 py-1 text-sm font-bold uppercase tracking-[0.2em] text-white">
-            {commonMessages.labels.room}: {roomId}
-          </span>
+      {/* Ocupa exatamente a janela (dvh: some a barra do navegador no celular); nada rola */}
+      <main className="flex h-[100dvh] flex-col justify-center gap-3 overflow-hidden bg-slate-950 p-3 text-slate-100 sm:p-4">
+        <header className="mx-auto flex w-full max-w-5xl shrink-0 items-center justify-between gap-3">
+          <BrandLogo size={28} />
+          {/* Status da conexão como no admin e nos árbitros, ao lado da sala */}
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-slate-800 px-2.5 py-1.5 text-[13px] font-semibold text-slate-300">
+              <span
+                aria-hidden="true"
+                className={`h-2.5 w-2.5 rounded-full ${status === 'connected' ? 'bg-emerald-400' : status === 'connecting' ? 'bg-amber-400' : 'bg-red-500'}`}
+              />
+              {/* No celular estreito fica só a bolinha + estado */}
+              <span className="max-sm:sr-only">{commonMessages.labels.status}:</span> {commonMessages.connection[status]}
+            </span>
+            <span className="whitespace-nowrap rounded-lg bg-slate-800 px-3 py-1.5 text-[15px] font-semibold text-slate-200">
+              {commonMessages.labels.room} <span className="font-bold tracking-[0.12em] text-white">{roomId}</span>
+            </span>
+          </div>
         </header>
-        <div className="flex w-full max-w-3xl flex-col gap-4 md:flex-row md:items-start">
-          {/* Timer card */}
-          <div className="flex flex-1 flex-col gap-3 rounded-3xl border border-slate-800 bg-slate-900/80 p-5 shadow-2xl">
-            <h3 className={`text-sm font-bold uppercase ${cardHeadingTracking} text-white`}>
-              {adminMessages.timer.title}
-            </h3>
-            <TimerDisplay remainingMs={state?.timerMs ?? 60_000} running={state?.running ?? false} variant="panel" large />
-            <div className="flex h-[2.6rem] items-center gap-2 pl-2 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden">
-              {cooldownBadges.map((b) => (
-                <span
-                  key={b.id}
-                  className="inline-flex skew-x-[-12deg] items-center justify-center rounded-md h-[2.6rem] w-[3rem] text-base font-black text-slate-900 shadow-[0_4px_0_rgba(0,0,0,0.3)]"
-                  style={{ backgroundImage: b.gradient }}
-                >
-                  <span className="skew-x-[12deg] leading-none tabular-nums">{b.value}</span>
-                </span>
-              ))}
-            </div>
-            <div className="grid grid-cols-3 gap-2 text-sm">
-              <button
-                className={`${controlButtonBase} bg-emerald-500 text-slate-900 hover:bg-emerald-400/90`}
-                onClick={timerStart}
-              >
-                {adminMessages.timer.start}
-              </button>
-              <button
-                className={`${controlButtonBase} bg-amber-400 text-slate-900 hover:bg-amber-300/90`}
-                onClick={timerStop}
-              >
-                {adminMessages.timer.stop}
-              </button>
-              <button
-                className={`${controlButtonBase} bg-slate-700 text-white hover:bg-slate-600`}
-                onClick={timerReset}
-              >
-                {adminMessages.timer.resetDefault}
-              </button>
-            </div>
-            <div className="flex flex-col gap-3 text-sm sm:flex-row sm:items-end sm:gap-3">
-              <label className="flex flex-1 flex-col gap-1">
-                <span className={`text-[11px] font-semibold uppercase ${labelTracking} text-slate-300`}>
-                  {adminMessages.timer.minutesLabel}
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  step={0.5}
-                  value={customMinutes}
-                  onChange={(e) => setCustomMinutes(Number(e.target.value))}
-                  className="w-full min-h-[44px] rounded border border-slate-700 bg-slate-950 px-3 text-base font-semibold tabular-nums text-white outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
-                />
-              </label>
-              <button
-                className={`${controlButtonBase} w-full sm:w-auto bg-slate-200 text-slate-900 hover:bg-slate-100`}
-                onClick={handleSetMinutes}
-              >
-                {adminMessages.timer.set}
-              </button>
-            </div>
-          </div>
 
-          {/* Interval card */}
-          <div className="flex flex-1 flex-col gap-3 rounded-3xl border border-slate-800 bg-slate-900/80 p-5 shadow-2xl">
-            <header className="flex flex-col gap-2">
-              <h3 className={`text-sm font-bold uppercase ${cardHeadingTracking} text-white`}>
-                {adminMessages.interval.title}
-              </h3>
-              {/* Leitura do intervalo: rótulo discreto, valor legível e de largura fixa */}
-              <dl className={`grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px] uppercase ${smallLabelTracking}`}>
-                <div className="flex flex-col">
-                  <dt className="text-slate-400">{adminMessages.interval.configured}</dt>
-                  <dd className="text-sm font-semibold tabular-nums tracking-normal text-slate-200">{intervalConfiguredDisplay}</dd>
-                </div>
-                <div className="flex flex-col">
-                  <dt className="text-slate-400">{adminMessages.interval.remaining}</dt>
-                  <dd className="text-sm font-semibold tabular-nums tracking-normal text-slate-200">{intervalDisplay}</dd>
-                </div>
-              </dl>
-            </header>
-
-            <div className="grid grid-cols-3 gap-3 text-sm">
-              <label className="flex flex-col gap-1">
-                <span className={`text-[11px] font-semibold uppercase ${labelTracking} text-slate-300`}>
-                  {adminMessages.interval.hours}
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  value={intervalHours}
-                  onChange={(e) => setIntervalHours(Number(e.target.value))}
-                  className="min-h-[44px] rounded border border-slate-700 bg-slate-950 px-3 text-center text-base font-semibold tabular-nums text-white outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className={`text-[11px] font-semibold uppercase ${labelTracking} text-slate-300`}>
-                  {adminMessages.interval.minutes}
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  value={intervalMinutes}
-                  onChange={(e) => setIntervalMinutes(Number(e.target.value))}
-                  className="min-h-[44px] rounded border border-slate-700 bg-slate-950 px-3 text-center text-base font-semibold tabular-nums text-white outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className={`text-[11px] font-semibold uppercase ${labelTracking} text-slate-300`}>
-                  {adminMessages.interval.seconds}
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  value={intervalSeconds}
-                  onChange={(e) => setIntervalSeconds(Number(e.target.value))}
-                  className="min-h-[44px] rounded border border-slate-700 bg-slate-950 px-3 text-center text-base font-semibold tabular-nums text-white outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
-                />
-              </label>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <button
-                className={`${controlButtonBase} bg-slate-200 text-slate-900 hover:bg-slate-100`}
-                onClick={handleIntervalSet}
-              >
-                {adminMessages.interval.set}
-              </button>
-              <button
-                className={`${controlButtonBase} bg-emerald-500 text-slate-900 hover:bg-emerald-400/90`}
-                onClick={intervalStart}
-              >
-                {adminMessages.interval.start}
-              </button>
-              <button
-                className={`${controlButtonBase} bg-amber-400 text-slate-900 hover:bg-amber-300/90`}
-                onClick={intervalStop}
-              >
-                {adminMessages.interval.pause}
-              </button>
-              <button
-                className={`${controlButtonBase} bg-slate-700 text-white hover:bg-slate-600`}
-                onClick={intervalReset}
-              >
-                {adminMessages.interval.reset}
-              </button>
-              <button
-                className={`col-span-2 ${controlButtonBase} bg-white/20 text-white hover:bg-white/30`}
-                onClick={intervalShow}
-              >
-                {adminMessages.interval.showInterval}
-              </button>
-              <button
-                className={`col-span-2 ${controlButtonBase} bg-white/20 text-white hover:bg-white/30`}
-                onClick={intervalHide}
-              >
-                {adminMessages.interval.showLights}
-              </button>
-            </div>
-            <p className="text-xs leading-relaxed text-slate-400">
-              {adminMessages.interval.note}
-            </p>
-          </div>
+        {/* Em pé: um cartão sobre o outro. Deitado: lado a lado. Os cartões têm a
+            altura do conteúdo e o conjunto fica centralizado na janela */}
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-3 landscape:flex-row landscape:items-start">
+          <TimerCard
+            className={card}
+            messages={adminMessages.timer}
+            remainingMs={state?.timerMs ?? 60_000}
+            running={state?.running ?? false}
+            badges={cooldownBadges}
+            minutes={customMinutes}
+            onMinutesChange={setCustomMinutes}
+            onStart={timerStart}
+            onStop={timerStop}
+            onReset={timerReset}
+            onSet={handleSetMinutes}
+          />
+          <IntervalCard
+            className={card}
+            messages={adminMessages.interval}
+            shortLabels={messages.referee.center}
+            display={intervalDisplay}
+            hours={intervalHours}
+            minutes={intervalMinutes}
+            seconds={intervalSeconds}
+            onHoursChange={setIntervalHours}
+            onMinutesChange={setIntervalMinutes}
+            onSecondsChange={setIntervalSeconds}
+            onSet={handleIntervalSet}
+            onStart={intervalStart}
+            onPause={intervalStop}
+            onReset={intervalReset}
+          />
         </div>
-        <div className="mt-4 opacity-60">
+
+        <div className="shrink-0 opacity-60 [@media(max-height:900px)]:hidden">
           <FooterBadges />
         </div>
       </main>
-      </div>
-      {error && <StatusBanner message={error} errors={commonMessages.errors} />}
     </>
-  );
-}
-
-function StatusBanner({ message, errors }: { message: string; errors: Record<string, string> }) {
-  const text = errors[message] ?? message;
-  return (
-    <div className="fixed left-1/2 top-6 z-40 -translate-x-1/2 rounded-full border border-white/20 bg-white/15 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white">
-      {text}
-    </div>
   );
 }
 
