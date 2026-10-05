@@ -82,8 +82,9 @@ func main() {
 	app.exePath = exe
 	app.updater = newUpdater(app, exe)
 
+	app.openPanelFn = func() { app.openPanel(func() { systray.Quit() }) }
 	if err := watchInstanceEvents(
-		func() { openBrowser(app.adminURL()) },
+		func() { app.showPanel() },
 		func() { systray.Quit() },
 	); err != nil {
 		app.log.Printf("eventos de instância: %v", err)
@@ -102,6 +103,7 @@ func main() {
 
 	removeData := false
 	systray.Run(func() { setupTray(app, &removeData) }, func() {
+		closePanel()
 		if removeData {
 			app.RemoveDataAndQuit()
 		} else {

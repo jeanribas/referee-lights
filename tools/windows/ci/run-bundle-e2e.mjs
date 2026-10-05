@@ -100,6 +100,42 @@ async function main() {
   step(process.execPath, [path.join(here, 'security-check.cjs'), API, '--key-relay'], 'segurança (Key Relay com PIN, lista branca, status)');
   if (!skipUi) step(process.execPath, [path.join(here, 'ui-smoke.mjs'), WEB, frontendDir], 'UI no Chromium (todas as telas)');
 
+  // Conexão perdida: TODAS as telas avisam quando o servidor cai e o aviso
+  // some quando ele volta (antes a tela seguia mostrando o último estado).
+  if (!skipUi) {
+    const { createRequire } = await import('node:module');
+    const { chromium } = createRequire(path.join(here, '..', '..', '..', 'frontend', 'package.json'))('@playwright/test');
+    const r = (await post('/rooms')).body;
+    const q = `roomId=${r.roomId}&pin=${r.adminPin}`;
+    const screens = {
+      admin: `/admin?${q}`, display: `/display?${q}`, legenda: `/legend?${q}`, 'legenda-obs': `/legend?${q}&view=share`,
+      timer: `/timer?${q}`, esquerdo: `/ref/left?roomId=${r.roomId}&token=${r.joinQRCodes.left.token}`,
+      central: `/ref/center?roomId=${r.roomId}&token=${r.joinQRCodes.center.token}`, direito: `/ref/right?roomId=${r.roomId}&token=${r.joinQRCodes.right.token}`
+    };
+    const browser = await chromium.launch();
+    const pages = {};
+    for (const [name, p] of Object.entries(screens)) {
+      pages[name] = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+      await pages[name].goto(WEB + p, { waitUntil: 'load' });
+    }
+    await new Promise((res) => setTimeout(res, 3000));
+    for (const [name, page] of Object.entries(pages)) {
+      assert(await page.locator('[data-connection-lost]').count() === 0, `${name}: sem aviso com o servidor no ar`);
+    }
+    await stop(server);
+    for (const [name, page] of Object.entries(pages)) {
+      await page.waitForSelector('[data-connection-lost]', { timeout: 15_000 }).catch(() => undefined);
+      assert(await page.locator('[data-connection-lost]').count() === 1, `${name}: avisa "sem conexão" com o servidor fora do ar`);
+    }
+    server = start('server', serverDir, path.join('dist', 'index.js'), {});
+    await waitOk(`${API}/health`, 60);
+    for (const [name, page] of Object.entries(pages)) {
+      await page.waitForSelector('[data-connection-lost]', { state: 'detached', timeout: 45_000 }).catch(() => undefined);
+      assert(await page.locator('[data-connection-lost]').count() === 0, `${name}: aviso some quando o servidor volta`);
+    }
+    await browser.close();
+  }
+
   // Recuperação pós-restart: sala criada antes do restart volta com o mesmo PIN
   const room = (await post('/rooms')).body;
   const before = (await post(`/rooms/${room.roomId}/access`, { adminPin: room.adminPin })).status;

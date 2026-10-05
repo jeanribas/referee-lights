@@ -4,6 +4,7 @@ import Script from 'next/script';
 import { useEffect } from 'react';
 import { Analytics } from '@vercel/analytics/react';
 
+import { ConnectionLost } from '@/components/ConnectionLost';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Seo } from '@/components/Seo';
 import { UpdateBanner } from '@/components/UpdateBanner';
@@ -57,6 +58,7 @@ export default function App({ Component, pageProps, router }: AppProps) {
       <ErrorBoundary>
         <Component {...pageProps} />
       </ErrorBoundary>
+      <ConnectionLost />
       {IS_BUNDLE && router.pathname === '/admin' && <UpdateBanner />}
       {/* Analytics da Vercel só existe na Vercel: no pacote era um 404 por tela */}
       {!IS_BUNDLE && <Analytics />}

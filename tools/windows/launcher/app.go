@@ -38,6 +38,8 @@ type App struct {
 	exePath    string
 	updater    *Updater
 	controlURL string
+	// openPanelFn: no Windows, janela própria do painel; fora dele, navegador
+	openPanelFn func()
 
 	quitOnce sync.Once
 	quit     chan struct{}
@@ -61,6 +63,14 @@ func newApp(p Paths, logFile *rotatingFile, noBrowser bool) *App {
 func (a *App) requestExit() { a.exitOnce.Do(func() { close(a.exitReq) }) }
 
 func (a *App) adminURL() string { return fmt.Sprintf("http://localhost:%d/admin", a.port) }
+
+func (a *App) showPanel() {
+	if a.openPanelFn != nil {
+		a.openPanelFn()
+		return
+	}
+	openBrowser(a.adminURL())
+}
 
 // Boot extrai, migra, escolhe a porta e sobe o server. Erro aqui = o app não
 // tem como funcionar (o chamador avisa a pessoa e sai).
@@ -160,7 +170,7 @@ func (a *App) afterServerStart() {
 	a.log.Printf("server no ar em http://localhost:%d", a.port)
 	firstStart.Do(func() {
 		if !a.noBrowser {
-			openBrowser(a.adminURL())
+			a.showPanel()
 		}
 	})
 	a.errs.Flush(a.port, a.token)

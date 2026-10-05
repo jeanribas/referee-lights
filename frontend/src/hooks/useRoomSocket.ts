@@ -9,6 +9,24 @@ import type { AppLocale } from '@/lib/i18n/config';
 
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
 
+// Estado da conexão da tela atual, para o aviso global de conexão perdida
+// (ConnectionLost no _app): qualquer tela de sala avisa quando cai.
+type ConnectionSnapshot = { active: boolean; status: ConnectionStatus; error: string | null };
+let connectionSnapshot: ConnectionSnapshot = { active: false, status: 'disconnected', error: null };
+const connectionListeners = new Set<() => void>();
+function publishConnection(next: ConnectionSnapshot) {
+  connectionSnapshot = next;
+  for (const l of connectionListeners) l();
+}
+export const connectionStore = {
+  subscribe(listener: () => void) {
+    connectionListeners.add(listener);
+    return () => connectionListeners.delete(listener);
+  },
+  get: () => connectionSnapshot,
+  getServer: () => connectionSnapshot
+};
+
 interface UseRoomSocketResult {
   status: ConnectionStatus;
   state: AppState | null;
@@ -48,10 +66,17 @@ export function useRoomSocket(role: ClientRole, options: UseRoomSocketOptions = 
   // eventos offline e os manda na reconexão ANTES do register, e o servidor
   // os recusava — um voto tocado durante a queda sumia em silêncio.
   const registeredRef = useRef(false);
+  const requirementsRef = useRef(false);
+
+  useEffect(() => {
+    publishConnection({ active: requirementsRef.current, status, error });
+  }, [status, error]);
+  useEffect(() => () => publishConnection({ active: false, status: 'disconnected', error: null }), []);
   const { roomId, adminPin, refereeToken } = options;
 
   useEffect(() => {
     const requirementsMet = canConnect(role, { roomId, adminPin, refereeToken });
+    requirementsRef.current = requirementsMet;
     if (!requirementsMet) {
       setStatus('disconnected');
       setState(null);
