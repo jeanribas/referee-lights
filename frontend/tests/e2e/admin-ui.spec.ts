@@ -66,11 +66,17 @@ test('QR codes: modal lista os 3 juízes com links válidos e fecha', async ({ p
 test('links do painel: display, cronômetro e modal da legenda', async ({ page }) => {
   const room = await createRoom();
   await page.goto(urls.admin(room));
+  // Absolutos: com o painel em localhost usam o IP da rede (o display e o
+  // timer costumam abrir em outro computador); online, o próprio domínio.
+  const absolute = (path: string) => new RegExp(`^https?://[^/]+${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
   await expect(page.getByRole('link', { name: m.admin.preview.goToDisplay })).toHaveAttribute(
     'href',
-    urls.display(room)
+    absolute(urls.display(room))
   );
-  await expect(page.getByRole('link', { name: m.admin.preview.goToTimer })).toHaveAttribute('href', urls.timer(room));
+  await expect(page.getByRole('link', { name: m.admin.preview.goToTimer })).toHaveAttribute(
+    'href',
+    absolute(urls.timer(room))
+  );
 
   await page.getByRole('button', { name: m.admin.preview.goToLegend }).click();
   const dialog = page.getByRole('dialog', { name: m.admin.preview.goToLegend });
