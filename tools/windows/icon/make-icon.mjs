@@ -58,7 +58,7 @@ try {
       g.beginPath();
       g.roundRect(0, 0, size, size, r);
       g.fill();
-      const w = size * (small ? 0.92 : 0.86);
+      const w = size * (small ? 0.92 : 0.94);
       const h = (img.height / img.width) * w;
       g.imageSmoothingQuality = 'high';
       g.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
