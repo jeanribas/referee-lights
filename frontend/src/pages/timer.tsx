@@ -89,35 +89,35 @@ export default function TimerPage() {
       <main className="flex h-[100dvh] flex-col justify-center gap-3 overflow-hidden bg-slate-950 p-3 text-slate-100 sm:p-4">
         {/* Topo: informação (logo, conexão, sala) sem cara de botão; o único
             controle é o QR. */}
-        {/* Três colunas: logo | conexão no centro | sala + QR */}
-        <header className="mx-auto grid w-full max-w-5xl shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-3">
-          <div className="justify-self-start">
+        {/* Linha 1: logo | sala + QR. Linha 2: conexão, centralizada */}
+        <header className="mx-auto flex w-full max-w-5xl shrink-0 flex-col gap-2">
+          <div className="flex items-center justify-between gap-3">
             <BrandLogo size={28} />
-          </div>
-          <ConnectionStatus status={status} messages={commonMessages} size="sm" className="justify-self-center" />
-          <div className="flex items-center gap-4 justify-self-end">
-            <div className="flex flex-col items-end leading-tight">
-              <span className="text-[13px] font-semibold uppercase tracking-[0.12em] text-slate-400">{commonMessages.labels.room}</span>
-              <span className="text-[18px] font-bold tracking-[0.12em] text-white">{roomId}</span>
+            <div className="flex items-center gap-3">
+              <div className="flex flex-col items-end leading-tight">
+                <span className="text-[13px] font-semibold uppercase tracking-[0.12em] text-slate-400">{commonMessages.labels.room}</span>
+                <span className="text-[18px] font-bold tracking-[0.12em] text-white">{roomId}</span>
+              </div>
+              {/* QR dos árbitros aqui também: quem está no admin (speaker) não
+                  precisa parar para reabrir a página de um árbitro */}
+              <button
+                type="button"
+                onClick={() => setQrOpen(true)}
+                className="inline-flex min-h-[48px] items-center gap-2 whitespace-nowrap rounded-xl border border-white/20 bg-slate-800 px-4 text-[15px] font-semibold text-white shadow-md transition hover:bg-slate-700 active:bg-slate-600"
+                aria-label={adminMessages.preview.showQr}
+              >
+                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="7" height="7" rx="1" />
+                  <rect x="14" y="3" width="7" height="7" rx="1" />
+                  <rect x="3" y="14" width="7" height="7" rx="1" />
+                  <path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3" />
+                </svg>
+                <span className="max-sm:hidden">{adminMessages.preview.showQr}</span>
+                <span className="sm:hidden">QR</span>
+              </button>
             </div>
-            {/* QR dos árbitros aqui também: quem está no admin (speaker) não
-                precisa parar para reabrir a página de um árbitro */}
-            <button
-              type="button"
-              onClick={() => setQrOpen(true)}
-              className="inline-flex min-h-[48px] items-center gap-2 whitespace-nowrap rounded-xl border border-white/20 bg-slate-800 px-4 text-[15px] font-semibold text-white shadow-md transition hover:bg-slate-700 active:bg-slate-600"
-              aria-label={adminMessages.preview.showQr}
-            >
-              <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="7" height="7" rx="1" />
-                <rect x="14" y="3" width="7" height="7" rx="1" />
-                <rect x="3" y="14" width="7" height="7" rx="1" />
-                <path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3" />
-              </svg>
-              <span className="max-sm:hidden">{adminMessages.preview.showQr}</span>
-              <span className="sm:hidden">QR</span>
-            </button>
           </div>
+          <ConnectionStatus status={status} messages={commonMessages} size="sm" className="self-center" />
         </header>
 
         {/* Em pé: um cartão sobre o outro. Deitado: lado a lado. Os cartões têm a
