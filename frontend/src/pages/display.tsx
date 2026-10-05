@@ -7,6 +7,7 @@ import TimerDisplay from '@/components/TimerDisplay';
 import IntervalCountdown from '@/components/IntervalCountdown';
 import IntervalFull from '@/components/IntervalFull';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
+import { useRouterReady } from '@/hooks/useRouterReady';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { getMessages, type Messages } from '@/lib/i18n/messages';
@@ -39,6 +40,7 @@ export default function DisplayPage() {
   const isSpanishLocale = Boolean(locale?.startsWith('es'));
   const buttonTrackingClass = isSpanishLocale ? 'tracking-[0.22em]' : 'tracking-[0.3em]';
   const sectionLabelTrackingClass = isSpanishLocale ? 'tracking-[0.26em]' : 'tracking-[0.32em]';
+  const routerReady = useRouterReady();
   const roomId = typeof router.query.roomId === 'string' ? router.query.roomId : undefined;
   const adminPin = typeof router.query.pin === 'string' ? router.query.pin : undefined;
 
@@ -93,6 +95,8 @@ export default function DisplayPage() {
     void router.replace({ pathname: router.pathname, query: router.query }, undefined, { locale: targetLocale });
   }, [router, state?.locale]);
 
+  // Até ler a URL, só o fundo (sem piscar "display não configurado" ao recarregar)
+  if (!routerReady) return <div className="h-screen w-screen bg-black" />;
   if (!roomId || !adminPin) {
     return <MissingDisplayCredentials messages={displayMessages} />;
   }

@@ -336,17 +336,19 @@ describe('fluxo de decisão', () => {
     expect(await emitAck(admin, 'timer:command', { action: 'explode' })).toEqual({ error: 'unknown_action' });
 
     await emitAck(admin, 'interval:command', { action: 'set', seconds: 600 });
-    await waitFor(admin, (s) => s.intervalConfiguredMs === 600_000 && s.intervalVisible);
+    // Definir não troca o display: só Iniciar mostra o intervalo
+    await waitFor(admin, (s) => s.intervalConfiguredMs === 600_000 && !s.intervalVisible);
     await emitAck(admin, 'interval:command', { action: 'start' });
-    await waitFor(admin, (s) => s.intervalRunning && s.intervalMs < 600_000);
+    await waitFor(admin, (s) => s.intervalRunning && s.intervalMs < 600_000 && s.intervalVisible);
     await emitAck(admin, 'interval:command', { action: 'stop' });
     await waitFor(admin, (s) => !s.intervalRunning);
     await emitAck(admin, 'interval:command', { action: 'hide' });
     await waitFor(admin, (s) => !s.intervalVisible);
     await emitAck(admin, 'interval:command', { action: 'show' });
     await waitFor(admin, (s) => s.intervalVisible);
+    // Resetar volta o tempo ao configurado e o display para as luzes
     await emitAck(admin, 'interval:command', { action: 'reset' });
-    await waitFor(admin, (s) => s.intervalMs === 600_000);
+    await waitFor(admin, (s) => s.intervalMs === 600_000 && !s.intervalVisible);
   });
 
   it('locale:change propaga para todos da sala e recusa locale inválido', async () => {

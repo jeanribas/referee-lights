@@ -211,7 +211,9 @@ export class RoomState {
     this.stopIntervalInternal();
     this.state.intervalConfiguredMs = ms;
     this.state.intervalMs = ms;
-    this.state.intervalVisible = ms > 0;
+    // O display só vai para o intervalo ao Iniciar; Definir e Resetar deixam
+    // (ou devolvem) as luzes, e ao chegar a zero ele volta sozinho para elas
+    this.state.intervalVisible = false;
     this.notify();
   }
 
@@ -235,7 +237,7 @@ export class RoomState {
   resetInterval() {
     this.stopIntervalInternal();
     this.state.intervalMs = this.state.intervalConfiguredMs;
-    this.state.intervalVisible = this.state.intervalConfiguredMs > 0;
+    this.state.intervalVisible = false;
     this.notify();
   }
 

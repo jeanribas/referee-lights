@@ -62,42 +62,59 @@ test('tela /timer controla cronômetro e intervalo', async ({ context }) => {
   await timer.getByRole('button', { name: m.admin.timer.resetDefault }).click();
   await expect(display.getByText('1:00').first()).toBeVisible({ timeout: 10_000 });
 
-  // intervalo de 10 min (valores padrão do formulário) → display em tela cheia
+  // intervalo de 10 min (valores padrão do formulário): Definir não troca o display
   await timer.getByRole('button', { name: m.admin.interval.set, exact: true }).nth(1).click();
+  await expect(timer.locator(`[aria-label="${m.admin.interval.remaining}"]`)).toHaveText('00:10:00', { timeout: 10_000 });
+  await expect(display.getByText(m.display.interval.primaryLabel)).toHaveCount(0);
+
+  // Iniciar pede confirmação: cancelar não muda nada
+  await timer.getByRole('button', { name: m.admin.interval.start }).click();
+  await timer.getByRole('button', { name: m.admin.interval.cancel }).click();
+  await timer.waitForTimeout(800);
+  await expect(display.getByText(m.display.interval.primaryLabel)).toHaveCount(0);
+
+  // confirmado → display em tela cheia
+  await timer.getByRole('button', { name: m.admin.interval.start }).click();
+  await timer.getByRole('button', { name: m.admin.interval.confirmStart }).click();
   await expect(display.getByText(m.display.interval.primaryLabel)).toBeVisible({ timeout: 10_000 });
-  await timer.getByRole('button', { name: m.admin.interval.showLights }).click();
+
+  // Resetar (confirmado) → display volta para as luzes
+  await timer.getByRole('button', { name: m.admin.interval.reset }).click();
+  await timer.getByRole('button', { name: m.admin.interval.confirmReset }).click();
   await expect(display.getByText(m.display.interval.primaryLabel)).toHaveCount(0, { timeout: 10_000 });
 });
 
-test('intervalo pelo admin: definir, iniciar, pausar, ocultar/mostrar, reset — display e legenda', async ({ page, context }) => {
+test('intervalo pelo admin: definir, iniciar, pausar, reset — display e legenda', async ({ page, context }) => {
   const room = await createRoom();
   await page.goto(urls.admin(room));
   await expect(page.getByText(`${m.common.labels.status}: connected`)).toBeVisible({ timeout: 15_000 });
   const display = await open(context, urls.display(room));
   const legend = await open(context, urls.legend(room, '&legendDigits=hhmmss'));
   await expect(display.getByText('1:00').first()).toBeVisible({ timeout: 15_000 });
+  const remaining = page.locator(`[aria-label="${m.admin.interval.remaining}"]`);
 
   const inputs = page.locator('input[type="number"]');
   await inputs.nth(1).fill('0'); // horas
   await inputs.nth(2).fill('5'); // minutos
   await inputs.nth(3).fill('30'); // segundos
   await page.getByRole('button', { name: m.admin.interval.set, exact: true }).nth(1).click();
-  await expect(page.getByText(`${m.admin.interval.configured}: 00:05:30`)).toBeVisible({ timeout: 10_000 });
-  await expect(display.getByText(m.display.interval.primaryLabel)).toBeVisible({ timeout: 10_000 });
-  await expect(legend.getByText('0:05:30')).toBeVisible({ timeout: 10_000 });
+  await expect(remaining).toHaveText('00:05:30', { timeout: 10_000 });
+  // Definir não troca o display: só Iniciar mostra o intervalo
+  await expect(display.getByText(m.display.interval.primaryLabel)).toHaveCount(0);
 
   await page.getByRole('button', { name: m.admin.interval.start }).click();
-  await expect(legend.getByText(/^0:05:2\d$/)).toBeVisible({ timeout: 10_000 });
-  await page.getByRole('button', { name: m.admin.interval.pause }).click();
-  const remaining = await page.getByText(new RegExp(`^${m.admin.interval.remaining}: `)).textContent();
-  await page.waitForTimeout(1200);
-  await expect(page.getByText(remaining!, { exact: true })).toBeVisible();
-
-  await page.getByRole('button', { name: m.admin.interval.showLights }).click();
-  await expect(display.getByText(m.display.interval.primaryLabel)).toHaveCount(0, { timeout: 10_000 });
-  await page.getByRole('button', { name: m.admin.interval.showInterval }).click();
+  await page.getByRole('button', { name: m.admin.interval.confirmStart }).click();
   await expect(display.getByText(m.display.interval.primaryLabel)).toBeVisible({ timeout: 10_000 });
+  await expect(legend.getByText(/^0:05:[23]\d$/)).toBeVisible({ timeout: 10_000 });
 
+  await page.getByRole('button', { name: m.admin.interval.pause }).click();
+  const frozen = await remaining.textContent();
+  await page.waitForTimeout(1200);
+  await expect(remaining).toHaveText(frozen!);
+
+  // Resetar: tempo volta ao configurado e o display volta para as luzes
   await page.getByRole('button', { name: m.admin.interval.reset }).click();
-  await expect(page.getByText(`${m.admin.interval.remaining}: 00:05:30`)).toBeVisible({ timeout: 10_000 });
+  await page.getByRole('button', { name: m.admin.interval.confirmReset }).click();
+  await expect(remaining).toHaveText('00:05:30', { timeout: 10_000 });
+  await expect(display.getByText(m.display.interval.primaryLabel)).toHaveCount(0, { timeout: 10_000 });
 });

@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 
 import { DecisionLights } from '@/components/DecisionLights';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
+import { useRouterReady } from '@/hooks/useRouterReady';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { getMessages } from '@/lib/i18n/messages';
 import { Seo } from '@/components/Seo';
@@ -18,6 +19,7 @@ function readQueryValue(raw: string | string[] | undefined): string | undefined 
 
 export default function LegendPage() {
   const router = useRouter();
+  const routerReady = useRouterReady();
   const roomId = typeof router.query.roomId === 'string' ? router.query.roomId.toUpperCase() : undefined;
   const adminPin = typeof router.query.pin === 'string' ? router.query.pin : undefined;
   const viewMode = readQueryValue(router.query.view);
@@ -307,7 +309,7 @@ export default function LegendPage() {
                   {commonMessages.labels.status}: {status}
                   {statusSuffix}
                 </span>
-                {(!roomId || !adminPin) ? (
+                {routerReady && (!roomId || !adminPin) ? (
                   <span className="text-[10px] uppercase tracking-[0.3em] text-amber-200">
                     {legendMessages.missingCredentials}
                   </span>

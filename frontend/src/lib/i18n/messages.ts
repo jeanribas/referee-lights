@@ -85,6 +85,23 @@ type AdminMessages = {
     showInterval: string;
     showLights: string;
     note: string;
+    cancel: string;
+    confirmStart: string;
+    confirmReset: string;
+  };
+  /** Cartão "Key Relay" do bundle; para quem opera, "Automação" */
+  automation: {
+    title: string;
+    active: string;
+    inactive: string;
+    description: string;
+    keys: string;
+    enable: string;
+    disable: string;
+    configTitle: string;
+    validDecision: string;
+    invalidDecision: string;
+    pressKey: string;
   };
   preview: {
     waiting: string;
@@ -514,7 +531,23 @@ const MESSAGES: Record<AppLocale, Messages> = {
         reset: 'Reset intervalo',
         showInterval: 'Mostrar intervalo',
         showLights: 'Mostrar luzes',
-        note: 'O display exibirá um aviso em vermelho três minutos antes do término.'
+        note: 'O display exibirá um aviso em vermelho três minutos antes do término.',
+        cancel: 'Cancelar',
+        confirmStart: 'Confirmar início',
+        confirmReset: 'Confirmar reset'
+      },
+      automation: {
+        title: 'Automação',
+        active: 'Ativa',
+        inactive: 'Inativa',
+        description: 'Ao revelar a decisão, envia a tecla para a janela em foco no computador do servidor.',
+        keys: 'Teclas',
+        enable: 'Ativar automação',
+        disable: 'Desativar',
+        configTitle: 'Configurar teclas',
+        validDecision: 'Decisão válida (Good Lift)',
+        invalidDecision: 'Decisão inválida (No Lift)',
+        pressKey: 'Pressione uma tecla...'
       },
       preview: {
         waiting: 'Aguardando estado...',
@@ -875,7 +908,23 @@ const MESSAGES: Record<AppLocale, Messages> = {
         reset: 'Reset interval',
         showInterval: 'Show interval',
         showLights: 'Show lights',
-        note: 'The display will show a red warning three minutes before the end.'
+        note: 'The display will show a red warning three minutes before the end.',
+        cancel: 'Cancel',
+        confirmStart: 'Confirm start',
+        confirmReset: 'Confirm reset'
+      },
+      automation: {
+        title: 'Automation',
+        active: 'Active',
+        inactive: 'Inactive',
+        description: 'When the decision is revealed, sends the key to the window in focus on the server computer.',
+        keys: 'Keys',
+        enable: 'Enable automation',
+        disable: 'Disable',
+        configTitle: 'Configure keys',
+        validDecision: 'Valid decision (Good Lift)',
+        invalidDecision: 'Invalid decision (No Lift)',
+        pressKey: 'Press a key...'
       },
       preview: {
         waiting: 'Waiting for state...',
@@ -1236,7 +1285,23 @@ const MESSAGES: Record<AppLocale, Messages> = {
         reset: 'Reiniciar intervalo',
         showInterval: 'Mostrar intervalo',
         showLights: 'Mostrar luces',
-        note: 'La pantalla mostrará una alerta roja tres minutos antes del final.'
+        note: 'La pantalla mostrará una alerta roja tres minutos antes del final.',
+        cancel: 'Cancelar',
+        confirmStart: 'Confirmar inicio',
+        confirmReset: 'Confirmar reinicio'
+      },
+      automation: {
+        title: 'Automatización',
+        active: 'Activa',
+        inactive: 'Inactiva',
+        description: 'Al revelar la decisión, envía la tecla a la ventana activa en la computadora del servidor.',
+        keys: 'Teclas',
+        enable: 'Activar automatización',
+        disable: 'Desactivar',
+        configTitle: 'Configurar teclas',
+        validDecision: 'Decisión válida (Good Lift)',
+        invalidDecision: 'Decisión inválida (No Lift)',
+        pressKey: 'Presiona una tecla...'
       },
       preview: {
         waiting: 'Esperando estado...',

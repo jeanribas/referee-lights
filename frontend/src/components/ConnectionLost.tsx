@@ -40,10 +40,19 @@ export function ConnectionLost() {
     <div
       role="alert"
       data-connection-lost
-      className="fixed left-1/2 top-4 z-[60] flex max-w-[95vw] -translate-x-1/2 items-center gap-3 rounded-full bg-red-600 px-6 py-3 text-center text-base font-bold uppercase tracking-[0.15em] text-white shadow-2xl"
+      // Aviso, não alarme: faixa escura com borda vermelha e ponto pulsando, em
+      // caixa normal e numa linha só (no celular também), por cima do topo
+      className="fixed left-1/2 top-3 z-[60] flex w-max max-w-[calc(100vw-1.5rem)] -translate-x-1/2 items-center gap-2.5 rounded-xl border border-red-500/60 bg-slate-950 px-4 py-2.5 text-[15px] font-semibold leading-tight text-white shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
     >
-      <span className="h-3 w-3 shrink-0 animate-pulse rounded-full bg-white" aria-hidden="true" />
-      {roomGone ? t.room : `${t.lost} — ${t.retry}`}
+      <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden="true">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+      </span>
+      <span>
+        {roomGone ? t.room : t.lost}
+        {/* No celular fica só o principal; o ponto pulsando já diz que está tentando */}
+        {!roomGone && <span className="hidden font-normal text-slate-400 sm:inline"> · {t.retry}</span>}
+      </span>
     </div>
   );
 }
