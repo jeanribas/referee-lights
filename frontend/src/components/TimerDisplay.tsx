@@ -13,6 +13,8 @@ interface TimerDisplayProps {
   hidden?: boolean;
   phase?: Phase;
   attemptNo?: number;
+  /** Só os dígitos, sem a caixa; o tamanho vem de quem usa (tela do cronometrista) */
+  large?: boolean;
 }
 
 interface CooldownEntry {
@@ -98,7 +100,7 @@ export function useCooldownBadges(phase?: Phase) {
 }
 
 function TimerDisplay(props: TimerDisplayProps) {
-  const { remainingMs, running, variant = 'panel', hidden = false, phase, attemptNo } = props;
+  const { remainingMs, running, variant = 'panel', hidden = false, phase, attemptNo, large = false } = props;
 
   const [cooldownEntries, setCooldownEntries] = useState<CooldownEntry[]>([]);
   const cooldownEntriesRef = useRef<CooldownEntry[]>([]);
@@ -257,6 +259,16 @@ function TimerDisplay(props: TimerDisplayProps) {
         </div>
         <AttemptColumn badges={cooldownBadges} attemptNo={attemptNo} />
       </div>
+    );
+  }
+
+  if (large) {
+    return (
+      <span className={`font-display font-bold leading-none tabular-nums tracking-tight transition-colors ${
+        isZero ? 'text-[#ff1f1f]' : urgency ? 'text-[#ff4d4f]' : 'text-slate-50'
+      }`}>
+        {timerText}
+      </span>
     );
   }
 

@@ -152,11 +152,25 @@ function JudgeLight({
       ? 'absolute top-full mt-6 grid w-full grid-cols-3 gap-4 px-4'
       : 'absolute top-full mt-6 grid w-full grid-cols-3 gap-4 px-4';
 
+  // Na legenda (recortada no OBS) nada pode mudar de lugar: a faixa dos
+  // cartões sempre ocupa o espaço dela, invisível quando não há o que mostrar
+  const reserveCardStrip = isLegendSize;
+  const emptyCardStrip = (
+    <div className={`${cardStripClassName} invisible`} aria-hidden="true">
+      {[1, 2, 3].map((slot) => (
+        <CardSlot key={`card-reserve-${slot}`} card={null} showPlaceholder={false} height={cardSlotHeight} radius={cardBorderRadius} />
+      ))}
+    </div>
+  );
+
   if (!connected) {
     if (!showLightPlaceholders) {
       return (
         <div className="flex flex-col items-center gap-2 text-center">
-          <div className="invisible" style={squareStyle} />
+          <div className="relative" style={{ width: squareStyle.width }}>
+            <div className="invisible" style={squareStyle} />
+            {reserveCardStrip && emptyCardStrip}
+          </div>
         </div>
       );
     }
@@ -165,6 +179,7 @@ function JudgeLight({
       <div className="flex flex-none flex-col items-center gap-2 text-center">
         <div className="relative" style={{ width: squareStyle.width }}>
           <div className="flex items-center justify-center bg-[#0F1216]" style={squareSurfaceStyle} />
+          {!showCardPlaceholders && reserveCardStrip && emptyCardStrip}
           {showCardPlaceholders && (
             <div className={cardStripClassName}>
               {[1, 2, 3].map((slot) => (
@@ -208,6 +223,7 @@ function JudgeLight({
         <div className={squareClass} style={squareSurfaceStyle}>
           {renderSymbol(displayVote)}
         </div>
+        {!showCardStrip && reserveCardStrip && emptyCardStrip}
         {showCardStrip && (
           <div className={cardStripClassName}>
             {[1, 2, 3].map((slot) => (
