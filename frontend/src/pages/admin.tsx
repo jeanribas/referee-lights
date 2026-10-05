@@ -464,7 +464,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
       >
         {/* Mesmas colunas da tela: logo centrada sobre o menu da esquerda;
             título, sala e PIN numa linha só alinhados com o painel */}
-        <header className="grid items-center gap-6 md:grid-cols-[320px_1fr]">
+        <header className="grid items-center gap-6 md:grid-cols-[360px_1fr]">
           <div className="flex justify-center">
             <BrandLogo size={45} />
           </div>
@@ -513,11 +513,10 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
           </div>
         </header>
 
-        <section className="grid min-h-0 w-full flex-1 gap-6 md:grid-cols-[320px_1fr]">
-          <aside className="flex flex-col gap-4 overflow-y-auto rounded-3xl border border-slate-800 bg-slate-900/80 p-5 shadow-2xl [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-700">
+        <section className="grid min-h-0 w-full flex-1 gap-6 md:grid-cols-[360px_1fr]">
+          <aside className="flex flex-col gap-4 overflow-y-auto rounded-3xl border border-slate-800 bg-[#0B1019] p-5 shadow-2xl [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-700">
             {/* Mesmos cartões da tela do cronometrista */}
             <TimerCard
-              className="rounded-2xl border border-slate-800 bg-[#0F141F] p-4"
               messages={adminMessages.timer}
               remainingMs={state?.timerMs ?? 60_000}
               running={state?.running ?? false}
@@ -529,7 +528,6 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
               onSet={setMinutes}
             />
             <IntervalCard
-              className="rounded-2xl border border-slate-800 bg-[#0F141F] p-4"
               messages={adminMessages.interval}
               shortLabels={messages.referee.center}
               display={intervalDisplay}
@@ -546,7 +544,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
             />
 
             {status === 'connected' && roomId && keyRelayStatus?.available && (
-              <section className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-[#0F141F] p-4" aria-label={adminMessages.automation.title}>
+              <section className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900 p-4" aria-label={adminMessages.automation.title}>
                 <div className="flex h-8 items-center justify-between gap-2">
                   <h2 className={`${cardTitle} whitespace-nowrap`}>{adminMessages.automation.title}</h2>
                   <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[13px] font-semibold ${
