@@ -1,12 +1,12 @@
 // Idioma da sala propagando para todas as telas e configuração da legenda
 // (paleta, molduras, dígitos, salvar no servidor, link de compartilhamento).
-import { JUDGES, createRoom, expect, msg, open, test, urls } from './helpers';
+import { JUDGES, createRoom, expect, msg, open, test, urls, connectedBadge } from './helpers';
 
 test('admin troca idioma → display, legenda, timer e 3 árbitros seguem', async ({ page, context }) => {
   test.setTimeout(90_000);
   const room = await createRoom('pt-BR');
   await page.goto(urls.admin(room));
-  await expect(page.getByText(`${msg('pt-BR').common.labels.status}: ${msg('pt-BR').common.connection.connected}`)).toBeVisible({ timeout: 15_000 });
+  await expect(connectedBadge(page)).toBeVisible({ timeout: 15_000 });
 
   const others = [
     await open(context, urls.display(room)),
@@ -44,8 +44,8 @@ test('legenda: salvar configuração propaga para outra legenda da sala', async 
   const m = msg('pt-BR').legend;
   const editor = await open(context, urls.legend(room));
   const viewer = await open(context, urls.legend(room));
-  await expect(editor.getByText(new RegExp(`: ${msg('pt-BR').common.connection.connected}`))).toBeVisible({ timeout: 15_000 });
-  await expect(viewer.getByText(new RegExp(`: ${msg('pt-BR').common.connection.connected}`))).toBeVisible({ timeout: 15_000 });
+  await expect(connectedBadge(editor)).toBeVisible({ timeout: 15_000 });
+  await expect(connectedBadge(viewer)).toBeVisible({ timeout: 15_000 });
 
   await editor.getByRole('button', { name: m.buttons.paletteOpen }).click();
   await editor.getByRole('button', { name: m.palette.selectColor.replace('{color}', '#012A4A') }).click();
@@ -82,7 +82,7 @@ test('legenda: copiar link gera URL de share com a configuração atual', async 
   const room = await createRoom();
   const m = msg('pt-BR').legend;
   const legend = await open(context, urls.legend(room));
-  await expect(legend.getByText(new RegExp(`: ${msg('pt-BR').common.connection.connected}`))).toBeVisible({ timeout: 15_000 });
+  await expect(connectedBadge(legend)).toBeVisible({ timeout: 15_000 });
   await legend.getByRole('button', { name: new RegExp(`^${m.done.button}`) }).click();
   await legend.getByRole('button', { name: m.share.copy }).click();
   await expect(legend.getByRole('button', { name: m.share.copied })).toBeVisible();

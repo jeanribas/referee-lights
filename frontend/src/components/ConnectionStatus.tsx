@@ -32,6 +32,7 @@ export function ConnectionStatus({
     <span
       role="status"
       aria-live="polite"
+      data-connection={status}
       className={`inline-flex items-center gap-2 whitespace-nowrap font-semibold ${size === 'sm' ? 'text-[13px]' : 'text-[15px]'} ${tone.text} ${className}`}
     >
       <span aria-hidden="true" className={`shrink-0 rounded-full ${size === 'sm' ? 'h-2 w-2' : 'h-2.5 w-2.5'} ${tone.dot}`} />

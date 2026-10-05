@@ -2,7 +2,7 @@
 // em paralelo sem vazamento e consoles em viewport de celular.
 import { devices } from '@playwright/test';
 
-import { JUDGES, createRoom, expect, msg, open, refButtons, test, urls } from './helpers';
+import { JUDGES, createRoom, expect, msg, open, refButtons, test, urls, connectedBadge } from './helpers';
 
 const m = msg('pt-BR');
 // defaultBrowserType só pode ser definido no topo/config; o resto do perfil serve
@@ -14,7 +14,7 @@ test('árbitro recarrega no meio da tentativa: voto preservado e revelação seg
   const display = await open(context, urls.display(room));
   const [left, center, right] = await Promise.all(JUDGES.map((j) => open(context, urls.ref(room, j))));
   for (const r of [left, center, right]) {
-    await expect(r.getByText(`${m.common.labels.status}: ${m.common.connection.connected}`)).toBeVisible({ timeout: 15_000 });
+    await expect(connectedBadge(r)).toBeVisible({ timeout: 15_000 });
   }
 
   await refButtons(left).card(2).click();
@@ -23,7 +23,7 @@ test('árbitro recarrega no meio da tentativa: voto preservado e revelação seg
   await expect(refButtons(center).valid).toHaveClass(/ring-4/);
 
   await left.reload();
-  await expect(left.getByText(`${m.common.labels.status}: ${m.common.connection.connected}`)).toBeVisible({ timeout: 15_000 });
+  await expect(connectedBadge(left)).toBeVisible({ timeout: 15_000 });
   // estado do servidor volta para o console recarregado
   await expect(refButtons(left).card(2)).toHaveText('✓');
 
@@ -35,15 +35,15 @@ test('árbitro recarrega no meio da tentativa: voto preservado e revelação seg
 test('fechar a aba do árbitro apaga a luz dele no display e reconectar acende', async ({ context }) => {
   const room = await createRoom();
   const legend = await open(context, urls.legend(room, '&legendPlaceholders=0'));
-  await expect(legend.getByText(new RegExp(`: ${m.common.connection.connected}`))).toBeVisible({ timeout: 15_000 });
+  await expect(connectedBadge(legend)).toBeVisible({ timeout: 15_000 });
   const ref = await open(context, urls.ref(room, 'right'));
-  await expect(ref.getByText(`${m.common.labels.status}: ${m.common.connection.connected}`)).toBeVisible({ timeout: 15_000 });
+  await expect(connectedBadge(ref)).toBeVisible({ timeout: 15_000 });
   const placeholders = legend.locator('main').getByText('—', { exact: true });
   await expect(placeholders).toHaveCount(1, { timeout: 10_000 });
   await ref.close();
   await expect(placeholders).toHaveCount(0, { timeout: 10_000 });
   const again = await open(context, urls.ref(room, 'right'));
-  await expect(again.getByText(`${m.common.labels.status}: ${m.common.connection.connected}`)).toBeVisible({ timeout: 15_000 });
+  await expect(connectedBadge(again)).toBeVisible({ timeout: 15_000 });
   await expect(placeholders).toHaveCount(1, { timeout: 10_000 });
 });
 
@@ -55,7 +55,7 @@ test('duas salas em paralelo não se misturam', async ({ context }) => {
   const refsA = await Promise.all(JUDGES.map((j) => open(context, urls.ref(a, j))));
   const refB = await open(context, urls.ref(b, 'left'));
   for (const r of [...refsA, refB]) {
-    await expect(r.getByText(`${m.common.labels.status}: ${m.common.connection.connected}`)).toBeVisible({ timeout: 15_000 });
+    await expect(connectedBadge(r)).toBeVisible({ timeout: 15_000 });
   }
   // token da sala A não abre a sala B
   const intruder = await open(context, `/ref/left?roomId=${b.roomId}&token=${a.joinQRCodes.left.token}`);
@@ -75,7 +75,7 @@ test.describe('celular', () => {
     test(`console ${judge} cabe na tela e vota pelo toque`, async ({ page }) => {
       const room = await createRoom();
       await page.goto(urls.ref(room, judge));
-      await expect(page.getByText(`${m.common.labels.status}: ${m.common.connection.connected}`)).toBeVisible({ timeout: 15_000 });
+      await expect(connectedBadge(page)).toBeVisible({ timeout: 15_000 });
       const b = refButtons(page);
       for (const btn of [b.valid, b.card(1), b.card(2), b.card(3)]) {
         await expect(btn).toBeInViewport();

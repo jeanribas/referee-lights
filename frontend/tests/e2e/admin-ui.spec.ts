@@ -1,6 +1,6 @@
 // Painel admin pela interface: criar sessão, entrar em sessão existente,
 // QR codes, modal da legenda e links para as telas da sala.
-import { createRoom, expect, msg, test, urls } from './helpers';
+import { createRoom, expect, msg, test, urls, connectedBadge } from './helpers';
 
 const m = msg('pt-BR');
 
@@ -9,7 +9,7 @@ test('criar sessão pelo botão leva ao painel com sala e PIN na URL', async ({ 
   await page.getByRole('button', { name: m.admin.roomSetup.create.cta }).click();
   await expect(page).toHaveURL(/\/admin\?roomId=[A-Z0-9]+&pin=\d+/, { timeout: 15_000 });
   await expect(page.getByRole('heading', { name: m.admin.header.title })).toBeVisible();
-  await expect(page.getByText(`${m.common.labels.status}: ${m.common.connection.connected}`)).toBeVisible({ timeout: 15_000 });
+  await expect(connectedBadge(page)).toBeVisible({ timeout: 15_000 });
 });
 
 test('criar sessão no site em inglês cria a sala em inglês', async ({ page }) => {
@@ -51,13 +51,13 @@ test('QR codes: modal lista os 3 juízes com links válidos e fecha', async ({ p
   for (const label of Object.values(m.admin.qrMenu.targets)) {
     await expect(dialog.getByText(label)).toBeVisible();
   }
-  await expect(dialog.locator('svg')).toHaveCount(3);
+  await expect(dialog.locator('[data-qr-target]')).toHaveCount(3);
   // o link do QR abre o console certo (troca o host da LAN pelo do teste)
   const href = await dialog.getByText(/\/ref\/center\?roomId=/).textContent();
   const path = new URL(href!).pathname + new URL(href!).search;
   const ref = await context.newPage();
   await ref.goto(path);
-  await expect(ref.getByText(`${m.common.labels.status}: ${m.common.connection.connected}`)).toBeVisible({ timeout: 15_000 });
+  await expect(connectedBadge(ref)).toBeVisible({ timeout: 15_000 });
 
   await dialog.getByRole('button', { name: m.common.srOnly.close }).click();
   await expect(dialog).toHaveCount(0);

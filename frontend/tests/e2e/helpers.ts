@@ -14,6 +14,9 @@ export type Judge = (typeof JUDGES)[number];
 
 export const msg = (locale: Locale) => getMessages(locale);
 
+/** Indicador de conexão da tela (ConnectionStatus) no estado "conectado" — independe do texto. */
+export const connectedBadge = (page: Page) => page.locator('[data-connection="connected"]');
+
 export interface RoomResponse {
   roomId: string;
   adminPin: string;

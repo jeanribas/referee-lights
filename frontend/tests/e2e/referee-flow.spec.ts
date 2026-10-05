@@ -3,19 +3,7 @@
 // revelação no 3º voto e comandos ready/release/clear do admin.
 import type { Page } from '@playwright/test';
 
-import {
-  JUDGES,
-  adminSocket,
-  createRoom,
-  emitAck,
-  expect,
-  msg,
-  open,
-  refButtons,
-  test,
-  urls,
-  type Judge
-} from './helpers';
+import { JUDGES, adminSocket, createRoom, emitAck, expect, msg, open, refButtons, test, urls, type Judge, connectedBadge } from './helpers';
 
 const m = msg('pt-BR');
 
@@ -30,19 +18,19 @@ test('competição completa: 5 telas + 3 árbitros, votos, cartões e revelaçã
 
   await page.goto(urls.admin(room));
   await expect(page.getByText(`${m.common.labels.room}: ${room.roomId}`)).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText(`${m.common.labels.status}: ${m.common.connection.connected}`)).toBeVisible();
+  await expect(connectedBadge(page)).toBeVisible();
 
   const display = await open(context, urls.display(room));
   const legend = await open(context, urls.legend(room));
   const timer = await open(context, urls.timer(room));
   await expect(display.getByText('1:00').first()).toBeVisible({ timeout: 15_000 });
-  await expect(legend.getByText(`${m.common.labels.status}: ${m.common.connection.connected}`)).toBeVisible({ timeout: 15_000 });
+  await expect(connectedBadge(legend)).toBeVisible({ timeout: 15_000 });
   await expect(timer.getByRole('heading', { name: m.admin.timer.title })).toBeVisible();
 
   const refs = {} as Record<Judge, Page>;
   for (const judge of JUDGES) {
     refs[judge] = await open(context, urls.ref(room, judge));
-    await expect(refs[judge].getByText(`${m.common.labels.status}: ${m.common.connection.connected}`)).toBeVisible({ timeout: 15_000 });
+    await expect(connectedBadge(refs[judge])).toBeVisible({ timeout: 15_000 });
   }
 
   // Votos parciais NÃO aparecem no display (só depois dos 3)
@@ -91,7 +79,7 @@ test('árbitro desfaz voto: GOOD LIFT 2x limpa; cartão ativo 2x remove; troca b
   const room = await createRoom();
   const ref = await open(context, urls.ref(room, 'left'));
   const b = refButtons(ref);
-  await expect(ref.getByText(`${m.common.labels.status}: ${m.common.connection.connected}`)).toBeVisible({ timeout: 15_000 });
+  await expect(connectedBadge(ref)).toBeVisible({ timeout: 15_000 });
 
   await b.valid.click();
   await expect(b.valid).toHaveClass(/ring-4/);
@@ -117,7 +105,7 @@ test('revelação some sozinha após ~10s (auto-clear do servidor)', async ({ co
   const room = await createRoom();
   const display = await open(context, urls.display(room));
   const refs = await Promise.all(JUDGES.map((j) => open(context, urls.ref(room, j))));
-  for (const r of refs) await expect(r.getByText(`${m.common.labels.status}: ${m.common.connection.connected}`)).toBeVisible({ timeout: 15_000 });
+  for (const r of refs) await expect(connectedBadge(r)).toBeVisible({ timeout: 15_000 });
   for (const r of refs) await refButtons(r).valid.click();
   await expect(symbol(display, '✓')).toHaveCount(3, { timeout: 10_000 });
   await expect(symbol(display, '✓')).toHaveCount(0, { timeout: 15_000 });

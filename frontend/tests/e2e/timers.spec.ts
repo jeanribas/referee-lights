@@ -1,13 +1,13 @@
 // Cronômetro oficial (admin, tela /timer e árbitro central) e intervalo
 // entre rounds (definir/iniciar/pausar/mostrar/ocultar/reset).
-import { createRoom, expect, msg, open, test, urls } from './helpers';
+import { createRoom, expect, msg, open, test, urls, connectedBadge } from './helpers';
 
 const m = msg('pt-BR');
 
 test('timer pelo admin: definir 2 min, parar, reset 1:00 — refletido no display e no central', async ({ page, context }) => {
   const room = await createRoom();
   await page.goto(urls.admin(room));
-  await expect(page.getByText(`${m.common.labels.status}: ${m.common.connection.connected}`)).toBeVisible({ timeout: 15_000 });
+  await expect(connectedBadge(page)).toBeVisible({ timeout: 15_000 });
   const display = await open(context, urls.display(room));
   const center = await open(context, urls.ref(room, 'center'));
   await expect(display.getByText('1:00').first()).toBeVisible({ timeout: 15_000 });
@@ -34,7 +34,7 @@ test('timer pelo árbitro central: iniciar, pausar, resetar', async ({ context }
   const room = await createRoom();
   const display = await open(context, urls.display(room));
   const center = await open(context, urls.ref(room, 'center'));
-  await expect(center.getByText(`${m.common.labels.status}: ${m.common.connection.connected}`)).toBeVisible({ timeout: 15_000 });
+  await expect(connectedBadge(center)).toBeVisible({ timeout: 15_000 });
 
   await center.getByRole('button', { name: m.referee.center.start }).click();
   await expect(display.getByText(/^0:5\d$/).first()).toBeVisible({ timeout: 10_000 });
@@ -47,7 +47,7 @@ test('timer pelo árbitro central: iniciar, pausar, resetar', async ({ context }
 test('árbitros laterais não têm controle de tempo', async ({ context }) => {
   const room = await createRoom();
   const left = await open(context, urls.ref(room, 'left'));
-  await expect(left.getByText(`${m.common.labels.status}: ${m.common.connection.connected}`)).toBeVisible({ timeout: 15_000 });
+  await expect(connectedBadge(left)).toBeVisible({ timeout: 15_000 });
   await expect(left.getByRole('button', { name: m.referee.center.start })).toHaveCount(0);
 });
 
@@ -87,7 +87,7 @@ test('tela /timer controla cronômetro e intervalo', async ({ context }) => {
 test('intervalo pelo admin: definir, iniciar, pausar, reset — display e legenda', async ({ page, context }) => {
   const room = await createRoom();
   await page.goto(urls.admin(room));
-  await expect(page.getByText(`${m.common.labels.status}: ${m.common.connection.connected}`)).toBeVisible({ timeout: 15_000 });
+  await expect(connectedBadge(page)).toBeVisible({ timeout: 15_000 });
   const display = await open(context, urls.display(room));
   const legend = await open(context, urls.legend(room, '&legendDigits=hhmmss'));
   await expect(display.getByText('1:00').first()).toBeVisible({ timeout: 15_000 });

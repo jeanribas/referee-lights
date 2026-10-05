@@ -126,6 +126,7 @@ export function RefereeQrModal({
               {targets.map((target) => (
                 <div
                   key={target.judge}
+                  data-qr-target={target.judge}
                   className={`flex-col items-center gap-4 rounded-2xl border border-white/10 bg-slate-900/60 p-5 text-center ${
                     selected === target.judge ? 'flex' : 'hidden md:flex'
                   }`}
