@@ -13,6 +13,8 @@ import { useWakeLock } from '@/hooks/useWakeLock';
 import { getMessages, type Messages } from '@/lib/i18n/messages';
 import { Seo } from '@/components/Seo';
 import { FooterBadges } from '@/components/FooterBadges';
+import { RefereeQrModal } from '@/components/RefereeQrModal';
+import { useSessionQrTargets } from '@/hooks/useSessionQrTargets';
 
 const BASE_SCALE = 0.9;
 const DEFAULT_ZOOM = 1;
@@ -55,6 +57,8 @@ export default function DisplayPage() {
   const viewportScale = useViewportScale(1920, 1184);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const [qrOpen, setQrOpen] = useState(false);
+  const qr = useSessionQrTargets({ open: qrOpen, roomId, adminPin, labels: messages.admin.qrMenu.targets, shortLabels: messages.admin.qrMenu.shortTargets });
 
   const intervalVisible = Boolean(
     state && state.intervalVisible && state.intervalConfiguredMs > 0 && state.intervalMs > 0
@@ -138,6 +142,16 @@ export default function DisplayPage() {
                     enterLabel={displayMessages.menu.fullscreenEnter}
                     exitLabel={displayMessages.menu.fullscreenExit}
                   />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQrOpen(true);
+                      setMenuOpen(false);
+                    }}
+                    className={`inline-flex w-full items-center justify-center rounded-xl bg-white/15 px-4 py-3 text-[10px] font-semibold uppercase ${buttonTrackingClass} text-white transition hover:bg-white/25`}
+                  >
+                    {displayMessages.menu.showQr}
+                  </button>
                   <Link
                     href={adminLink}
                     className={`inline-flex w-full items-center justify-center rounded-xl bg-white/15 px-4 py-3 text-[10px] font-semibold uppercase ${buttonTrackingClass} text-white transition hover:bg-white/25`}
@@ -227,6 +241,17 @@ export default function DisplayPage() {
         </div>
       </main>
       </div>
+      {qrOpen && (
+        <RefereeQrModal
+          targets={qr.targets}
+          loading={qr.loading}
+          onClose={() => setQrOpen(false)}
+          messages={messages.admin.qrMenu}
+          description={messages.admin.qrMenu.viewDescription}
+          notice={qr.errorCode ? messages.admin.qrMenu.loadError : qr.loopback ? messages.admin.qrMenu.localhostHint : null}
+          closeLabel={messages.common.srOnly.close}
+        />
+      )}
     </>
   );
 }

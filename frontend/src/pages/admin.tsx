@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import type { GetServerSideProps } from 'next';
-import QRCode from 'react-qr-code';
 import { useRouter } from 'next/router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent, MouseEvent } from 'react';
@@ -12,10 +11,12 @@ import { useRoomSocket } from '@/hooks/useRoomSocket';
 import { useRouterReady } from '@/hooks/useRouterReady';
 import { createRoom, accessRoom, refreshRefereeTokens, getKeyRelayStatus, startKeyRelay, stopKeyRelay, type JoinQrCodesResponse, type KeyRelayStatus } from '@/lib/api';
 import { FooterBadges } from '@/components/FooterBadges';
-import type { Judge } from '@/types/state';
 import { getMessages, type Messages } from '@/lib/i18n/messages';
 import { APP_LOCALES, type AppLocale } from '@/lib/i18n/config';
 import { BrandLogo } from '@/components/BrandLogo';
+import { ConnectionStatus } from '@/components/ConnectionStatus';
+import { RefereeQrModal } from '@/components/RefereeQrModal';
+import { buildRefHref, buildRoomViewHref, openSideWindow, resolveAppOrigin, type QrTarget } from '@/lib/ref-links';
 import { Seo } from '@/components/Seo';
 
 interface AdminPageProps {
@@ -32,11 +33,6 @@ const previewLayout = {
   }
 } as const;
 
-interface QrTarget {
-  judge: Judge;
-  label: string;
-  href: string;
-}
 
 function useViewportScale(designWidth = 1920, designHeight = 1280) {
   const [scale, setScale] = useState(1);
@@ -95,7 +91,6 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
   const [qrMenuOpen, setQrMenuOpen] = useState(false);
   const [legendModalOpen, setLegendModalOpen] = useState(false);
   const [appOrigin, setAppOrigin] = useState('');
-  const configuredQrOrigin = process.env.NEXT_PUBLIC_QR_ORIGIN?.trim();
 
   const credentialsReady = Boolean(router.isReady && roomId && adminPin);
   const roomReady = Boolean(roomAccess && roomAccess.roomId === roomId);
@@ -161,26 +156,8 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
   }, [credentialsReady, roomId, adminPin, roomAccess, roomErrorCode]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const protocol = window.location.protocol || 'https:';
-      const protocolWithSlashes = protocol.endsWith(':') ? `${protocol}//` : 'https://';
-      const port = window.location.port ? `:${window.location.port}` : '';
-      const fallbackHost = window.location.hostname;
-      const normalizedConfiguredOrigin = normalizeConfiguredOrigin(
-        configuredQrOrigin,
-        protocolWithSlashes
-      );
-
-      if (normalizedConfiguredOrigin) {
-        setAppOrigin(normalizedConfiguredOrigin);
-        return;
-      }
-
-      const ipHost = selectUsefulIp(networkIps);
-      const host = ipHost ?? fallbackHost;
-      setAppOrigin(`${protocolWithSlashes}${host}${port}`);
-    }
-  }, [networkIps, configuredQrOrigin]);
+    setAppOrigin(resolveAppOrigin(networkIps));
+  }, [networkIps]);
 
   const socketOptions = useMemo(() => {
     if (roomReady && roomId && adminPin) {
@@ -263,20 +240,23 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
       {
         judge: 'left',
         label: adminMessages.qrMenu.targets.left,
+        shortLabel: adminMessages.qrMenu.shortTargets.left,
         href: buildRefHref(appOrigin, roomId, roomAccess.joinQRCodes.left.token, 'left')
       },
       {
         judge: 'center',
         label: adminMessages.qrMenu.targets.center,
+        shortLabel: adminMessages.qrMenu.shortTargets.center,
         href: buildRefHref(appOrigin, roomId, roomAccess.joinQRCodes.center.token, 'center')
       },
       {
         judge: 'right',
         label: adminMessages.qrMenu.targets.right,
+        shortLabel: adminMessages.qrMenu.shortTargets.right,
         href: buildRefHref(appOrigin, roomId, roomAccess.joinQRCodes.right.token, 'right')
       }
     ];
-  }, [adminMessages.qrMenu.targets.center, adminMessages.qrMenu.targets.left, adminMessages.qrMenu.targets.right, appOrigin, roomAccess, roomId]);
+  }, [adminMessages.qrMenu.targets, adminMessages.qrMenu.shortTargets, appOrigin, roomAccess, roomId]);
 
   // Display e timer costumam abrir em OUTRO computador: mesmo endereço de
   // rede dos QR dos árbitros (com o painel em localhost, um link relativo
@@ -471,13 +451,9 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
               )}
             </div>
             <div className="flex items-center gap-4">
-              <span className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-300">
-                <span
-                  aria-hidden="true"
-                  className={`h-2.5 w-2.5 rounded-full ${status === 'connected' ? 'bg-emerald-400' : status === 'connecting' ? 'bg-amber-400' : 'bg-red-500'}`}
-                />
-                {commonMessages.labels.status}: {commonMessages.connection[status]}
-                {tokenRefreshing && <span className="text-slate-400"> · {adminMessages.header.generatingLinks}</span>}
+              <span className="flex items-center gap-2">
+                <ConnectionStatus status={status} messages={commonMessages} />
+                {tokenRefreshing && <span className="text-[13px] text-slate-400">· {adminMessages.header.generatingLinks}</span>}
               </span>
               <label htmlFor="locale-select" className="sr-only">
                 {commonMessages.languageLabel}
@@ -607,6 +583,13 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
               </button>
               <Link
                 href={timerLink}
+                onClick={(event) => {
+                  // Clique simples: timer numa janela própria, estreita e na
+                  // altura da tela, e o admin continua aberto. Com Ctrl/⌘/Shift
+                  // (ou janela bloqueada) segue o link normal.
+                  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                  if (openSideWindow(timerLink, 'referee-lights-timer')) event.preventDefault();
+                }}
                 className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-white transition hover:bg-white/20"
               >
                 {adminMessages.preview.goToTimer}
@@ -697,10 +680,10 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
         </div>
       )}
       {qrMenuOpen && (
-        <QrMenu
+        <RefereeQrModal
           targets={qrTargets}
           onClose={() => setQrMenuOpen(false)}
-          originReady={Boolean(appOrigin)}
+          loading={!appOrigin}
           onRefreshTokens={handleRefreshTokens}
           refreshing={tokenRefreshing}
           messages={adminMessages.qrMenu}
@@ -959,99 +942,6 @@ function RoomSetup(props: {
 }
 
 
-function QrMenu({
-  targets,
-  onClose,
-  originReady,
-  onRefreshTokens,
-  refreshing,
-  messages,
-  confirmRegenerateText,
-  closeLabel
-}: {
-  targets: QrTarget[];
-  onClose: () => void;
-  originReady: boolean;
-  onRefreshTokens: () => Promise<void>;
-  refreshing: boolean;
-  messages: Messages['admin']['qrMenu'];
-  confirmRegenerateText: string;
-  closeLabel: string;
-}) {
-  const handleBackdropClick = (event: MouseEvent<HTMLDivElement>) => {
-    if (event.currentTarget === event.target) {
-      onClose();
-    }
-  };
-
-  const handleRefreshClick = () => {
-    if (refreshing) return;
-
-    const confirmed = typeof window === 'undefined'
-      ? true
-      : window.confirm(confirmRegenerateText);
-
-    if (!confirmed) return;
-
-    void onRefreshTokens();
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-6 py-10"
-      onClick={handleBackdropClick}
-      role="dialog"
-      aria-modal="true"
-      aria-label={messages.ariaLabel}
-    >
-      <div className="relative w-full max-w-5xl rounded-3xl border border-white/10 bg-[#0F141F] p-8 shadow-[0_30px_80px_rgba(0,0,0,0.6)]">
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute right-6 top-6 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
-        >
-          <span className="sr-only">{closeLabel}</span>
-          ×
-        </button>
-        <div className="flex flex-col gap-2">
-          <h2 className="text-lg font-semibold uppercase tracking-[0.4em] text-white">{messages.title}</h2>
-          <p className="text-xs text-slate-400">{messages.description}</p>
-          <div className="mt-3 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={handleRefreshClick}
-              disabled={refreshing}
-              className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {refreshing ? messages.regenerating : messages.regenerate}
-            </button>
-          </div>
-        </div>
-
-        {!originReady || targets.length === 0 ? (
-          <div className="mt-10 text-center text-sm text-slate-400">{messages.loading}</div>
-        ) : (
-          <div className="mt-8 grid gap-6 md:grid-cols-3">
-            {targets.map((target) => (
-              <div
-                key={target.judge}
-                className="flex flex-col items-center gap-4 rounded-2xl border border-white/10 bg-slate-900/60 p-5 text-center"
-              >
-                <div className="rounded-2xl bg-white/5 p-4">
-                  <QRCode value={target.href} size={196} bgColor="transparent" fgColor="#ffffff" />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className="text-xs font-semibold uppercase tracking-[0.4em] text-slate-200">{target.label}</span>
-                  <span className="text-xs text-slate-500 break-all">{target.href}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 function FullPageMessage({ title, description, delayed = false }: { title: string; description: string; delayed?: boolean }) {
   // delayed: o texto só aparece se demorar (conexão rápida não pisca mensagem)
@@ -1076,54 +966,6 @@ function StatusBanner({ message }: { message: string }) {
       {message}
     </div>
   );
-}
-
-function buildRefHref(origin: string, roomId: string, token: string, judge: Judge) {
-  const encodedRoom = encodeURIComponent(roomId);
-  const encodedToken = encodeURIComponent(token);
-  return `${origin}/ref/${judge}?roomId=${encodedRoom}&token=${encodedToken}`;
-}
-
-function buildRoomViewHref(
-  path: '/display' | '/legend' | '/timer',
-  roomId: string | undefined,
-  adminPin: string | undefined
-) {
-  if (roomId && adminPin) {
-    return `${path}?roomId=${encodeURIComponent(roomId)}&pin=${encodeURIComponent(adminPin)}`;
-  }
-  return path;
-}
-
-function normalizeConfiguredOrigin(value: string | undefined, defaultProtocol: string) {
-  if (!value) return '';
-  const trimmed = value.trim();
-  if (!trimmed) return '';
-
-  const hasProtocol = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(trimmed);
-  const input = hasProtocol ? trimmed : `${defaultProtocol}${trimmed.replace(/^\/+/, '')}`;
-
-  try {
-    const url = new URL(input);
-    return url.origin;
-  } catch (error) {
-    console.warn('Invalid NEXT_PUBLIC_QR_ORIGIN provided:', error);
-    return '';
-  }
-}
-
-function selectUsefulIp(candidates: string[]) {
-  return candidates.find((candidate) => {
-    if (!candidate) return false;
-    if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(candidate)) return false;
-
-    const [a, b] = candidate.split('.').map(Number);
-    if (a === 10) return true;
-    if (a === 192 && b === 168) return true;
-    if (a === 172 && b >= 16 && b <= 31) return true;
-
-    return false;
-  });
 }
 
 function formatHMS(ms: number) {

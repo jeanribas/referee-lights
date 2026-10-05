@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 
+import { ConnectionStatus } from '@/components/ConnectionStatus';
 import { DecisionLights } from '@/components/DecisionLights';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
 import { useRouterReady } from '@/hooks/useRouterReady';
@@ -353,11 +354,7 @@ export default function LegendPage() {
               <div className="mr-auto flex min-w-0 shrink-0 flex-col leading-tight">
                 <h1 className="text-[15px] font-bold uppercase tracking-[0.12em] text-white">{legendMessages.title}</h1>
                 <span className="flex items-center gap-1.5 whitespace-nowrap text-[13px] text-slate-300">
-                  <span
-                    aria-hidden="true"
-                    className={`h-2 w-2 shrink-0 rounded-full ${status === 'connected' ? 'bg-emerald-400' : status === 'connecting' ? 'bg-amber-400' : 'bg-red-500'}`}
-                  />
-                  {commonMessages.labels.status}: {commonMessages.connection[status]}
+                  <ConnectionStatus status={status} messages={commonMessages} size="sm" />
                   {statusSuffix}
                   {routerReady && (!roomId || !adminPin) ? <span className="text-amber-200"> · {legendMessages.missingCredentials}</span> : null}
                 </span>
