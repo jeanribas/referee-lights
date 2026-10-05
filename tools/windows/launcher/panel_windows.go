@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
 	"unsafe"
 
@@ -164,44 +163,29 @@ type monitorInfo struct {
 	dwFlags   uint32
 }
 
-// openTimerWindow abre o timer no Edge em modo app, encostado à esquerda da
-// área útil do monitor onde está o painel, na altura dela. O Edge mede a
-// janela em pixels "lógicos": a área útil (pixels físicos) é convertida pela
-// escala do monitor (DPI). Devolve false se não deu para abrir.
-func (p *panelWindow) openTimerWindow(target string) bool {
+// timerBounds: à esquerda da área útil do monitor onde está o painel, na
+// altura dela, largura timerWindowWidth na escala do monitor (pixels físicos).
+func (p *panelWindow) timerBounds() (x, y, w, h int) {
 	p.mu.Lock()
 	hwnd := p.hwnd
 	p.mu.Unlock()
-	x, y, height := 0, 0, 0
+	w, h = timerWindowWidth, 900
 	const monitorDefaultToNearest = 2
-	if mon, _, _ := procMonitorFromWin.Call(hwnd, monitorDefaultToNearest); mon != 0 {
-		mi := monitorInfo{cbSize: uint32(unsafe.Sizeof(monitorInfo{}))}
-		if ok, _, _ := procGetMonitorInfo.Call(mon, uintptr(unsafe.Pointer(&mi))); ok != 0 {
-			dpi := 96
-			if procGetDpiForWin.Find() == nil {
-				if d, _, _ := procGetDpiForWin.Call(hwnd); d != 0 {
-					dpi = int(d)
-				}
-			}
-			scale := func(v int32) int { return int(v) * 96 / dpi }
-			x, y = scale(mi.rcWork.Left), scale(mi.rcWork.Top)
-			height = scale(mi.rcWork.Bottom - mi.rcWork.Top)
+	mon, _, _ := procMonitorFromWin.Call(hwnd, monitorDefaultToNearest)
+	if mon == 0 {
+		return
+	}
+	mi := monitorInfo{cbSize: uint32(unsafe.Sizeof(monitorInfo{}))}
+	if ok, _, _ := procGetMonitorInfo.Call(mon, uintptr(unsafe.Pointer(&mi))); ok == 0 {
+		return
+	}
+	dpi := 96
+	if procGetDpiForWin.Find() == nil {
+		if d, _, _ := procGetDpiForWin.Call(hwnd); d != 0 {
+			dpi = int(d)
 		}
 	}
-	if height <= 0 {
-		sh, _, _ := procGetSysMetrics.Call(1) // SM_CYSCREEN
-		height = int(sh)
-	}
-	args := edgeAppArgs(target, filepath.Join(p.app.paths.Root, "timer-window"), x, y, timerWindowWidth, height)
-	quoted := make([]string, len(args))
-	for i, a := range args {
-		quoted[i] = windows.EscapeArg(a)
-	}
-	if err := shellOpen("open", "msedge.exe", strings.Join(quoted, " "), windows.SW_SHOWNORMAL); err != nil {
-		p.app.log.Printf("timer no Edge: %v (abrindo no navegador padrão)", err)
-		return false
-	}
-	return true
+	return int(mi.rcWork.Left), int(mi.rcWork.Top), timerWindowWidth * dpi / 96, int(mi.rcWork.Bottom - mi.rcWork.Top)
 }
 
 func (p *panelWindow) setIcon() {
