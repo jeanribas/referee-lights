@@ -561,24 +561,37 @@ export class AnalyticsStore {
     }
   }
 
-  getTimeline(period?: string): Array<{ date: string; sessions: number; connections: number; views: number }> {
+  getTimeline(period?: string): Array<{
+    date: string;
+    sessions: number;
+    connections: number;
+    views: number;
+    visitors: number;
+    devices: number;
+  }> {
     if (!this.db) return [];
     try {
       const whereSess = this.periodToSqlCreated(period);
       const whereConn = this.periodToSql(period);
       const whereLog = this.periodToSql(period).replaceAll('connected_at', 'timestamp');
-      // União por dia: dias com só visitas (sem sessão) também aparecem
+      // União por dia: dias com só visitas (sem sessão) também aparecem.
+      // `visitors` = IPs (hash) distintos no dia; `devices` = sala+papel+IP
+      // distintos no dia — reconexão do mesmo aparelho não conta de novo.
       return this.db.prepare(
-        `SELECT date, SUM(sessions) as sessions, SUM(connections) as connections, SUM(views) as views FROM (
-          SELECT date(created_at) as date, 1 as sessions, 0 as connections, 0 as views FROM sessions WHERE ${whereSess}
+        `SELECT date, SUM(sessions) as sessions, SUM(connections) as connections, SUM(views) as views,
+                COUNT(DISTINCT visitor) as visitors, COUNT(DISTINCT device) as devices FROM (
+          SELECT date(created_at) as date, 1 as sessions, 0 as connections, 0 as views, NULL as visitor, NULL as device
+            FROM sessions WHERE ${whereSess}
           UNION ALL
-          SELECT date(connected_at), 0, 1, 0 FROM connections WHERE ${whereConn}
+          SELECT date(connected_at), 0, 1, 0, NULL, COALESCE(session_id, '') || '|' || role || '|' || COALESCE(ip, '')
+            FROM connections WHERE ${whereConn}
           UNION ALL
-          SELECT date(timestamp), 0, 0, 1 FROM access_logs WHERE event_type = 'page_view' AND ${whereLog}
+          SELECT date(timestamp), 0, 0, 1, NULLIF(ip, ''), NULL
+            FROM access_logs WHERE event_type = 'page_view' AND ${whereLog}
         )
         GROUP BY date
         ORDER BY date ASC`
-      ).all() as Array<{ date: string; sessions: number; connections: number; views: number }>;
+      ).all() as Array<{ date: string; sessions: number; connections: number; views: number; visitors: number; devices: number }>;
     } catch (err) {
       console.error('[analytics] getTimeline error:', err);
       return [];
@@ -875,15 +888,29 @@ export class AnalyticsStore {
   }
 
   /** Sessões/conexões/decisões dos bundles por dia — série "bundle" da tendência. */
-  getBundleTimeline(period?: string, excludeInstanceId = ''): Array<{ date: string; sessions: number; connections: number; decisions: number }> {
+  getBundleTimeline(period?: string, excludeInstanceId = ''): Array<{
+    date: string;
+    sessions: number;
+    connections: number;
+    devices: number;
+    decisions: number;
+  }> {
     if (!this.db) return [];
     try {
       const where = this.periodToSql(period).replaceAll('connected_at', 'received_at');
+      // `devices`: mesma régua do online (instalação+sala+papel+IP distintos no dia)
+      // (payload truncado na ingestão não é JSON válido — json_extract lançaria)
+      const VALID_PAYLOAD = "CASE WHEN json_valid(payload) THEN payload END";
       return this.db
         .prepare(
           `SELECT date(received_at) AS date,
                   SUM(CASE WHEN event_type = 'session_created' THEN 1 ELSE 0 END) AS sessions,
                   SUM(CASE WHEN event_type = 'connection' THEN 1 ELSE 0 END) AS connections,
+                  COUNT(DISTINCT CASE WHEN event_type = 'connection' THEN
+                    instance_id || '|' || COALESCE(room_id, json_extract(${VALID_PAYLOAD}, '$.roomId'), '') || '|' ||
+                    COALESCE(json_extract(${VALID_PAYLOAD}, '$.role'), '') || '|' ||
+                    COALESCE(json_extract(${VALID_PAYLOAD}, '$.ipHash'), '')
+                  END) AS devices,
                   SUM(CASE WHEN event_type = 'decision' THEN 1 ELSE 0 END) AS decisions
            FROM instance_events WHERE instance_id != ? AND ${where}
            GROUP BY date ORDER BY date ASC`

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { AppProps } from 'next/app';
 import Head from 'next/head';
 import Script from 'next/script';
@@ -39,21 +39,40 @@ const VercelAnalytics = dynamic(
   { ssr: false }
 );
 
+/** Caminho sem o prefixo de idioma: '/en-US/timer/X' → '/timer/X'. */
+function withoutLocale(url: string, locales: readonly string[] = []): string {
+  const path = url.split('?')[0].split('#')[0] || '/';
+  for (const locale of locales) {
+    if (path === `/${locale}`) return '/';
+    if (path.startsWith(`/${locale}/`)) return path.slice(locale.length + 1);
+  }
+  return path;
+}
+
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
+  const lastPath = useRef<string | null>(null);
 
   useEffect(() => {
     if (!router.isReady) return;
+    lastPath.current = withoutLocale(window.location.pathname, router.locales);
     trackPageView(window.location.pathname, { locale: router.locale, includeReferrer: true });
     // roda uma vez por carga inicial; navegações client-side vêm do listener abaixo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.isReady]);
 
   useEffect(() => {
-    const onRouteDone = (url: string) => trackPageView(url, { locale: router.locale });
+    const onRouteDone = (url: string) => {
+      // Troca só de idioma (mesma página) não é navegação nova — as telas da
+      // sala trocam sozinhas quando o admin muda o idioma da sala.
+      const path = withoutLocale(url, router.locales);
+      if (path === lastPath.current) return;
+      lastPath.current = path;
+      trackPageView(url, { locale: router.locale });
+    };
     router.events.on('routeChangeComplete', onRouteDone);
     return () => router.events.off('routeChangeComplete', onRouteDone);
-  }, [router.events, router.locale]);
+  }, [router.events, router.locale, router.locales]);
 
   return (
     <>
