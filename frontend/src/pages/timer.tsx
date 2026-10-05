@@ -7,6 +7,9 @@ import { FooterBadges } from '@/components/FooterBadges';
 import { useCooldownBadges } from '@/components/TimerDisplay';
 import { IntervalCard, TimerCard } from '@/components/TimerControls';
 import { BrandLogo } from '@/components/BrandLogo';
+import { ConnectionStatus } from '@/components/ConnectionStatus';
+import { RefereeQrModal } from '@/components/RefereeQrModal';
+import { useSessionQrTargets } from '@/hooks/useSessionQrTargets';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
 import { useRouterReady } from '@/hooks/useRouterReady';
 import { getMessages, type Messages } from '@/lib/i18n/messages';
@@ -44,6 +47,8 @@ export default function TimerPage() {
   const [intervalHours, setIntervalHours] = useState(0);
   const [intervalMinutes, setIntervalMinutes] = useState(10);
   const [intervalSeconds, setIntervalSeconds] = useState(0);
+  const [qrOpen, setQrOpen] = useState(false);
+  const qr = useSessionQrTargets({ open: qrOpen, roomId, adminPin, labels: adminMessages.qrMenu.targets, shortLabels: adminMessages.qrMenu.shortTargets });
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -82,22 +87,37 @@ export default function TimerPage() {
       />
       {/* Ocupa exatamente a janela (dvh: some a barra do navegador no celular); nada rola */}
       <main className="flex h-[100dvh] flex-col justify-center gap-3 overflow-hidden bg-slate-950 p-3 text-slate-100 sm:p-4">
-        <header className="mx-auto flex w-full max-w-5xl shrink-0 items-center justify-between gap-3">
-          <BrandLogo size={28} />
-          {/* Status da conexão como no admin e nos árbitros, ao lado da sala */}
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-slate-800 px-2.5 py-1.5 text-[13px] font-semibold text-slate-300">
-              <span
-                aria-hidden="true"
-                className={`h-2.5 w-2.5 rounded-full ${status === 'connected' ? 'bg-emerald-400' : status === 'connecting' ? 'bg-amber-400' : 'bg-red-500'}`}
-              />
-              {/* No celular estreito fica só a bolinha + estado */}
-              <span className="max-sm:sr-only">{commonMessages.labels.status}:</span> {commonMessages.connection[status]}
-            </span>
-            <span className="whitespace-nowrap rounded-lg bg-slate-800 px-3 py-1.5 text-[15px] font-semibold text-slate-200">
-              {commonMessages.labels.room} <span className="font-bold tracking-[0.12em] text-white">{roomId}</span>
-            </span>
+        {/* Topo: informação (logo, conexão, sala) sem cara de botão; o único
+            controle é o QR. */}
+        {/* Linha 1: logo | sala + QR. Linha 2: conexão, centralizada */}
+        <header className="mx-auto flex w-full max-w-5xl shrink-0 flex-col gap-2">
+          <div className="flex items-center justify-between gap-3">
+            <BrandLogo size={28} />
+            <div className="flex items-center gap-3">
+              <div className="flex flex-col items-end leading-tight">
+                <span className="text-[13px] font-semibold uppercase tracking-[0.12em] text-slate-400">{commonMessages.labels.room}</span>
+                <span className="text-[18px] font-bold tracking-[0.12em] text-white">{roomId}</span>
+              </div>
+              {/* QR dos árbitros aqui também: quem está no admin (speaker) não
+                  precisa parar para reabrir a página de um árbitro */}
+              <button
+                type="button"
+                onClick={() => setQrOpen(true)}
+                className="inline-flex min-h-[48px] items-center gap-2 whitespace-nowrap rounded-xl border border-white/20 bg-slate-800 px-4 text-[15px] font-semibold text-white shadow-md transition hover:bg-slate-700 active:bg-slate-600"
+                aria-label={adminMessages.preview.showQr}
+              >
+                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="7" height="7" rx="1" />
+                  <rect x="14" y="3" width="7" height="7" rx="1" />
+                  <rect x="3" y="14" width="7" height="7" rx="1" />
+                  <path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3" />
+                </svg>
+                <span className="max-sm:hidden">{adminMessages.preview.showQr}</span>
+                <span className="sm:hidden">QR</span>
+              </button>
+            </div>
           </div>
+          <ConnectionStatus status={status} messages={commonMessages} size="sm" className="self-center" />
         </header>
 
         {/* Em pé: um cartão sobre o outro. Deitado: lado a lado. Os cartões têm a
@@ -138,6 +158,17 @@ export default function TimerPage() {
           <FooterBadges />
         </div>
       </main>
+      {qrOpen && (
+        <RefereeQrModal
+          targets={qr.targets}
+          loading={qr.loading}
+          onClose={() => setQrOpen(false)}
+          messages={adminMessages.qrMenu}
+          description={adminMessages.qrMenu.viewDescription}
+          notice={qr.errorCode ? adminMessages.qrMenu.loadError : qr.loopback ? adminMessages.qrMenu.localhostHint : null}
+          closeLabel={commonMessages.srOnly.close}
+        />
+      )}
     </>
   );
 }

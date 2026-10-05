@@ -1,7 +1,7 @@
 // Falhas de acesso: PIN errado, token errado/de outro juiz, parâmetros
 // ausentes e sala inexistente. Cada tela precisa mostrar a mensagem certa e
 // seguir viva (sem pageerror).
-import { createRoom, expect, msg, test, urls } from './helpers';
+import { createRoom, expect, msg, test, urls, connectedBadge } from './helpers';
 
 const m = msg('pt-BR');
 const errors = m.common.errors;
@@ -92,7 +92,7 @@ test.describe('árbitro', () => {
     const room = await createRoom();
     const ref = await context.newPage();
     await ref.goto(urls.ref(room, 'left'));
-    await expect(ref.getByText(`${m.common.labels.status}: ${m.common.connection.connected}`)).toBeVisible({ timeout: 15_000 });
+    await expect(connectedBadge(ref)).toBeVisible({ timeout: 15_000 });
 
     await page.goto(urls.admin(room));
     await page.getByRole('button', { name: m.admin.preview.showQr }).click();

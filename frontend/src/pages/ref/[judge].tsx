@@ -6,6 +6,7 @@ import { useRoomSocket } from '@/hooks/useRoomSocket';
 import { CardValue, Judge, VoteValue } from '@/types/state';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { getMessages, type Messages } from '@/lib/i18n/messages';
+import { ConnectionStatus } from '@/components/ConnectionStatus';
 import { Seo } from '@/components/Seo';
 import { FooterBadges } from '@/components/FooterBadges';
 
@@ -233,9 +234,7 @@ function CenterLayout(props: {
     <main className="flex h-screen flex-col gap-3 bg-slate-950 px-5 pt-[calc(env(safe-area-inset-top)+1rem)] pb-4 text-white" style={scaleStyle}>
       <header className="flex flex-col items-center gap-1 text-xs uppercase tracking-[0.5em] text-slate-400">
         <span>{messages.center.title}</span>
-        <span>
-          {commonMessages.labels.status}: {commonMessages.connection[status]}
-        </span>
+        <ConnectionStatus status={status} messages={commonMessages} className="normal-case tracking-normal" />
       </header>
 
       <section className="flex flex-col items-center gap-3 rounded-3xl border border-white/10 bg-[#1F232A] p-4 shadow-xl">
@@ -335,9 +334,7 @@ function SideLayout(props: {
     <main className="flex h-screen flex-col gap-4 bg-slate-950 px-6 pt-[calc(env(safe-area-inset-top)+1rem)] pb-6 text-slate-100" style={scaleStyle}>
       <header className="flex flex-col items-center gap-1 text-center text-xs uppercase tracking-[0.4em] text-slate-400">
         <span>{sideLabel}</span>
-        <span>
-          {commonMessages.labels.status}: {commonMessages.connection[status]}
-        </span>
+        <ConnectionStatus status={status} messages={commonMessages} className="normal-case tracking-normal" />
       </header>
 
       <section className="flex min-h-0 flex-1 flex-col gap-3">
