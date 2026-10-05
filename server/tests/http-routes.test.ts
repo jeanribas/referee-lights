@@ -370,3 +370,35 @@ describe('key relay', () => {
     expect(stop.json()).toEqual({ error: 'key_relay_unavailable' });
   });
 });
+
+describe('erros das telas e relatório', () => {
+  it('POST /client-errors aceita erro válido e recusa payload inválido', async () => {
+    const ok = await app.inject({
+      method: 'POST',
+      url: '/client-errors',
+      headers: { 'x-forwarded-for': freshIp() },
+      payload: { kind: 'TypeError', message: 'x is undefined', screen: 'admin', stack: 'at a\nat b' }
+    });
+    expect(ok.statusCode).toBe(204);
+    const bad = await app.inject({
+      method: 'POST',
+      url: '/client-errors',
+      headers: { 'x-forwarded-for': freshIp() },
+      payload: { kind: 'TypeError' }
+    });
+    expect(bad.statusCode).toBe(400);
+  });
+
+  it('GET /master/errors exige login e devolve o formato do relatório', async () => {
+    const anon = await app.inject({ method: 'GET', url: '/master/errors?period=today' });
+    expect(anon.statusCode).toBe(401);
+    const token = await adminToken();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/master/errors?period=7d&tz=-180',
+      headers: { authorization: `Bearer ${token}` }
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ total: expect.any(Number), groups: expect.any(Array), daily: expect.any(Array) });
+  });
+});

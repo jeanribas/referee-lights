@@ -5,7 +5,7 @@ import { Server as SocketIOServer, type Socket } from 'socket.io';
 
 import { resolveClientIp } from './client-ip.js';
 import { lookupGeo } from './geo.js';
-import { AnalyticsStore } from './analytics.js';
+import { AnalyticsStore, parseTz } from './analytics.js';
 import { config } from './config.js';
 import { KeyRelay } from './key-relay.js';
 import { generateMasterToken, validateCredentials, verifyMasterToken } from './master-auth.js';
@@ -389,7 +389,7 @@ export async function createServer() {
         try {
           handler(...args);
         } catch (error) {
-          telemetry.trackError(`socket ${event}`, String((error as Error)?.message ?? error));
+          telemetry.trackError(`socket ${event}`, String((error as Error)?.message ?? error), errorDetails(error));
           app.log.error({ err: error, event }, 'socket_handler_error');
         }
       }) as never);
@@ -683,22 +683,28 @@ export async function createServer() {
     return verifyMasterToken(auth.slice(7));
   }
 
-  app.get<{ Querystring: { period?: string } }>('/master/stats', async (request, reply) => {
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/stats', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
     return {
-      ...analyticsStore.getStats(roomManager.roomCount(), request.query.period),
-      bundle: analyticsStore.getBundleSummary(telemetry.instanceId, request.query.period)
+      ...analyticsStore.getStats(roomManager.roomCount(), request.query.period, parseTz(request.query.tz)),
+      bundle: analyticsStore.getBundleSummary(telemetry.instanceId, request.query.period, parseTz(request.query.tz))
     };
   });
 
-  app.get<{ Querystring: { limit?: string; offset?: string } }>('/master/sessions', async (request, reply) => {
+  app.get<{ Querystring: { limit?: string; offset?: string; period?: string; tz?: string } }>('/master/sessions', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
     const limit = Math.min(100, Math.max(1, Number(request.query.limit) || 20));
     const offset = Math.max(0, Number(request.query.offset) || 0);
     // Estado AO VIVO por cima do histórico: sessão online ativa = sala ainda
     // na memória; sessão de bundle ativa = sala no rooms_json do último
     // status da instalação.
-    const sessions = analyticsStore.getRecentSessions(limit, offset).map((row) => {
+    const sessions = analyticsStore.getRecentSessions(
+      limit,
+      offset,
+      request.query.period,
+      parseTz(request.query.tz),
+      roomManager.listRooms().map((room) => room.id)
+    ).map((row) => {
       const state = roomManager.getRoomState(row.room_id);
       if (!state) return { ...row, live: null };
       const snap = state.getSnapshot();
@@ -709,53 +715,58 @@ export async function createServer() {
     for (const inst of analyticsStore.getOnlineBundleInstances(telemetry.instanceId)) {
       for (const room of inst.rooms) liveRooms.set(`${inst.instance_id}:${room.id}`, room.connectedJudges);
     }
-    const bundleSessions = analyticsStore.getBundleSessions(limit, telemetry.instanceId).map((row) => {
+    const bundleSessions = analyticsStore.getBundleSessions(limit, telemetry.instanceId, request.query.period, parseTz(request.query.tz)).map((row) => {
       const judges = row.room_id != null ? liveRooms.get(`${row.instance_id}:${row.room_id}`) : undefined;
       return { ...row, live: judges === undefined ? null : { connectedJudges: judges } };
     });
     return { sessions, bundleSessions };
   });
 
-  app.get<{ Querystring: { period?: string } }>('/master/geo', async (request, reply) => {
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/geo', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
-    return analyticsStore.getGeoDistribution(request.query.period);
+    return analyticsStore.getGeoDistribution(request.query.period, parseTz(request.query.tz));
   });
 
-  app.get<{ Querystring: { period?: string } }>('/master/geo-markers', async (request, reply) => {
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/geo-markers', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
     return {
-      markers: analyticsStore.getGeoMarkers(request.query.period),
-      bundleMarkers: analyticsStore.getInstanceMarkers(telemetry.instanceId)
+      markers: analyticsStore.getGeoMarkers(request.query.period, parseTz(request.query.tz)),
+      bundleMarkers: analyticsStore.getInstanceMarkers(telemetry.instanceId, request.query.period, parseTz(request.query.tz))
     };
   });
 
-  app.get<{ Querystring: { period?: string } }>('/master/timeline', async (request, reply) => {
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/timeline', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
     return {
-      timeline: analyticsStore.getTimeline(request.query.period),
-      bundleTimeline: analyticsStore.getBundleTimeline(request.query.period, telemetry.instanceId)
+      timeline: analyticsStore.getTimeline(request.query.period, parseTz(request.query.tz)),
+      bundleTimeline: analyticsStore.getBundleTimeline(request.query.period, telemetry.instanceId, parseTz(request.query.tz))
     };
   });
 
-  app.get('/master/hourly', async (request, reply) => {
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/hourly', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
     return {
-      hourly: analyticsStore.getHourlyDistribution(),
-      bundleHourly: analyticsStore.getBundleHourly(telemetry.instanceId)
+      hourly: analyticsStore.getHourlyDistribution(request.query.period, parseTz(request.query.tz)),
+      bundleHourly: analyticsStore.getBundleHourly(telemetry.instanceId, request.query.period, parseTz(request.query.tz))
     };
   });
 
-  app.get('/master/roles', async (request, reply) => {
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/roles', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
     return {
-      roles: analyticsStore.getRoleBreakdown(),
-      bundleRoles: analyticsStore.getBundleRoles(telemetry.instanceId)
+      roles: analyticsStore.getRoleBreakdown(request.query.period, parseTz(request.query.tz)),
+      bundleRoles: analyticsStore.getBundleRoles(telemetry.instanceId, request.query.period, parseTz(request.query.tz))
     };
   });
 
-  app.get<{ Querystring: { period?: string } }>('/master/duration', async (request, reply) => {
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/errors', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
-    return analyticsStore.getDurationStats(request.query.period);
+    return analyticsStore.getErrorReport(request.query.period, parseTz(request.query.tz), telemetry.instanceId);
+  });
+
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/duration', async (request, reply) => {
+    if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
+    return analyticsStore.getDurationStats(request.query.period, parseTz(request.query.tz));
   });
 
   app.get('/master/activity', async (request, reply) => {
@@ -858,6 +869,34 @@ export async function createServer() {
     return analyticsStore.getInstanceActivity(id);
   });
 
+  // Erros das telas (window.onerror, promessas rejeitadas, Error Boundary,
+  // socket que não reconecta). Entram pelo mesmo canal dos erros do servidor.
+  // Sem dados pessoais: mensagem, stack resumido, tela, código da sala e
+  // navegador.
+  app.post('/client-errors', { bodyLimit: 8 * 1024 }, async (request, reply) => {
+    if (!rateLimitOk(`clienterr:${extractIp(request)}`, 20, 60_000)) {
+      reply.code(429);
+      return { error: 'rate_limited' };
+    }
+    const body = request.body;
+    if (!isRecord(body) || typeof body.message !== 'string' || !body.message) {
+      reply.code(400);
+      return { error: 'invalid_payload' };
+    }
+    const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : undefined);
+    const screen = (str(body.screen, 32) ?? 'desconhecida').replace(/[^\w/-]/g, '');
+    telemetry.trackError(`ui ${screen}`, body.message, {
+      origin: 'ui',
+      kind: str(body.kind, 64) ?? 'Error',
+      stack: str(body.stack, 1000),
+      screen,
+      roomId: str(body.roomId, 16),
+      userAgent: str(request.headers['user-agent'], 200)
+    });
+    reply.code(204);
+    return null;
+  });
+
   app.post<{ Body: { url?: string } }>('/track/click', async (request, reply) => {
     if (!rateLimitOk(`click:${extractIp(request)}`, 30, 60_000)) {
       reply.code(429);
@@ -893,19 +932,19 @@ export async function createServer() {
     }
   );
 
-  app.get<{ Querystring: { period?: string } }>('/master/devices', async (request, reply) => {
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/devices', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
-    return { devices: analyticsStore.getDevices(request.query.period) };
+    return { devices: analyticsStore.getDevices(request.query.period, parseTz(request.query.tz)) };
   });
 
-  app.get<{ Querystring: { period?: string } }>('/master/locales', async (request, reply) => {
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/locales', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
-    return { locales: analyticsStore.getLocales(request.query.period) };
+    return { locales: analyticsStore.getLocales(request.query.period, parseTz(request.query.tz)) };
   });
 
-  app.get<{ Querystring: { period?: string } }>('/master/referrers', async (request, reply) => {
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/referrers', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
-    return { referrers: analyticsStore.getReferrers(request.query.period) };
+    return { referrers: analyticsStore.getReferrers(request.query.period, parseTz(request.query.tz)) };
   });
 
   app.get('/master/active', async (request, reply) => {
@@ -955,14 +994,14 @@ export async function createServer() {
     };
   });
 
-  app.get<{ Querystring: { period?: string } }>('/master/pages', async (request, reply) => {
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/pages', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
-    return { pages: analyticsStore.getPages(request.query.period) };
+    return { pages: analyticsStore.getPages(request.query.period, parseTz(request.query.tz)) };
   });
 
-  app.get<{ Querystring: { period?: string } }>('/master/hosts', async (request, reply) => {
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/hosts', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
-    return { hosts: analyticsStore.getHosts(request.query.period) };
+    return { hosts: analyticsStore.getHosts(request.query.period, parseTz(request.query.tz)) };
   });
 
   // --- Key Relay Endpoints ---
@@ -1025,7 +1064,7 @@ export async function createServer() {
   // Erros são registrados: saber ONDE o app quebra orienta correções.
   // Mantém a resposta padrão do Fastify.
   app.setErrorHandler((error, request, reply) => {
-    telemetry.trackError(`http ${request.method} ${request.url}`, String((error as Error)?.message ?? error));
+    telemetry.trackError(`http ${request.method} ${request.url.split('?')[0]}`, String((error as Error)?.message ?? error), errorDetails(error));
     request.log.error(error);
     reply.send(error);
   });
@@ -1034,18 +1073,26 @@ export async function createServer() {
   if (!g.__rlProcessErrorHooks) {
     g.__rlProcessErrorHooks = true;
     process.on('uncaughtException', (err) => {
-      telemetry.trackError('uncaughtException', String((err as Error)?.message ?? err));
+      telemetry.trackError('uncaughtException', String((err as Error)?.message ?? err), errorDetails(err));
       telemetry.persistNow();
       console.error('[fatal]', err);
       process.exit(1);
     });
     process.on('unhandledRejection', (reason) => {
-      telemetry.trackError('unhandledRejection', String(reason));
+      telemetry.trackError('unhandledRejection', String(reason), errorDetails(reason));
       telemetry.persistNow();
     });
   }
 
   return app;
+}
+
+/** Tipo (código ou classe) e stack resumido de um erro, para agrupar os iguais. */
+function errorDetails(error: unknown): { kind: string; stack?: string } {
+  const e = error as { code?: unknown; name?: unknown; stack?: unknown } | null;
+  const kind = typeof e?.code === 'string' ? e.code : typeof e?.name === 'string' ? e.name : typeof error;
+  const stack = typeof e?.stack === 'string' ? e.stack.split('\n').slice(0, 6).join('\n') : undefined;
+  return { kind, stack };
 }
 
 function ensureJudgeContext(socket: AppSocket, roomManager: RoomManager) {

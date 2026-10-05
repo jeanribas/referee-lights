@@ -19,6 +19,8 @@ export interface SessionRow {
   created_at: string;
   closed_at: string | null;
   connection_count: number;
+  /** Aparelhos distintos na sala (reconexão não conta de novo). */
+  device_count: number;
   top_country: string | null;
 }
 
@@ -33,6 +35,53 @@ export interface GeoDistribution {
   countries: Array<{ country: string; count: number }>;
   cities: Array<{ city: string; country: string; count: number }>;
 }
+
+/**
+ * Recorte de período no fuso de quem consulta. `tz` = minutos somados ao UTC
+ * (Brasília = -180). Hoje / 7 dias / 30 dias são dias de CALENDÁRIO locais
+ * (hoje + os N-1 anteriores) — a mesma régua da série diária no painel.
+ */
+export interface PeriodWindow {
+  /** Início do recorte em UTC, formato do SQLite; null = todo o histórico. */
+  since: string | null;
+  tz: number;
+}
+
+const PERIOD_DAYS: Record<string, number> = { today: 1, '7d': 7, '30d': 30 };
+
+/** Fuso da consulta em minutos; inválido ou fora de ±14h vira UTC. */
+export function parseTz(raw: unknown): number {
+  const n = Number(raw);
+  return Number.isInteger(n) && Math.abs(n) <= 840 ? n : 0;
+}
+
+/** Período desconhecido = 30 dias (padrão histórico das rotas). */
+export function periodWindow(period?: string, tz = 0, now = Date.now()): PeriodWindow {
+  const offset = parseTz(tz);
+  if (period === 'all') return { since: null, tz: offset };
+  const days = PERIOD_DAYS[period ?? ''] ?? 30;
+  const local = new Date(now + offset * 60_000);
+  const startLocal = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate() - (days - 1));
+  const since = new Date(startLocal - offset * 60_000).toISOString().slice(0, 19).replace('T', ' ');
+  return { since, tz: offset };
+}
+
+/** Payload truncado na ingestão não é JSON válido — json_extract lançaria. */
+const VALID_PAYLOAD = 'CASE WHEN json_valid(payload) THEN payload END';
+
+/** Aparelho distinto online: sessão+papel+hash de IP (reconexão não conta de novo). */
+const ONLINE_DEVICE = "COALESCE(session_id, '') || '|' || role || '|' || COALESCE(ip, '')";
+
+/** Aparelho distinto num bundle: instalação+sala+papel+hash de IP (`t` = alias da tabela). */
+function bundleDevice(t = ''): string {
+  const payload = `CASE WHEN json_valid(${t}payload) THEN ${t}payload END`;
+  return (
+    `${t}instance_id || '|' || COALESCE(${t}room_id, json_extract(${payload}, '$.roomId'), '') || '|' || ` +
+    `COALESCE(json_extract(${payload}, '$.role'), '') || '|' || ` +
+    `COALESCE(json_extract(${payload}, '$.ipHash'), '')`
+  );
+}
+const BUNDLE_DEVICE = bundleDevice();
 
 export class AnalyticsStore {
   private db: Database.Database | null = null;
@@ -299,22 +348,19 @@ export class AnalyticsStore {
     return crypto.createHash('sha256').update(ip + 'referee-lights-salt').digest('hex').slice(0, 16);
   }
 
-  private periodToSql(period?: string): string {
-    switch (period) {
-      case 'today': return "date(connected_at) = date('now')";
-      case '7d': return "connected_at >= datetime('now', '-7 days')";
-      case 'all': return '1=1';
-      default: return "connected_at >= datetime('now', '-30 days')";
-    }
+  /** Condição de período para uma coluna de data no formato do SQLite (UTC). */
+  private inWindow(column: string, win: PeriodWindow): string {
+    return win.since ? `${column} >= '${win.since}'` : '1=1';
   }
 
-  private periodToSqlCreated(period?: string): string {
-    switch (period) {
-      case 'today': return "date(created_at) = date('now')";
-      case '7d': return "created_at >= datetime('now', '-7 days')";
-      case 'all': return '1=1';
-      default: return "created_at >= datetime('now', '-30 days')";
-    }
+  /** Dia local ('YYYY-MM-DD') de uma coluna UTC. */
+  private localDay(column: string, win: PeriodWindow): string {
+    return `date(${column}, '${win.tz >= 0 ? '+' : ''}${win.tz} minutes')`;
+  }
+
+  /** Hora local (0–23) de uma coluna UTC. */
+  private localHour(column: string, win: PeriodWindow): string {
+    return `CAST(strftime('%H', ${column}, '${win.tz >= 0 ? '+' : ''}${win.tz} minutes') AS INTEGER)`;
   }
 
   logSessionCreated(roomId: string, adminPin: string): number | null {
@@ -438,13 +484,14 @@ export class AnalyticsStore {
     }
   }
 
-  getStats(activeRoomCount: number, period?: string): StatsResult {
+  getStats(activeRoomCount: number, period?: string, tz = 0): StatsResult {
     if (!this.db) {
       return { totalSessions: 0, totalConnections: 0, uniqueIps: 0, activeRooms: activeRoomCount };
     }
     try {
-      const whereSess = this.periodToSqlCreated(period);
-      const whereConn = this.periodToSql(period);
+      const win = periodWindow(period, tz);
+      const whereSess = this.inWindow('created_at', win);
+      const whereConn = this.inWindow('connected_at', win);
       const sessions = this.db.prepare(`SELECT COUNT(*) as c FROM sessions WHERE ${whereSess}`).get() as { c: number };
       const connections = this.db.prepare(`SELECT COUNT(*) as c FROM connections WHERE ${whereConn}`).get() as { c: number };
       const ips = this.db
@@ -539,29 +586,46 @@ export class AnalyticsStore {
     }
   }
 
-  getRecentSessions(limit: number, offset: number): SessionRow[] {
+  /**
+   * Salas com ATIVIDADE no recorte: criadas nele, com conexão que entrou ou
+   * saiu nele, ou vivas agora (`liveRoomIds`, salas na memória do servidor).
+   * Conexão sem desconexão registrada NÃO conta sozinha — um registro
+   * esquecido não pode manter sala morta no recorte. Sem `period` = tudo.
+   */
+  getRecentSessions(limit: number, offset: number, period?: string, tz = 0, liveRoomIds: string[] = []): SessionRow[] {
     if (!this.db) return [];
     try {
+      const win = periodWindow(period ?? 'all', tz);
+      const live = liveRoomIds.slice(0, 500);
+      const where = win.since
+        ? `(${this.inWindow('s.created_at', win)} OR EXISTS (
+             SELECT 1 FROM connections a WHERE a.session_id = s.id AND (
+               ${this.inWindow('a.connected_at', win)} OR ${this.inWindow('a.disconnected_at', win)}))
+             ${live.length > 0 ? `OR (s.closed_at IS NULL AND s.room_id IN (${live.map(() => '?').join(', ')}))` : ''})`
+        : '1=1';
       return this.db
         .prepare(
           `SELECT
             s.id, s.room_id, s.created_at, s.closed_at,
             COUNT(c.id) as connection_count,
+            COUNT(DISTINCT CASE WHEN c.id IS NOT NULL THEN
+              COALESCE(c.session_id, '') || '|' || c.role || '|' || COALESCE(c.ip, '') END) as device_count,
             (SELECT c2.country FROM connections c2 WHERE c2.session_id = s.id AND c2.country != '' GROUP BY c2.country ORDER BY COUNT(*) DESC LIMIT 1) as top_country
           FROM sessions s
           LEFT JOIN connections c ON c.session_id = s.id
+          WHERE ${where}
           GROUP BY s.id
           ORDER BY s.id DESC
           LIMIT ? OFFSET ?`
         )
-        .all(limit, offset) as SessionRow[];
+        .all(...(win.since ? live : []), limit, offset) as SessionRow[];
     } catch (err) {
       console.error('[analytics] getRecentSessions error:', err);
       return [];
     }
   }
 
-  getTimeline(period?: string): Array<{
+  getTimeline(period?: string, tz = 0): Array<{
     date: string;
     sessions: number;
     connections: number;
@@ -571,23 +635,22 @@ export class AnalyticsStore {
   }> {
     if (!this.db) return [];
     try {
-      const whereSess = this.periodToSqlCreated(period);
-      const whereConn = this.periodToSql(period);
-      const whereLog = this.periodToSql(period).replaceAll('connected_at', 'timestamp');
-      // União por dia: dias com só visitas (sem sessão) também aparecem.
-      // `visitors` = IPs (hash) distintos no dia; `devices` = sala+papel+IP
+      const win = periodWindow(period, tz);
+      // União por dia local: dias com só visitas (sem sessão) também aparecem.
+      // `visitors` = IPs (hash) distintos no dia; `devices` = aparelhos
       // distintos no dia — reconexão do mesmo aparelho não conta de novo.
       return this.db.prepare(
         `SELECT date, SUM(sessions) as sessions, SUM(connections) as connections, SUM(views) as views,
                 COUNT(DISTINCT visitor) as visitors, COUNT(DISTINCT device) as devices FROM (
-          SELECT date(created_at) as date, 1 as sessions, 0 as connections, 0 as views, NULL as visitor, NULL as device
-            FROM sessions WHERE ${whereSess}
+          SELECT ${this.localDay('created_at', win)} as date, 1 as sessions, 0 as connections, 0 as views,
+                 NULL as visitor, NULL as device
+            FROM sessions WHERE ${this.inWindow('created_at', win)}
           UNION ALL
-          SELECT date(connected_at), 0, 1, 0, NULL, COALESCE(session_id, '') || '|' || role || '|' || COALESCE(ip, '')
-            FROM connections WHERE ${whereConn}
+          SELECT ${this.localDay('connected_at', win)}, 0, 1, 0, NULL, ${ONLINE_DEVICE}
+            FROM connections WHERE ${this.inWindow('connected_at', win)}
           UNION ALL
-          SELECT date(timestamp), 0, 0, 1, NULLIF(ip, ''), NULL
-            FROM access_logs WHERE event_type = 'page_view' AND ${whereLog}
+          SELECT ${this.localDay('timestamp', win)}, 0, 0, 1, NULLIF(ip, ''), NULL
+            FROM access_logs WHERE event_type = 'page_view' AND ${this.inWindow('timestamp', win)}
         )
         GROUP BY date
         ORDER BY date ASC`
@@ -598,19 +661,21 @@ export class AnalyticsStore {
     }
   }
 
-  getHourlyDistribution(): Array<{ hour: number; count: number }> {
+  /** Aparelhos distintos por hora local (cada aparelho conta 1x por dia em cada hora). */
+  getHourlyDistribution(period?: string, tz = 0): Array<{ hour: number; count: number }> {
     if (!this.db) return [];
     try {
+      const win = periodWindow(period, tz);
       const rows = this.db
         .prepare(
-          `SELECT CAST(strftime('%H', connected_at) AS INTEGER) as hour, COUNT(*) as count
+          `SELECT ${this.localHour('connected_at', win)} as hour,
+                  COUNT(DISTINCT ${this.localDay('connected_at', win)} || '|' || ${ONLINE_DEVICE}) as count
           FROM connections
-          WHERE connected_at >= datetime('now', '-30 days')
+          WHERE ${this.inWindow('connected_at', win)}
           GROUP BY hour
           ORDER BY hour ASC`
         )
         .all() as Array<{ hour: number; count: number }>;
-      // Fill missing hours with 0
       const map = new Map(rows.map((r) => [r.hour, r.count]));
       return Array.from({ length: 24 }, (_, i) => ({ hour: i, count: map.get(i) ?? 0 }));
     } catch (err) {
@@ -619,12 +684,15 @@ export class AnalyticsStore {
     }
   }
 
-  getRoleBreakdown(): Array<{ role: string; count: number }> {
+  /** Aparelhos distintos por papel. Sem `period` = todo o histórico. */
+  getRoleBreakdown(period?: string, tz = 0): Array<{ role: string; count: number }> {
     if (!this.db) return [];
     try {
+      const where = this.inWindow('connected_at', periodWindow(period ?? 'all', tz));
       return this.db
         .prepare(
-          `SELECT role, COUNT(*) as count FROM connections GROUP BY role ORDER BY count DESC`
+          `SELECT role, COUNT(DISTINCT ${ONLINE_DEVICE}) as count FROM connections
+           WHERE ${where} GROUP BY role ORDER BY count DESC`
         )
         .all() as Array<{ role: string; count: number }>;
     } catch (err) {
@@ -633,10 +701,10 @@ export class AnalyticsStore {
     }
   }
 
-  getDurationStats(period?: string): { avgMinutes: number; maxMinutes: number; totalHours: number } {
+  getDurationStats(period?: string, tz = 0): { avgMinutes: number; maxMinutes: number; totalHours: number } {
     if (!this.db) return { avgMinutes: 0, maxMinutes: 0, totalHours: 0 };
     try {
-      const where = this.periodToSql(period);
+      const where = this.inWindow('connected_at', periodWindow(period, tz));
       const row = this.db.prepare(
         `SELECT
           AVG((julianday(COALESCE(disconnected_at, datetime('now'))) - julianday(connected_at)) * 1440) as avg_min,
@@ -792,7 +860,7 @@ export class AnalyticsStore {
   }
 
   /** Resumo agregado das instalações (bundles) — alimenta o split online × bundle. */
-  getBundleSummary(excludeInstanceId = '', period?: string): {
+  getBundleSummary(excludeInstanceId = '', period?: string, tz = 0): {
     instances: number;
     onlineInstances: number;
     sessions: number;
@@ -821,7 +889,7 @@ export class AnalyticsStore {
         )
         .get(excludeInstanceId) as { instances: number; onlineInstances: number; lifetimeSessions: number; lifetimeConnections: number };
       // Recorte por período vem dos EVENTOS — mesma régua das métricas online
-      const where = this.periodToSql(period).replaceAll('connected_at', 'received_at');
+      const where = this.inWindow('received_at', periodWindow(period, tz));
       const ev = this.db
         .prepare(
           `SELECT COALESCE(SUM(CASE WHEN event_type = 'session_created' THEN 1 ELSE 0 END), 0) AS sessions,
@@ -887,8 +955,8 @@ export class AnalyticsStore {
     }
   }
 
-  /** Sessões/conexões/decisões dos bundles por dia — série "bundle" da tendência. */
-  getBundleTimeline(period?: string, excludeInstanceId = ''): Array<{
+  /** Sessões/conexões/decisões dos bundles por dia local — série "bundle" da tendência. */
+  getBundleTimeline(period?: string, excludeInstanceId = '', tz = 0): Array<{
     date: string;
     sessions: number;
     connections: number;
@@ -897,22 +965,15 @@ export class AnalyticsStore {
   }> {
     if (!this.db) return [];
     try {
-      const where = this.periodToSql(period).replaceAll('connected_at', 'received_at');
-      // `devices`: mesma régua do online (instalação+sala+papel+IP distintos no dia)
-      // (payload truncado na ingestão não é JSON válido — json_extract lançaria)
-      const VALID_PAYLOAD = "CASE WHEN json_valid(payload) THEN payload END";
+      const win = periodWindow(period, tz);
       return this.db
         .prepare(
-          `SELECT date(received_at) AS date,
+          `SELECT ${this.localDay('received_at', win)} AS date,
                   SUM(CASE WHEN event_type = 'session_created' THEN 1 ELSE 0 END) AS sessions,
                   SUM(CASE WHEN event_type = 'connection' THEN 1 ELSE 0 END) AS connections,
-                  COUNT(DISTINCT CASE WHEN event_type = 'connection' THEN
-                    instance_id || '|' || COALESCE(room_id, json_extract(${VALID_PAYLOAD}, '$.roomId'), '') || '|' ||
-                    COALESCE(json_extract(${VALID_PAYLOAD}, '$.role'), '') || '|' ||
-                    COALESCE(json_extract(${VALID_PAYLOAD}, '$.ipHash'), '')
-                  END) AS devices,
+                  COUNT(DISTINCT CASE WHEN event_type = 'connection' THEN ${BUNDLE_DEVICE} END) AS devices,
                   SUM(CASE WHEN event_type = 'decision' THEN 1 ELSE 0 END) AS decisions
-           FROM instance_events WHERE instance_id != ? AND ${where}
+           FROM instance_events WHERE instance_id != ? AND ${this.inWindow('received_at', win)}
            GROUP BY date ORDER BY date ASC`
         )
         .all(excludeInstanceId) as any[];
@@ -922,17 +983,18 @@ export class AnalyticsStore {
     }
   }
 
-  /** Conexões dos bundles por hora do dia — soma no "horário de pico". */
-  getBundleHourly(excludeInstanceId = ''): Array<{ hour: number; count: number }> {
+  /** Aparelhos dos bundles por hora local — soma no "horário de pico". */
+  getBundleHourly(excludeInstanceId = '', period?: string, tz = 0): Array<{ hour: number; count: number }> {
     const empty = Array.from({ length: 24 }, (_, i) => ({ hour: i, count: 0 }));
     if (!this.db) return empty;
     try {
+      const win = periodWindow(period, tz);
       const rows = this.db
         .prepare(
-          `SELECT CAST(strftime('%H', received_at) AS INTEGER) AS hour, COUNT(*) AS count
+          `SELECT ${this.localHour('received_at', win)} AS hour,
+                  COUNT(DISTINCT ${this.localDay('received_at', win)} || '|' || ${BUNDLE_DEVICE}) AS count
            FROM instance_events
-           WHERE event_type = 'connection' AND instance_id != ?
-             AND received_at >= datetime('now', '-30 days')
+           WHERE event_type = 'connection' AND instance_id != ? AND ${this.inWindow('received_at', win)}
            GROUP BY hour`
         )
         .all(excludeInstanceId) as Array<{ hour: number; count: number }>;
@@ -944,16 +1006,17 @@ export class AnalyticsStore {
     }
   }
 
-  /** Papéis conectados nos bundles (role vem do payload do evento). */
-  getBundleRoles(excludeInstanceId = ''): Array<{ role: string; count: number }> {
+  /** Aparelhos distintos por papel nos bundles. Sem `period` = todo o histórico. */
+  getBundleRoles(excludeInstanceId = '', period?: string, tz = 0): Array<{ role: string; count: number }> {
     if (!this.db) return [];
     try {
+      const where = this.inWindow('received_at', periodWindow(period ?? 'all', tz));
       return this.db
         .prepare(
-          `SELECT json_extract(payload, '$.role') AS role, COUNT(*) AS count
+          `SELECT json_extract(${VALID_PAYLOAD}, '$.role') AS role, COUNT(DISTINCT ${BUNDLE_DEVICE}) AS count
            FROM instance_events
-           WHERE event_type = 'connection' AND instance_id != ?
-             AND json_extract(payload, '$.role') IS NOT NULL
+           WHERE event_type = 'connection' AND instance_id != ? AND ${where}
+             AND json_extract(${VALID_PAYLOAD}, '$.role') IS NOT NULL
            GROUP BY role ORDER BY count DESC`
         )
         .all(excludeInstanceId) as Array<{ role: string; count: number }>;
@@ -965,23 +1028,35 @@ export class AnalyticsStore {
 
   /** Sessões criadas dentro dos bundles, com sinais de vida: conexões,
    * decisões, última atividade e se a sala já foi arquivada. */
-  getBundleSessions(limit: number, excludeInstanceId = ''): Array<{
+  getBundleSessions(limit: number, excludeInstanceId = '', period?: string, tz = 0): Array<{
     room_id: string | null;
     instance_id: string;
     created_at: string;
     connections: number;
+    devices: number;
     decisions: number;
     last_activity: string | null;
     archived: number;
   }> {
     if (!this.db) return [];
     try {
+      // Salas com qualquer evento no recorte (criação, conexão, decisão…).
+      // Sem `period` = todo o histórico.
+      const win = periodWindow(period ?? 'all', tz);
+      const where = win.since
+        ? `EXISTS (SELECT 1 FROM instance_events w
+             WHERE w.instance_id = e.instance_id AND w.room_id = e.room_id AND ${this.inWindow('w.received_at', win)})`
+        : '1=1';
       return this.db
         .prepare(
           `SELECT e.room_id, e.instance_id, e.received_at AS created_at,
                   (SELECT COUNT(*) FROM instance_events c
                     WHERE c.event_type = 'connection' AND c.instance_id = e.instance_id AND c.room_id = e.room_id
                       AND c.id > e.id) AS connections,
+                  (SELECT COUNT(DISTINCT ${bundleDevice('c.')})
+                    FROM instance_events c
+                    WHERE c.event_type = 'connection' AND c.instance_id = e.instance_id AND c.room_id = e.room_id
+                      AND c.id > e.id) AS devices,
                   (SELECT COUNT(*) FROM instance_events d
                     WHERE d.event_type = 'decision' AND d.instance_id = e.instance_id AND d.room_id = e.room_id
                       AND d.id > e.id) AS decisions,
@@ -991,7 +1066,7 @@ export class AnalyticsStore {
                     WHERE a.event_type = 'room_archived' AND a.instance_id = e.instance_id AND a.room_id = e.room_id
                       AND a.id > e.id) AS archived
            FROM instance_events e
-           WHERE e.event_type = 'session_created' AND e.instance_id != ?
+           WHERE e.event_type = 'session_created' AND e.instance_id != ? AND ${where}
            ORDER BY e.id DESC LIMIT ?`
         )
         .all(excludeInstanceId, Math.min(100, Math.max(1, limit))) as any[];
@@ -1001,14 +1076,124 @@ export class AnalyticsStore {
     }
   }
 
-  /** Instalações por cidade — marcadores "bundle" do mapa. */
-  getInstanceMarkers(excludeInstanceId = ''): Array<{ city: string; country: string; lat: number; lng: number; count: number }> {
+  /**
+   * Relatório de erros do recorte, agrupando os iguais (onde × camada × tipo ×
+   * contexto × mensagem). `online` = o próprio servidor central e as telas da
+   * web (que reportam por ele); `bundle` = as instalações.
+   */
+  getErrorReport(period?: string, tz = 0, selfInstanceId = ''): {
+    total: number;
+    online: number;
+    bundle: number;
+    instancesAffected: number;
+    groups: Array<{
+      target: 'online' | 'bundle';
+      origin: string;
+      kind: string;
+      context: string;
+      message: string;
+      count: number;
+      instances: number;
+      versions: string;
+      first_seen: string;
+      last_seen: string;
+      screen: string | null;
+      stack: string | null;
+      last_instance: string;
+    }>;
+    daily: Array<{ date: string; online: number; bundle: number }>;
+  } {
+    const empty = { total: 0, online: 0, bundle: 0, instancesAffected: 0, groups: [], daily: [] };
+    if (!this.db) return empty;
+    try {
+      const win = periodWindow(period, tz);
+      const field = (key: string) => `json_extract(${VALID_PAYLOAD}, '$.${key}')`;
+      const base = `FROM instance_events WHERE event_type = 'error' AND ${this.inWindow('received_at', win)}`;
+      const summary = this.db
+        .prepare(
+          `SELECT COUNT(*) AS total,
+                  COALESCE(SUM(CASE WHEN instance_id = ? THEN 1 ELSE 0 END), 0) AS online,
+                  COUNT(DISTINCT CASE WHEN instance_id != ? THEN instance_id END) AS instancesAffected
+           ${base}`
+        )
+        .get(selfInstanceId, selfInstanceId) as { total: number; online: number; instancesAffected: number };
+      // MAX(id) faz o SQLite devolver tela/instalação da ocorrência mais recente do
+      // grupo; o stack vem da ocorrência mais recente que tem stack (versões
+      // antigas e alguns erros chegam sem).
+      const groups = this.db
+        .prepare(
+          `SELECT CASE WHEN instance_id = ? THEN 'online' ELSE 'bundle' END AS target,
+                  COALESCE(${field('origin')}, 'server') AS origin,
+                  COALESCE(NULLIF(${field('kind')}, ''), '—') AS kind,
+                  COALESCE(${field('context')}, '') AS context,
+                  substr(COALESCE(${field('message')}, ''), 1, 160) AS message,
+                  COUNT(*) AS count,
+                  COUNT(DISTINCT instance_id) AS instances,
+                  group_concat(DISTINCT NULLIF(${field('appVersion')}, '')) AS versions,
+                  MIN(received_at) AS first_seen,
+                  MAX(received_at) AS last_seen,
+                  MAX(id) AS last_id,
+                  MAX(CASE WHEN ${field('stack')} IS NOT NULL THEN id END) AS stack_id,
+                  ${field('screen')} AS screen,
+                  instance_id AS last_instance
+           ${base}
+           GROUP BY target, origin, kind, context, message
+           ORDER BY last_seen DESC
+           LIMIT 100`
+        )
+        .all(selfInstanceId) as Array<Record<string, unknown>>;
+      const stackStmt = this.db.prepare(`SELECT ${field('stack')} AS stack FROM instance_events WHERE id = ?`);
+      const stackOf = (id: unknown) => (stackStmt.get(id) as { stack: string | null } | undefined)?.stack ?? null;
+      const daily = this.db
+        .prepare(
+          `SELECT ${this.localDay('received_at', win)} AS date,
+                  SUM(CASE WHEN instance_id = ? THEN 1 ELSE 0 END) AS online,
+                  SUM(CASE WHEN instance_id != ? THEN 1 ELSE 0 END) AS bundle
+           ${base}
+           GROUP BY date ORDER BY date ASC`
+        )
+        .all(selfInstanceId, selfInstanceId) as Array<{ date: string; online: number; bundle: number }>;
+      return {
+        total: summary.total,
+        online: summary.online,
+        bundle: summary.total - summary.online,
+        instancesAffected: summary.instancesAffected,
+        groups: groups.map(({ last_id: _lastId, stack_id: stackId, ...g }) => ({
+          ...g,
+          versions: String(g.versions ?? ''),
+          stack: stackId == null ? null : stackOf(stackId)
+        })) as never,
+        daily
+      };
+    } catch (err) {
+      console.error('[analytics] getErrorReport error:', err);
+      return empty;
+    }
+  }
+
+  /**
+   * Instalações por cidade — marcadores "bundle" do mapa. Com `period`, só as
+   * que deram sinal dentro do recorte (status ou último contato): instalação
+   * desligada some do dia/semana em que não rodou. Sem `period` = todas.
+   */
+  getInstanceMarkers(
+    excludeInstanceId = '',
+    period?: string,
+    tz = 0
+  ): Array<{ city: string; country: string; lat: number; lng: number; count: number }> {
     if (!this.db) return [];
     try {
+      const win = periodWindow(period ?? 'all', tz);
+      // sampled_at vem da origem em ISO ('...T...Z'): datetime() normaliza
+      // para comparar com o formato do SQLite.
+      const active = win.since
+        ? `AND (${this.inWindow('last_seen', win)} OR instance_id IN (
+             SELECT instance_id FROM instance_samples WHERE ${this.inWindow('datetime(sampled_at)', win)}))`
+        : '';
       return this.db
         .prepare(
           `SELECT city, country, AVG(lat) AS lat, AVG(lng) AS lng, COUNT(*) AS count
-           FROM instances WHERE NOT (lat = 0 AND lng = 0) AND instance_id != ?
+           FROM instances WHERE NOT (lat = 0 AND lng = 0) AND instance_id != ? ${active}
            GROUP BY country, city ORDER BY count DESC`
         )
         .all(excludeInstanceId) as any[];
@@ -1094,20 +1279,22 @@ export class AnalyticsStore {
     }
   }
 
-  getGeoDistribution(period?: string): GeoDistribution {
+  /** Países/cidades por IPs (hash) distintos no recorte — site e salas somados. */
+  getGeoDistribution(period?: string, tz = 0): GeoDistribution {
     if (!this.db) return { countries: [], cities: [] };
     try {
-      const whereConn = this.periodToSql(period);
-      const whereLog = this.periodToSql(period).replaceAll('connected_at', 'timestamp');
+      const win = periodWindow(period, tz);
       const unionSql = `
-        SELECT country, city FROM connections WHERE ${whereConn}
+        SELECT country, city, ip FROM connections WHERE ${this.inWindow('connected_at', win)}
         UNION ALL
-        SELECT country, city FROM access_logs WHERE event_type = 'page_view' AND ${whereLog}`;
+        SELECT country, city, ip FROM access_logs WHERE event_type = 'page_view' AND ${this.inWindow('timestamp', win)}`;
       const countries = this.db.prepare(
-        `SELECT country, COUNT(*) as count FROM (${unionSql}) WHERE country != '' GROUP BY country ORDER BY count DESC LIMIT 30`
+        `SELECT country, COUNT(DISTINCT NULLIF(ip, '')) as count FROM (${unionSql})
+         WHERE country != '' GROUP BY country ORDER BY count DESC LIMIT 30`
       ).all() as Array<{ country: string; count: number }>;
       const cities = this.db.prepare(
-        `SELECT city, country, COUNT(*) as count FROM (${unionSql}) WHERE city != '' GROUP BY city, country ORDER BY count DESC LIMIT 30`
+        `SELECT city, country, COUNT(DISTINCT NULLIF(ip, '')) as count FROM (${unionSql})
+         WHERE city != '' GROUP BY city, country ORDER BY count DESC LIMIT 30`
       ).all() as Array<{ city: string; country: string; count: number }>;
       return { countries, cities };
     } catch (err) {
@@ -1117,29 +1304,29 @@ export class AnalyticsStore {
   }
 
   getGeoMarkers(
-    period?: string
+    period?: string,
+    tz = 0
   ): Array<{ city: string; country: string; lat: number; lng: number; count: number; users: number; visitors: number }> {
     if (!this.db) return [];
     try {
-      const whereConn = this.periodToSql(period);
-      const whereLog = this.periodToSql(period).replaceAll('connected_at', 'timestamp');
+      const win = periodWindow(period, tz);
       // União de usuários de sala (connections) e visitantes do site
       // (page_view), clusterizada por região: lat/lng arredondados a 1 casa
-      // (~11km) — mesmo IP ou vizinhança viram UM ponto com contagens por tipo.
+      // (~11km). Contagens = IPs (hash) distintos por tipo no recorte.
       // Sem exigir city != '': o geoip raramente resolve cidade, só país+coord.
       return this.db.prepare(
         `SELECT
           MAX(city) as city, MAX(country) as country,
           ROUND(AVG(lat), 4) as lat, ROUND(AVG(lng), 4) as lng,
-          SUM(CASE WHEN src = 'user' THEN 1 ELSE 0 END) as users,
-          SUM(CASE WHEN src = 'visitor' THEN 1 ELSE 0 END) as visitors,
-          COUNT(*) as count
+          COUNT(DISTINCT CASE WHEN src = 'user' THEN ip END) as users,
+          COUNT(DISTINCT CASE WHEN src = 'visitor' THEN ip END) as visitors,
+          COUNT(DISTINCT ip) as count
         FROM (
-          SELECT lat, lng, city, country, 'user' as src
-          FROM connections WHERE lat != 0 AND lng != 0 AND ${whereConn}
+          SELECT lat, lng, city, country, NULLIF(ip, '') as ip, 'user' as src
+          FROM connections WHERE lat != 0 AND lng != 0 AND ${this.inWindow('connected_at', win)}
           UNION ALL
-          SELECT lat, lng, city, country, 'visitor' as src
-          FROM access_logs WHERE event_type = 'page_view' AND lat != 0 AND lng != 0 AND ${whereLog}
+          SELECT lat, lng, city, country, NULLIF(ip, '') as ip, 'visitor' as src
+          FROM access_logs WHERE event_type = 'page_view' AND lat != 0 AND lng != 0 AND ${this.inWindow('timestamp', win)}
         )
         GROUP BY ROUND(lat, 1), ROUND(lng, 1)
         ORDER BY count DESC
@@ -1151,14 +1338,18 @@ export class AnalyticsStore {
     }
   }
 
-  /** Agregado simples de uma coluna dos page_views (device, locale, referrer). */
-  private pageViewFacet(column: 'device' | 'locale' | 'referrer', period?: string): Array<{ value: string; count: number }> {
+  /** Visitantes (IPs distintos) por valor de uma coluna dos page_views (device, locale, referrer). */
+  private pageViewFacet(
+    column: 'device' | 'locale' | 'referrer',
+    period?: string,
+    tz = 0
+  ): Array<{ value: string; count: number }> {
     if (!this.db) return [];
     try {
-      const where = this.periodToSql(period).replaceAll('connected_at', 'timestamp');
+      const where = this.inWindow('timestamp', periodWindow(period, tz));
       return this.db
         .prepare(
-          `SELECT ${column} as value, COUNT(*) as count
+          `SELECT ${column} as value, COUNT(DISTINCT NULLIF(ip, '')) as count
            FROM access_logs
            WHERE event_type = 'page_view' AND ${column} != '' AND ${where}
            GROUP BY ${column}
@@ -1172,23 +1363,24 @@ export class AnalyticsStore {
     }
   }
 
-  getDevices(period?: string) {
-    return this.pageViewFacet('device', period);
+  getDevices(period?: string, tz = 0) {
+    return this.pageViewFacet('device', period, tz);
   }
 
-  getLocales(period?: string) {
-    return this.pageViewFacet('locale', period);
+  getLocales(period?: string, tz = 0) {
+    return this.pageViewFacet('locale', period, tz);
   }
 
-  getReferrers(period?: string) {
-    return this.pageViewFacet('referrer', period);
+  getReferrers(period?: string, tz = 0) {
+    return this.pageViewFacet('referrer', period, tz);
   }
 
-  getPages(period?: string): Array<{ page: string; count: number }> {
+  getPages(period?: string, tz = 0): Array<{ page: string; count: number }> {
     if (!this.db) return [];
     try {
-      const whereConn = this.periodToSql(period);
-      const whereLog = this.periodToSql(period).replaceAll('connected_at', 'timestamp');
+      const win = periodWindow(period, tz);
+      const whereConn = this.inWindow('connected_at', win);
+      const whereLog = this.inWindow('timestamp', win);
       // Une os page_view reais do site (access_logs, beacon do frontend) com
       // as telas de app derivadas das conexões de socket — antes só as
       // segundas existiam e o tráfego da landing/windows era invisível.
@@ -1220,12 +1412,13 @@ export class AnalyticsStore {
     }
   }
 
-  getHosts(period?: string): Array<{ host: string; count: number }> {
+  /** Aparelhos distintos por subdomínio de onde o app foi aberto. */
+  getHosts(period?: string, tz = 0): Array<{ host: string; count: number }> {
     if (!this.db) return [];
     try {
-      const where = this.periodToSql(period);
+      const where = this.inWindow('connected_at', periodWindow(period, tz));
       return this.db.prepare(
-        `SELECT host, COUNT(*) as count
+        `SELECT host, COUNT(DISTINCT ${ONLINE_DEVICE}) as count
         FROM connections
         WHERE host != '' AND ${where}
         GROUP BY host
