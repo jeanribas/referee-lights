@@ -16,7 +16,7 @@ import { APP_LOCALES, type AppLocale } from '@/lib/i18n/config';
 import { BrandLogo } from '@/components/BrandLogo';
 import { ConnectionStatus } from '@/components/ConnectionStatus';
 import { RefereeQrModal } from '@/components/RefereeQrModal';
-import { buildRefHref, buildRoomViewHref, resolveAppOrigin, type QrTarget } from '@/lib/ref-links';
+import { buildRefHref, buildRoomViewHref, openSideWindow, resolveAppOrigin, type QrTarget } from '@/lib/ref-links';
 import { Seo } from '@/components/Seo';
 
 interface AdminPageProps {
@@ -598,6 +598,13 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
               </button>
               <Link
                 href={timerLink}
+                onClick={(event) => {
+                  // Clique simples: timer numa janela própria, estreita e na
+                  // altura da tela, e o admin continua aberto. Com Ctrl/⌘/Shift
+                  // (ou janela bloqueada) segue o link normal.
+                  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                  if (openSideWindow(timerLink, 'referee-lights-timer')) event.preventDefault();
+                }}
                 className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-white transition hover:bg-white/20"
               >
                 {adminMessages.preview.goToTimer}

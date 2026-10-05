@@ -77,3 +77,25 @@ export function resolveAppOrigin(networkIps: string[] = []) {
   const host = selectUsefulIp(networkIps) ?? window.location.hostname;
   return `${protocolWithSlashes}${host}${port}`;
 }
+
+/** Largura recomendada do timer em janela própria (o navegador pode impor um mínimo maior). */
+export const TIMER_WINDOW_WIDTH = 480;
+
+/**
+ * Abre uma tela de apoio (timer) numa janela própria, na altura total da tela
+ * e encostada à direita. Só quem ABRE a janela pode definir o tamanho — a
+ * página não consegue se redimensionar sozinha. Mesmo `name` reaproveita a
+ * janela já aberta. Devolve false se o navegador bloqueou (aí o chamador
+ * segue com a navegação normal).
+ */
+export function openSideWindow(url: string, name: string, width = TIMER_WINDOW_WIDTH): boolean {
+  if (typeof window === 'undefined') return false;
+  const scr = window.screen as Screen & { availLeft?: number; availTop?: number };
+  const left = (scr.availLeft ?? 0) + Math.max(0, scr.availWidth - width);
+  const top = scr.availTop ?? 0;
+  const features = `popup=yes,width=${width},height=${scr.availHeight},left=${left},top=${top}`;
+  const win = window.open(url, name, features);
+  if (!win) return false;
+  win.focus();
+  return true;
+}
