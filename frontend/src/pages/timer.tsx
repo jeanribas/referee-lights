@@ -89,12 +89,13 @@ export default function TimerPage() {
       <main className="flex h-[100dvh] flex-col justify-center gap-3 overflow-hidden bg-slate-950 p-3 text-slate-100 sm:p-4">
         {/* Topo: informação (logo, conexão, sala) sem cara de botão; o único
             controle é o QR. */}
-        <header className="mx-auto flex w-full max-w-5xl shrink-0 items-center justify-between gap-3">
-          <div className="flex min-w-0 flex-col gap-1.5">
+        {/* Três colunas: logo | conexão no centro | sala + QR */}
+        <header className="mx-auto grid w-full max-w-5xl shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-3">
+          <div className="justify-self-start">
             <BrandLogo size={28} />
-            <ConnectionStatus status={status} messages={commonMessages} size="sm" />
           </div>
-          <div className="flex items-center gap-4">
+          <ConnectionStatus status={status} messages={commonMessages} size="sm" className="justify-self-center" />
+          <div className="flex items-center gap-4 justify-self-end">
             <div className="flex flex-col items-end leading-tight">
               <span className="text-[13px] font-semibold uppercase tracking-[0.12em] text-slate-400">{commonMessages.labels.room}</span>
               <span className="text-[18px] font-bold tracking-[0.12em] text-white">{roomId}</span>
