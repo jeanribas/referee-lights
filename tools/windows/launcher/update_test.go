@@ -165,7 +165,10 @@ func TestUpdateIgnoresOlderBadSkippedAndOtherChannel(t *testing.T) {
 	}
 }
 
-func TestUpdateDeferredWhenBusyAndInstalledOnQuit(t *testing.T) {
+// Versão baixada e marcada para instalar ao sair: OnQuit troca o exe, guarda a
+// anterior e o rollback devolve. ("Atualizar agora" não adia mais: troca na
+// hora — coberto no run-update-e2e.)
+func TestUpdateInstalledOnQuit(t *testing.T) {
 	withVersion(t, "1.3.0")
 	pub, priv := keys(t)
 	f := newFakeRelease(t)
@@ -173,13 +176,9 @@ func TestUpdateDeferredWhenBusyAndInstalledOnQuit(t *testing.T) {
 	f.publish(t, priv, Manifest{Version: "1.4.0"})
 	u, app := testUpdater(t, f, pub)
 	u.Check()
-	f.busy = true
-	if v := u.Apply(); v.State != "deferred" {
-		t.Fatalf("com juiz conectado deveria adiar: %+v", v)
-	}
-	if b, _ := os.ReadFile(u.exePath); string(b) != "MZ versão atual" {
-		t.Fatal("trocou o exe com competição em andamento")
-	}
+	u.mu.Lock()
+	u.applyOnQuit = true
+	u.mu.Unlock()
 	u.OnQuit()
 	if b, _ := os.ReadFile(u.exePath); string(b) != "MZ nova" {
 		t.Fatal("versão adiada não instalada ao sair")

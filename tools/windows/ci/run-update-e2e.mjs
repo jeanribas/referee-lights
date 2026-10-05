@@ -4,8 +4,8 @@
 // boa, 1.92.0 quebrada) e serve manifestos assinados num "GitHub" local.
 //   - sem manifesto (offline): início não atrasa;
 //   - 1.91.0 publicada → baixada e conferida → aviso no /admin;
-//   - juiz conectado → "Atualizar agora" é adiado (nunca troca em competição);
-//   - sem juiz → troca, a nova sobe sozinha; salas e instance.id preservados;
+//   - "Atualizar agora" (pedido da pessoa) troca na hora, mesmo com juiz
+//     conectado: fecha tudo e encerra as sessões; instance.id preservado;
 //   - hash adulterado e assinatura de outra chave → recusados;
 //   - 1.92.0 quebrada → troca, não fica saudável em 60 s → volta a 1.91.0 e
 //     marca 1.92.0 como ruim (não é oferecida de novo).
@@ -173,21 +173,12 @@ async function main() {
   const forbidden = await fetch(`${API}/app-update/apply`, { method: 'POST', headers: { Origin: 'https://site-malicioso.example' } });
   assert(forbidden.status === 404, 'outro site não consegue disparar a atualização');
 
-  step('juiz conectado: atualização adiada');
+  step('juiz conectado: "Atualizar agora" troca na hora e encerra as sessões');
   const appDir = path.join(rlRoot, 'app', readdirSync(path.join(rlRoot, 'app'))[0]);
   const { io } = createRequire(path.join(appDir, 'frontend', 'package.json'))('socket.io-client');
   const judge = io(API, { transports: ['websocket'], reconnection: false });
   await new Promise((r) => judge.on('connect', r));
   await new Promise((r) => judge.emit('client:register', { role: 'left', roomId: room.roomId, token: room.joinQRCodes.left.token }, r));
-  const before = sha256(readFileSync(exe));
-  v = await updateAction('apply');
-  assert(v.state === 'deferred', `adiada com juiz conectado (${v.message})`);
-  await sleep(3000);
-  assert(sha256(readFileSync(exe)) === before, 'exe não foi trocado durante a competição');
-  judge.close();
-  await sleep(1000);
-
-  step('sem juiz: troca e a 1.91.0 sobe sozinha');
   const oldPid = launchers()[0]?.ProcessId;
   v = await updateAction('apply');
   assert(v.message === 'restarting', 'troca iniciada');
@@ -196,7 +187,9 @@ async function main() {
   assert(launchers().length === 1 && launchers()[0].ProcessId !== oldPid, 'um lançador, processo novo');
   assert(sha256(readFileSync(exe)) === sha256(readFileSync(v191)), 'RefereeLights.exe agora é a 1.91.0');
   await waitFor(() => !existsSync(path.join(installDir, 'RefereeLights.old.exe')), 30_000, '.old.exe removido após confirmar');
-  assert((await post(`/rooms/${room.roomId}/access`, { adminPin: room.adminPin })).status === 200, 'sala criada na 1.90.0 continua na 1.91.0');
+  judge.close();
+  assert((await post(`/rooms/${room.roomId}/access`, { adminPin: room.adminPin })).status === 404, 'sessões encerradas ao atualizar');
+  const room2 = (await post('/rooms')).body;
   assert(readFileSync(path.join(rlRoot, 'data', 'instance.id'), 'utf8') === instanceId, 'instance.id preservado');
 
   step('hash adulterado e assinatura de outra chave: recusados');
@@ -220,7 +213,7 @@ async function main() {
   await waitFor(() => state().badVersion === '1.92.0', 150_000, 'rollback marcou 1.92.0 como ruim');
   await waitFor(async () => (await healthy()) && (await updateView()).current === '1.91.0', 90_000, '1.91.0 de volta');
   assert(sha256(readFileSync(exe)) === sha256(readFileSync(v191)), 'RefereeLights.exe voltou a ser a 1.91.0');
-  assert((await post(`/rooms/${room.roomId}/access`, { adminPin: room.adminPin })).status === 200, 'sala continua após o rollback');
+  assert((await post(`/rooms/${room2.roomId}/access`, { adminPin: room2.adminPin })).status === 200, 'sala continua após o rollback');
   await updateAction('check');
   await sleep(5000);
   assert((await updateView()).state === 'none', '1.92.0 não é oferecida de novo');
