@@ -423,7 +423,9 @@ async function buildExe() {
   await rm(path.join(launcherDir, 'rsrc_windows_amd64.syso'), { force: true });
   run([
     'go run github.com/tc-hib/go-winres@v0.3.3 simply --arch amd64 --manifest gui',
-    `--icon "${path.join(frontendDir, 'public', 'images', 'icon-512.png')}"`,
+    // Ícone multi-tamanho (logo completa ≥48px, quadrados ≤32px):
+    // tools/windows/icon/make-icon.mjs
+    `--icon "${path.join(launcherDir, 'app.ico')}"`,
     `--product-version ${version}.0 --file-version ${version}.0`,
     '--product-name "Referee Lights" --file-description "Referee Lights"',
     '--copyright "Assist" --original-filename RefereeLights.exe'
