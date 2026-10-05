@@ -255,6 +255,9 @@ func (a *App) Quit() {
 	a.quitOnce.Do(func() {
 		a.log.Printf("saindo")
 		if a.sup != nil {
+			// Fechou o app de propósito: encerra as sessões (a troca de
+			// versão do atualizador não passa por aqui e preserva as salas).
+			a.sup.EndSessions = true
 			a.sup.Stop()
 		}
 		if a.updater != nil {
