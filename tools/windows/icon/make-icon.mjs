@@ -1,10 +1,12 @@
-// Gera os ícones a partir da logo DO PRÓPRIO APP — o componente BrandLogo
-// (quadrados + REFEREE LIGHTS), capturado do frontend em alta resolução,
-// nada redesenhado — em fundo escuro arredondado:
-//   tools/windows/launcher/app.ico   exe, janela do painel, barra de tarefas
-//   frontend/public/favicon.ico      16/32/48
-//   frontend/public/images/icon-192.png, icon-512.png (atalho/instalação)
-//   frontend/public/images/icon.svg  (mesma imagem, para o favicon SVG)
+// Gera os ícones a partir da logo DO PRÓPRIO APP — o componente BrandLogo,
+// capturado do frontend em alta resolução, nada redesenhado — em fundo
+// escuro arredondado. Logo completa (quadrados + REFEREE LIGHTS) a partir de
+// 48 px; abaixo disso (topo da janela, aba do navegador) só a fileira de
+// quadrados da mesma logo — o texto não é legível nesse tamanho.
+//   tools/windows/launcher/app.ico   exe (≥48 completa) e janela/barra (≤32)
+//   frontend/public/favicon.ico      16/32/48 — quadrados
+//   frontend/public/images/icon.svg  favicon da aba — quadrados
+//   frontend/public/images/icon-192.png, icon-512.png (atalho/instalação) — completa
 // Uso: com o frontend buildado (npm run build em frontend/):
 //   node tools/windows/icon/make-icon.mjs
 import { spawn } from 'node:child_process';
@@ -38,11 +40,12 @@ try {
   const logo = page.locator('[role="img"][aria-label="Referee Lights"]').first();
   await logo.waitFor();
   const fullPng = await logo.screenshot({ omitBackground: true });
+  const squaresPng = await logo.locator(':scope > div').first().screenshot({ omitBackground: true });
 
   // Monta cada tamanho num canvas: fundo escuro arredondado + logo centralizada
   const render = await browser.newPage();
-  const tile = async (size) => {
-    const src = fullPng.toString('base64');
+  const tile = async (size, kind = size >= 48 ? 'full' : 'squares') => {
+    const src = (kind === 'full' ? fullPng : squaresPng).toString('base64');
     const dataUrl = await render.evaluate(async ({ size, src, bg, small }) => {
       const img = new Image();
       img.src = `data:image/png;base64,${src}`;
@@ -55,18 +58,21 @@ try {
       g.beginPath();
       g.roundRect(0, 0, size, size, r);
       g.fill();
-      const w = size * 0.86;
+      const w = size * (small ? 0.92 : 0.86);
       const h = (img.height / img.width) * w;
       g.imageSmoothingQuality = 'high';
       g.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
       return c.toDataURL('image/png');
-    }, { size, src, bg: BG });
+    }, { size, src, bg: BG, small: kind === 'squares' });
     return Buffer.from(dataUrl.split(',')[1], 'base64');
   };
   const pngs = [];
   for (const size of sizes) pngs.push({ size, data: await tile(size) });
   const icon192 = await tile(192);
   const icon512 = await tile(512);
+  const tab512 = await tile(512, 'squares');
+  const favicon = [];
+  for (const size of [48, 32, 16]) favicon.push({ size, data: await tile(size, 'squares') });
   await browser.close();
 
   const ico = (list) => {
@@ -89,12 +95,12 @@ try {
   return Buffer.concat([header, dir, ...list.map((p) => p.data)]);
   };
   await writeFile(path.join(root, 'tools', 'windows', 'launcher', 'app.ico'), ico(pngs));
-  await writeFile(path.join(frontendDir, 'public', 'favicon.ico'), ico(pngs.filter((p) => [48, 32, 16].includes(p.size))));
+  await writeFile(path.join(frontendDir, 'public', 'favicon.ico'), ico(favicon));
   await writeFile(path.join(frontendDir, 'public', 'images', 'icon-192.png'), icon192);
   await writeFile(path.join(frontendDir, 'public', 'images', 'icon-512.png'), icon512);
   await writeFile(
     path.join(frontendDir, 'public', 'images', 'icon.svg'),
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512"><image href="data:image/png;base64,${icon512.toString('base64')}" width="512" height="512"/></svg>\n`
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512"><image href="data:image/png;base64,${tab512.toString('base64')}" width="512" height="512"/></svg>\n`
   );
   // Prévia para conferir (não vai para o pacote)
   if (process.env.ICON_PREVIEW) {
