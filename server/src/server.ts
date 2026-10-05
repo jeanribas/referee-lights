@@ -939,7 +939,8 @@ export async function createServer() {
   // Erros são registrados: saber ONDE o app quebra em campo orienta
   // correções. Mantém a resposta padrão do Fastify.
   app.setErrorHandler((error, request, reply) => {
-    telemetry.trackError(`http ${request.method} ${request.url}`, String((error as Error)?.message ?? error), errorDetails(error));
+    // Só o caminho: a query string carrega PIN e tokens de sala
+    telemetry.trackError(`http ${request.method} ${request.url.split('?')[0]}`, String((error as Error)?.message ?? error), errorDetails(error));
     request.log.error(error);
     reply.send(error);
   });
