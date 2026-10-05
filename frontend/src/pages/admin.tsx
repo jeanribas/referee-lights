@@ -403,6 +403,9 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
           initialPin={adminPin}
           messages={adminMessages}
           common={commonMessages}
+          locale={currentLocale}
+          localeOptions={localeOptions}
+          onLocaleChange={handleLocaleChange}
         />
       </>
     );
@@ -433,6 +436,9 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
           initialPin={adminPin}
           messages={adminMessages}
           common={commonMessages}
+          locale={currentLocale}
+          localeOptions={localeOptions}
+          onLocaleChange={handleLocaleChange}
         />
       </>
     );
@@ -895,8 +901,11 @@ function RoomSetup(props: {
   initialPin?: string;
   messages: Messages['admin'];
   common: Messages['common'];
+  locale: AppLocale;
+  localeOptions: { code: AppLocale; label: string }[];
+  onLocaleChange: (event: ChangeEvent<HTMLSelectElement>) => void;
 }) {
-  const { onCreate, onJoin, loading, error, initialRoomId, initialPin, messages } = props;
+  const { onCreate, onJoin, loading, error, initialRoomId, initialPin, messages, common, locale, localeOptions, onLocaleChange } = props;
   const [roomId, setRoomId] = useState(initialRoomId ?? '');
   const [pin, setPin] = useState(initialPin ?? '');
   // Cabe sempre na janela, sem rolagem: mede o conteúdo e reduz a escala
@@ -931,6 +940,25 @@ function RoomSetup(props: {
       <div className="absolute inset-0 -z-20 bg-gradient-to-br from-[#0B1220] via-[#0C1526] to-[#020617]" />
       <div className="absolute inset-x-0 top-0 -z-10 h-80 bg-gradient-to-b from-indigo-500/30 via-transparent" />
       <div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[460px] w-[460px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-indigo-700/20 blur-3xl" />
+
+      {/* Mesmo lugar e estilo do seletor do painel da sala */}
+      <div className="absolute right-6 top-6 z-10">
+        <label htmlFor="setup-locale-select" className="sr-only">
+          {common.languageLabel}
+        </label>
+        <select
+          id="setup-locale-select"
+          value={locale}
+          onChange={onLocaleChange}
+          className="min-w-[8rem] rounded-xl border border-white/10 bg-[#1A2231] px-3 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white [color-scheme:dark] shadow-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
+        >
+          {localeOptions.map((option) => (
+            <option key={option.code} value={option.code} className="bg-[#1A2231] text-white">
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <div
         ref={fitRef}
@@ -989,7 +1017,7 @@ function RoomSetup(props: {
                 >
                   {messages.roomSetup.create.cta}
                 </button>
-                <span className="text-sm text-slate-200">{messages.roomSetup.create.note}</span>
+                <span className="text-balance text-[13px] text-slate-200 xl:whitespace-nowrap">{messages.roomSetup.create.note}</span>
               </div>
             </div>
           </article>
