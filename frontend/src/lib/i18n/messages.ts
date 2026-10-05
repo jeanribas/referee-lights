@@ -6,6 +6,12 @@ type CommonMessages = {
     adminPinShort: string;
     status: string;
   };
+  /** Estado da conexão como aparece nas telas (o socket usa os nomes em inglês) */
+  connection: {
+    connected: string;
+    connecting: string;
+    disconnected: string;
+  };
   errors: Record<string, string>;
   confirmations: {
     regenerateTokens: string;
@@ -193,6 +199,18 @@ type LegendMessages = {
   };
   wakeWarning: string;
   waiting: string;
+  /** Concluir a configuração: salva e mostra como levar a legenda para o OBS */
+  done: {
+    button: string;
+    unsaved: string;
+    title: string;
+    saved: string;
+    obsLabel: string;
+    obsHint: string;
+    useWindow: string;
+    useWindowHint: string;
+    back: string;
+  };
 };
 
 type RefereeMessages = {
@@ -302,6 +320,11 @@ const MESSAGES: Record<AppLocale, Messages> = {
         room: 'Sala',
         adminPinShort: 'PIN admin',
         status: 'Status'
+    },
+    connection: {
+      connected: 'Conectado',
+      connecting: 'Conectando',
+      disconnected: 'Desconectado'
     },
     errors: {
       invalid_pin: 'PIN inválido. Atualize a URL pelo painel admin.',
@@ -481,7 +504,7 @@ const MESSAGES: Record<AppLocale, Messages> = {
       wake: {
         title: 'Tela ativa',
         keepAwake: 'Manter tela ativa',
-        on: 'ON',
+        on: 'Tela mantida acesa',
         off: 'OFF',
         warning: 'Não foi possível ativar o modo sem descanso. Toque na tela ou tente novamente.'
       },
@@ -641,7 +664,18 @@ const MESSAGES: Record<AppLocale, Messages> = {
         copied: 'Copiado'
       },
       wakeWarning: 'Não foi possível ativar o modo sem descanso. Toque na tela ou tente novamente.',
-      waiting: 'Aguardando conexão...'
+      waiting: 'Aguardando conexão...',
+      done: {
+        button: 'Concluir',
+        unsaved: 'Alterações não salvas',
+        title: 'Legenda pronta',
+        saved: 'Configuração salva para todas as legendas desta sala.',
+        obsLabel: 'Link para o OBS',
+        obsHint: 'No OBS, adicione uma Fonte de Navegador com este link.',
+        useWindow: 'Usar esta janela',
+        useWindowHint: 'Esta janela vira a versão limpa, sem controles, para capturar.',
+        back: 'Voltar a editar'
+      }
     },
     referee: {
       metaDescription:
@@ -679,6 +713,11 @@ const MESSAGES: Record<AppLocale, Messages> = {
         room: 'Room',
         adminPinShort: 'Admin PIN',
         status: 'Status'
+      },
+      connection: {
+        connected: 'Connected',
+        connecting: 'Connecting',
+        disconnected: 'Disconnected'
       },
       errors: {
         invalid_pin: 'Invalid PIN. Refresh the URL from the admin panel.',
@@ -858,7 +897,7 @@ const MESSAGES: Record<AppLocale, Messages> = {
       wake: {
         title: 'Screen awake',
         keepAwake: 'Keep screen awake',
-        on: 'ON',
+        on: 'Screen kept awake',
         off: 'OFF',
         warning: 'Could not enable keep-awake mode. Tap the screen or try again.'
       },
@@ -1018,7 +1057,18 @@ const MESSAGES: Record<AppLocale, Messages> = {
         copied: 'Copied'
       },
       wakeWarning: 'Could not enable keep-awake mode. Tap the screen or try again.',
-      waiting: 'Waiting for connection...'
+      waiting: 'Waiting for connection...',
+      done: {
+        button: 'Done',
+        unsaved: 'Unsaved changes',
+        title: 'Legend ready',
+        saved: 'Settings saved for every legend in this room.',
+        obsLabel: 'Link for OBS',
+        obsHint: 'In OBS, add a Browser Source with this link.',
+        useWindow: 'Use this window',
+        useWindowHint: 'This window becomes the clean version, with no controls, for capture.',
+        back: 'Back to editing'
+      }
     },
     referee: {
       metaDescription:
@@ -1056,6 +1106,11 @@ const MESSAGES: Record<AppLocale, Messages> = {
         room: 'Sala',
         adminPinShort: 'PIN admin',
         status: 'Estado'
+      },
+      connection: {
+        connected: 'Conectado',
+        connecting: 'Conectando',
+        disconnected: 'Desconectado'
       },
       errors: {
         invalid_pin: 'PIN inválido. Actualiza la URL desde el panel de administración.',
@@ -1235,7 +1290,7 @@ const MESSAGES: Record<AppLocale, Messages> = {
       wake: {
         title: 'Pantalla activa',
         keepAwake: 'Mantener pantalla activa',
-        on: 'ON',
+        on: 'Pantalla mantenida encendida',
         off: 'OFF',
         warning: 'No se pudo activar el modo de mantener despierto. Toca la pantalla o inténtalo de nuevo.'
       },
@@ -1395,7 +1450,18 @@ const MESSAGES: Record<AppLocale, Messages> = {
         copied: 'Copiado'
       },
       wakeWarning: 'No se pudo activar el modo de mantener despierto. Toca la pantalla o inténtalo de nuevo.',
-      waiting: 'Esperando la conexión...'
+      waiting: 'Esperando la conexión...',
+      done: {
+        button: 'Concluir',
+        unsaved: 'Cambios sin guardar',
+        title: 'Leyenda lista',
+        saved: 'Configuración guardada para todas las leyendas de esta sala.',
+        obsLabel: 'Enlace para OBS',
+        obsHint: 'En OBS, agrega una Fuente de Navegador con este enlace.',
+        useWindow: 'Usar esta ventana',
+        useWindowHint: 'Esta ventana se convierte en la versión limpia, sin controles, para capturar.',
+        back: 'Volver a editar'
+      }
     },
     referee: {
       metaDescription:

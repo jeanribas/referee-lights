@@ -9,7 +9,7 @@ test('criar sessão pelo botão leva ao painel com sala e PIN na URL', async ({ 
   await page.getByRole('button', { name: m.admin.roomSetup.create.cta }).click();
   await expect(page).toHaveURL(/\/admin\?roomId=[A-Z0-9]+&pin=\d+/, { timeout: 15_000 });
   await expect(page.getByRole('heading', { name: m.admin.header.title })).toBeVisible();
-  await expect(page.getByText(`${m.common.labels.status}: connected`)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(`${m.common.labels.status}: ${m.common.connection.connected}`)).toBeVisible({ timeout: 15_000 });
 });
 
 test('criar sessão no site em inglês cria a sala em inglês', async ({ page }) => {
@@ -57,7 +57,7 @@ test('QR codes: modal lista os 3 juízes com links válidos e fecha', async ({ p
   const path = new URL(href!).pathname + new URL(href!).search;
   const ref = await context.newPage();
   await ref.goto(path);
-  await expect(ref.getByText(`${m.common.labels.status}: connected`)).toBeVisible({ timeout: 15_000 });
+  await expect(ref.getByText(`${m.common.labels.status}: ${m.common.connection.connected}`)).toBeVisible({ timeout: 15_000 });
 
   await dialog.getByRole('button', { name: m.common.srOnly.close }).click();
   await expect(dialog).toHaveCount(0);
@@ -89,15 +89,13 @@ test('links do painel: display, cronômetro e modal da legenda', async ({ page }
   await expect(page.getByText('1:00').first()).toBeVisible({ timeout: 15_000 });
 });
 
-test('display: menu abre, alterna tela ativa e volta ao admin', async ({ page }) => {
+test('display: menu abre, tela ativa é automática (sem botão) e volta ao admin', async ({ page }) => {
   const room = await createRoom();
   await page.goto(urls.display(room));
   await page.getByRole('button', { name: m.display.menu.toggleButton }).click();
   await expect(page.getByText(m.display.menu.optionsTitle)).toBeVisible();
-  const wake = page.getByRole('button', { name: new RegExp(m.display.wake.keepAwake) });
-  await expect(wake).toContainText(m.display.wake.on);
-  await wake.click();
-  await expect(wake).toContainText(m.display.wake.off);
+  await expect(page.getByText(m.display.wake.on)).toBeVisible();
+  await expect(page.getByRole('button', { name: new RegExp(m.display.wake.keepAwake) })).toHaveCount(0);
   await page.getByRole('link', { name: m.display.menu.goToAdmin }).click();
   await expect(page).toHaveURL(/\/admin\?roomId=/);
   await expect(page.getByText(`${m.common.labels.room}: ${room.roomId}`)).toBeVisible({ timeout: 15_000 });

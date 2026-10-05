@@ -491,7 +491,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
                   aria-hidden="true"
                   className={`h-2.5 w-2.5 rounded-full ${status === 'connected' ? 'bg-emerald-400' : status === 'connecting' ? 'bg-amber-400' : 'bg-red-500'}`}
                 />
-                {commonMessages.labels.status}: {status}
+                {commonMessages.labels.status}: {commonMessages.connection[status]}
                 {tokenRefreshing && <span className="text-slate-400"> · {adminMessages.header.generatingLinks}</span>}
               </span>
               <label htmlFor="locale-select" className="sr-only">
@@ -760,19 +760,23 @@ function LegendPreviewModal({
       aria-modal="true"
       aria-label={title}
     >
-      <div className="relative h-[85vh] w-full max-w-[1600px] overflow-hidden rounded-3xl border border-white/10 bg-[#0F141F] shadow-[0_30px_80px_rgba(0,0,0,0.6)]">
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute right-6 top-6 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
-        >
-          <span className="sr-only">{closeLabel}</span>
-          ×
-        </button>
+      {/* Faixa própria para o título e o fechar: antes o X ficava por cima da barra da legenda */}
+      <div className="flex h-[85vh] w-full max-w-[1600px] flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#0F141F] shadow-[0_30px_80px_rgba(0,0,0,0.6)]">
+        <div className="flex h-12 shrink-0 items-center justify-between border-b border-white/10 px-4">
+          <span className="text-[15px] font-bold uppercase tracking-[0.12em] text-slate-200">{title}</span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 text-xl leading-none text-white transition hover:bg-white/20"
+          >
+            <span className="sr-only">{closeLabel}</span>
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
         <iframe
           src={src}
           title={title}
-          className="h-full w-full"
+          className="min-h-0 w-full flex-1"
           loading="lazy"
         />
       </div>

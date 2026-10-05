@@ -36,7 +36,6 @@ export default function DisplayPage() {
   const locale = typeof router.locale === 'string' ? router.locale : undefined;
   const messages = useMemo(() => getMessages(locale), [locale]);
   const displayMessages = messages.display;
-  const commonMessages = messages.common;
   const isSpanishLocale = Boolean(locale?.startsWith('es'));
   const buttonTrackingClass = isSpanishLocale ? 'tracking-[0.22em]' : 'tracking-[0.3em]';
   const sectionLabelTrackingClass = isSpanishLocale ? 'tracking-[0.26em]' : 'tracking-[0.32em]';
@@ -44,7 +43,7 @@ export default function DisplayPage() {
   const roomId = typeof router.query.roomId === 'string' ? router.query.roomId : undefined;
   const adminPin = typeof router.query.pin === 'string' ? router.query.pin : undefined;
 
-  const { state, error } = useRoomSocket('display', {
+  const { state } = useRoomSocket('display', {
     roomId,
     adminPin
   });
@@ -53,12 +52,6 @@ export default function DisplayPage() {
   const viewportScale = useViewportScale(1920, 1184);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const [keepAwake, setKeepAwake] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    const stored = window.localStorage.getItem('displayKeepAwake');
-    if (stored === 'false') return false;
-    return true;
-  });
 
   const intervalVisible = Boolean(
     state && state.intervalVisible && state.intervalConfiguredMs > 0 && state.intervalMs > 0
@@ -78,13 +71,8 @@ export default function DisplayPage() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [menuOpen, closeMenu]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem('displayKeepAwake', keepAwake ? 'true' : 'false');
-  }, [keepAwake]);
-
-
-  const wakeActive = useWakeLock(keepAwake);
+  // Tela sempre acordada, sem botão: a TV/monitor do display nunca deve apagar
+  const wakeActive = useWakeLock(true);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -159,21 +147,10 @@ export default function DisplayPage() {
                   <span className={`text-[10px] uppercase ${sectionLabelTrackingClass} text-slate-400`}>
                     {displayMessages.wake.title}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => setKeepAwake((prev) => !prev)}
-                    className={`flex items-center justify-between rounded-xl bg-white/15 px-4 py-3 text-[10px] font-semibold uppercase ${buttonTrackingClass} text-white transition hover:bg-white/25`}
-                  >
-                    <span>{displayMessages.wake.keepAwake}</span>
-                    <span className="text-xs">
-                      {keepAwake ? displayMessages.wake.on : displayMessages.wake.off}
-                    </span>
-                  </button>
-                  {!wakeActive && keepAwake && (
-                    <span className="text-[10px] text-amber-300">
-                      {displayMessages.wake.warning}
-                    </span>
-                  )}
+                  {/* Automático: só avisa se nenhum método conseguiu manter a tela acesa */}
+                  <span className={`text-[13px] font-semibold ${wakeActive ? 'text-emerald-300' : 'text-amber-300'}`}>
+                    {wakeActive ? displayMessages.wake.on : displayMessages.wake.warning}
+                  </span>
                 </section>
               </div>
             </div>
@@ -219,7 +196,7 @@ export default function DisplayPage() {
                   />
                 </div>
               ) : (
-                <p className="text-sm uppercase tracking-[0.4em] text-slate-400">
+                <p className="text-[15px] font-semibold text-slate-300">
                   {displayMessages.status.waiting}
                 </p>
               )}
@@ -247,17 +224,7 @@ export default function DisplayPage() {
         </div>
       </main>
       </div>
-      {error && <StatusBanner message={error} errors={commonMessages.errors} />}
     </>
-  );
-}
-
-function StatusBanner({ message, errors }: { message: string; errors: Record<string, string> }) {
-  const text = errors[message] ?? message;
-  return (
-    <div className="fixed left-1/2 top-6 z-40 -translate-x-1/2 rounded-full border border-white/20 bg-white/15 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white">
-      {text}
-    </div>
   );
 }
 

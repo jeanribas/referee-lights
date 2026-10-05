@@ -42,19 +42,17 @@ export default function LegendPage() {
   const {
     state,
     status,
-    error: socketError,
     setLegendConfig
   } = useRoomSocket('display', socketOptions);
 
-  const socketErrorText = socketError ? commonMessages.errors[socketError] ?? socketError : null;
   const [menuOpen, setMenuOpen] = useState(false);
+  const toolButton = 'flex h-9 shrink-0 items-center whitespace-nowrap rounded-lg border border-white/15 bg-white/10 px-3 text-[13px] font-semibold text-white transition hover:bg-white/20';
   const [bgColor, setBgColor] = useState(DEFAULT_LEGEND_BG);
   const [showPlaceholders, setShowPlaceholders] = useState(true);
   const [showDashedFrame, setShowDashedFrame] = useState(true);
   const [digitMode, setDigitMode] = useState<'mmss' | 'hhmmss'>('hhmmss');
   const [timerColor, setTimerColor] = useState('#FFFFFF');
   const [hydrated, setHydrated] = useState(false);
-  const [savedConfig, setSavedConfig] = useState(false);
   const [copiedShareLink, setCopiedShareLink] = useState(false);
   const appliedRemoteConfigKeyRef = useRef<string | null>(null);
   const [keepAwake, setKeepAwake] = useState(() => {
@@ -196,7 +194,8 @@ export default function LegendPage() {
     window.localStorage.setItem('legendKeepAwake', keepAwake ? 'true' : 'false');
   }, [keepAwake, hydrated, isShareView]);
 
-  const wakeActive = useWakeLock(keepAwake);
+  // Sempre acordada (sem botão); keepAwake segue na config só por compatibilidade
+  const wakeActive = useWakeLock(true);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -235,13 +234,17 @@ export default function LegendPage() {
     showDashedFrame
   ]);
 
-  const handleCopyShareLink = useCallback(async () => {
-    if (typeof window === 'undefined' || !shareLink) return;
-    // Endereço de rede vindo do painel (outro computador/OBS não alcança
-    // "localhost"); só aceita uma origem http(s) simples.
+  // Endereço de rede vindo do painel (outro computador/OBS não alcança
+  // "localhost"); só aceita uma origem http(s) simples.
+  const absoluteShareLink = useMemo(() => {
+    if (typeof window === 'undefined') return shareLink;
     const requested = typeof router.query.shareOrigin === 'string' ? router.query.shareOrigin : '';
     const origin = /^https?:\/\/[^/?#\s]+$/.test(requested) ? requested : window.location.origin;
-    const absoluteShareLink = `${origin}${shareLink}`;
+    return `${origin}${shareLink}`;
+  }, [shareLink, router.query.shareOrigin]);
+
+  const handleCopyShareLink = useCallback(async () => {
+    if (typeof window === 'undefined' || !shareLink) return;
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(absoluteShareLink);
@@ -258,7 +261,7 @@ export default function LegendPage() {
     } catch {
       setCopiedShareLink(false);
     }
-  }, [shareLink, router.query.shareOrigin]);
+  }, [shareLink, absoluteShareLink]);
 
   const handleSaveLegendConfig = useCallback(() => {
     if (typeof window === 'undefined' || isShareView) return;
@@ -278,9 +281,54 @@ export default function LegendPage() {
     window.localStorage.setItem('legendTimerColor', timerColor);
     window.localStorage.setItem('legendKeepAwake', keepAwake ? 'true' : 'false');
     setLegendConfig(nextLegendConfig);
-    setSavedConfig(true);
-    window.setTimeout(() => setSavedConfig(false), 1500);
   }, [isShareView, bgColor, showPlaceholders, showDashedFrame, digitMode, timerColor, keepAwake, setLegendConfig]);
+
+  // Há algo na tela diferente do que está salvo na sala?
+  const currentConfigKey = [bgColor, timerColor, digitMode, showPlaceholders ? '1' : '0', showDashedFrame ? '1' : '0', keepAwake ? '1' : '0'].join('|');
+  const hasUnsaved = currentConfigKey !== remoteLegendConfigKey;
+
+  // Concluir = salvar + mostrar como levar a legenda para o OBS
+  const [doneOpen, setDoneOpen] = useState(false);
+  const handleDone = () => {
+    setMenuOpen(false);
+    handleSaveLegendConfig();
+    setDoneOpen(true);
+  };
+  const useThisWindow = () => {
+    setDoneOpen(false);
+    void router.replace(shareLink);
+  };
+
+  // A paleta fecha sozinha (10 s sem uso) ou ao clicar fora, inclusive em outro
+  // botão da barra: esquecida aberta, ela apareceria na captura da janela
+  const paletteRef = useRef<HTMLElement | null>(null);
+  const [paletteTouch, setPaletteTouch] = useState(0);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const id = window.setTimeout(() => setMenuOpen(false), 10_000);
+    const onDown = (event: PointerEvent) => {
+      if (paletteRef.current && !paletteRef.current.contains(event.target as Node)) setMenuOpen(false);
+    };
+    // Como menu suspenso: fecha também com Esc e quando a janela perde o foco
+    // (ex.: ao trocar para o OBS), para nunca ficar preso na captura
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setMenuOpen(false); };
+    const onBlur = () => setMenuOpen(false);
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      window.clearTimeout(id);
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('blur', onBlur);
+    };
+  }, [menuOpen, paletteTouch]);
+  useEffect(() => {
+    if (!doneOpen) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setDoneOpen(false); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [doneOpen]);
 
   return (
     <>
@@ -294,145 +342,112 @@ export default function LegendPage() {
         noIndex
       />
 
-      <main
-        className={`flex min-h-screen flex-col gap-[clamp(12px,3vh,32px)] px-[clamp(12px,3vw,30px)] py-[clamp(10px,2.6vh,30px)] text-slate-100 ${isShareView ? 'h-screen overflow-hidden' : ''}`}
-        style={{ backgroundColor: bgColor }}
-      >
+      {/* Barra de controles encaixada no topo, com altura fixa (nunca cresce):
+          luzes e relógio ficam no espaço abaixo e não mudam de lugar ao usar os
+          controles; a paleta abre por cima, como menu suspenso. Para capturar
+          sem a barra, o OBS usa o link de compartilhamento. */}
+      <div data-legend-root className="flex h-screen flex-col overflow-hidden" style={{ backgroundColor: bgColor }}>
         {!isShareView && (
-          <div className="rounded-3xl border border-white/10 bg-black/40 px-6 py-5 shadow-[0_18px_45px_rgba(0,0,0,0.45)]">
-            <header className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex flex-col gap-1">
-                <h1 className="text-2xl font-semibold uppercase tracking-[0.45em] text-white">
-                  {legendMessages.title}
-                </h1>
-                <span className="text-xs uppercase tracking-[0.35em] text-slate-300">
-                  {commonMessages.labels.status}: {status}
+          <div className="relative z-50 shrink-0 border-b border-white/10 bg-slate-950">
+            <div className="flex h-14 items-center gap-2 overflow-x-auto px-3 [scrollbar-width:none]">
+              <div className="mr-auto flex min-w-0 shrink-0 flex-col leading-tight">
+                <h1 className="text-[15px] font-bold uppercase tracking-[0.12em] text-white">{legendMessages.title}</h1>
+                <span className="flex items-center gap-1.5 whitespace-nowrap text-[13px] text-slate-300">
+                  <span
+                    aria-hidden="true"
+                    className={`h-2 w-2 shrink-0 rounded-full ${status === 'connected' ? 'bg-emerald-400' : status === 'connecting' ? 'bg-amber-400' : 'bg-red-500'}`}
+                  />
+                  {commonMessages.labels.status}: {commonMessages.connection[status]}
                   {statusSuffix}
+                  {routerReady && (!roomId || !adminPin) ? <span className="text-amber-200"> · {legendMessages.missingCredentials}</span> : null}
                 </span>
-                {routerReady && (!roomId || !adminPin) ? (
-                  <span className="text-[10px] uppercase tracking-[0.3em] text-amber-200">
-                    {legendMessages.missingCredentials}
-                  </span>
-                ) : null}
-                {socketErrorText ? (
-                  <span className="text-[10px] uppercase tracking-[0.3em] text-red-300">
-                    {legendMessages.errorPrefix} {socketErrorText}
-                  </span>
-                ) : null}
               </div>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => setMenuOpen((prev) => !prev)}
-                  className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.35em] text-white transition hover:bg-white/20"
-                >
-                  {menuOpen ? legendMessages.buttons.paletteClose : legendMessages.buttons.paletteOpen}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowPlaceholders((prev) => !prev)}
-                  className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.35em] text-white transition hover:bg-white/20"
-                >
-                  {showPlaceholders
-                    ? legendMessages.buttons.placeholdersHide
-                    : legendMessages.buttons.placeholdersShow}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowDashedFrame((prev) => !prev)}
-                  className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.35em] text-white transition hover:bg-white/20"
-                >
-                  {frameButtonLabel}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDigitMode((prev) => (prev === 'hhmmss' ? 'mmss' : 'hhmmss'))}
-                  className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.35em] text-white transition hover:bg-white/20"
-                >
-                  {digitsButtonLabel}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveLegendConfig}
-                  className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.35em] text-white transition hover:bg-white/20"
-                >
-                  {savedConfig ? legendMessages.share.saved : legendMessages.share.save}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleCopyShareLink()}
-                  className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.35em] text-white transition hover:bg-white/20"
-                >
-                  {copiedShareLink ? legendMessages.share.copied : legendMessages.share.copy}
-                </button>
-              </div>
-            </header>
+              <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => setMenuOpen((prev) => !prev)} className={`${toolButton} ${menuOpen ? 'bg-white text-slate-950 hover:bg-white' : ''}`} aria-expanded={menuOpen}>
+                {legendMessages.buttons.paletteOpen}
+              </button>
+              <button type="button" onClick={() => setShowPlaceholders((prev) => !prev)} className={toolButton}>
+                {showPlaceholders ? legendMessages.buttons.placeholdersHide : legendMessages.buttons.placeholdersShow}
+              </button>
+              <button type="button" onClick={() => setShowDashedFrame((prev) => !prev)} className={toolButton}>
+                {frameButtonLabel}
+              </button>
+              <button type="button" onClick={() => setDigitMode((prev) => (prev === 'hhmmss' ? 'mmss' : 'hhmmss'))} className={toolButton}>
+                {digitsButtonLabel}
+              </button>
+              <button
+                type="button"
+                onClick={handleDone}
+                className="relative flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-emerald-500 px-4 text-[13px] font-bold text-slate-950 transition hover:bg-emerald-400"
+                title={hasUnsaved ? legendMessages.done.unsaved : undefined}
+              >
+                {hasUnsaved && <span className="h-2 w-2 rounded-full bg-slate-950" aria-hidden="true" />}
+                {legendMessages.done.button}
+                {hasUnsaved && <span className="sr-only"> ({legendMessages.done.unsaved})</span>}
+              </button>
+            </div>
+
+            {menuOpen && (
+              // Paleta suspensa sob a barra, por cima do conteúdo (não empurra nada)
+              <section
+                ref={paletteRef}
+                onPointerDown={() => setPaletteTouch((n) => n + 1)}
+                onInput={() => setPaletteTouch((n) => n + 1)}
+                className="absolute left-3 top-full mt-2 flex max-w-[calc(100%-1.5rem)] flex-col gap-3 rounded-2xl border border-white/10 bg-slate-950/95 p-4 shadow-[0_12px_32px_rgba(0,0,0,0.5)] backdrop-blur-sm"
+              >
+                <h2 className="text-[13px] font-semibold text-slate-300">{legendMessages.palette.title}</h2>
+                <div className="flex flex-wrap items-center gap-2">
+                  {COLOR_PRESETS.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setBgColor(color)}
+                      className={`h-9 w-9 rounded-full border-2 transition ${bgColor === color ? 'border-white' : 'border-white/30'}`}
+                      style={{ backgroundColor: color }}
+                    >
+                      <span className="sr-only">
+                        {legendMessages.palette.selectColor.replace('{color}', color.toUpperCase())}
+                      </span>
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setBgColor('transparent')}
+                    className={`${toolButton} ${bgColor === 'transparent' ? 'border-white bg-white/20' : ''}`}
+                  >
+                    {legendMessages.palette.transparentBackground}
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-x-6 gap-y-2 text-[13px] text-slate-300">
+                  <label className="flex items-center gap-2">
+                    <span>{legendMessages.palette.customColor}</span>
+                    <input
+                      type="color"
+                      value={bgPickerValue}
+                      onChange={(event) => setBgColor(event.target.value)}
+                      className="h-8 w-14 cursor-pointer rounded border border-white/30 bg-transparent"
+                    />
+                    <span className="tabular-nums text-slate-400">{bgColor === 'transparent' ? legendMessages.palette.transparentBackground : bgColor.toUpperCase()}</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <span>{legendMessages.palette.timerColor}</span>
+                    <input
+                      type="color"
+                      value={timerColor}
+                      onChange={(event) => setTimerColor(event.target.value)}
+                      className="h-8 w-14 cursor-pointer rounded border border-white/30 bg-transparent"
+                    />
+                    <span className="tabular-nums text-slate-400">{timerColor.toUpperCase()}</span>
+                  </label>
+                </div>
+                {!wakeActive && (
+                  <span className="text-[13px] text-amber-300">{legendMessages.wakeWarning}</span>
+                )}
+              </section>
+            )}
           </div>
         )}
 
-        {!isShareView && menuOpen && (
-          <section className="flex flex-wrap gap-4 rounded-3xl border border-white/10 bg-black/40 p-6">
-            <h2 className="w-full text-xs font-semibold uppercase tracking-[0.35em] text-slate-300">
-              {legendMessages.palette.title}
-            </h2>
-            <div className="flex flex-wrap gap-3">
-              {COLOR_PRESETS.map((color) => (
-                <button
-                  key={color}
-                  type="button"
-                  onClick={() => setBgColor(color)}
-                  className={`h-10 w-10 rounded-full border-2 transition ${
-                    bgColor === color ? 'border-white' : 'border-white/30'
-                  }`}
-                  style={{ backgroundColor: color }}
-                >
-                  <span className="sr-only">
-                    {legendMessages.palette.selectColor.replace('{color}', color.toUpperCase())}
-                  </span>
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setBgColor('transparent')}
-                className={`h-10 rounded-full border px-4 text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-200 transition ${
-                  bgColor === 'transparent'
-                    ? 'border-white bg-white/20'
-                    : 'border-white/30 bg-white/10 hover:bg-white/20'
-                }`}
-              >
-                {legendMessages.palette.transparentBackground}
-              </button>
-            </div>
-            <div className="mt-4 flex flex-col gap-2 text-xs uppercase tracking-[0.3em] text-slate-300">
-              <label className="flex items-center gap-3">
-                <span>{legendMessages.palette.customColor}</span>
-                <input
-                  type="color"
-                  value={bgPickerValue}
-                  onChange={(event) => setBgColor(event.target.value)}
-                  className="h-9 w-20 cursor-pointer rounded-sm border border-white/30 bg-transparent"
-                />
-                <span className="text-[10px] text-slate-400">{bgColor.toUpperCase()}</span>
-              </label>
-              <label className="flex items-center gap-3">
-                <span>{legendMessages.palette.timerColor}</span>
-                <input
-                  type="color"
-                  value={timerColor}
-                  onChange={(event) => setTimerColor(event.target.value)}
-                  className="h-9 w-20 cursor-pointer rounded-sm border border-white/30 bg-transparent"
-                />
-                <span className="text-[10px] text-slate-400">{timerColor.toUpperCase()}</span>
-              </label>
-              {!wakeActive && keepAwake && (
-                <span className="text-[10px] text-amber-300">
-                  {legendMessages.wakeWarning}
-                </span>
-              )}
-            </div>
-          </section>
-        )}
-
+        <main className="flex min-h-0 flex-1 flex-col gap-[clamp(12px,3vh,32px)] px-[clamp(12px,3vw,30px)] py-[clamp(10px,2.6vh,30px)] text-slate-100">
         <section className="flex flex-1 items-center justify-center">
           <div className="flex w-full max-w-[1700px] flex-col items-center justify-center gap-[clamp(12px,5vh,80px)]">
             <div className="flex w-full justify-center">
@@ -464,7 +479,61 @@ export default function LegendPage() {
         <div data-legend-footer className="flex justify-center opacity-60 transition hover:opacity-100">
           <FooterBadges />
         </div>
-      </main>
+        </main>
+      </div>
+
+      {doneOpen && (
+        // Confirmação ao concluir: interrompe de propósito, para a pessoa sair
+        // daqui sabendo como levar a legenda para o OBS sem sobrar controle
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="legend-done-title">
+          <div className="flex w-full max-w-lg flex-col gap-4 rounded-2xl border border-white/10 bg-slate-900 p-5 text-slate-100 shadow-[0_24px_60px_rgba(0,0,0,0.6)]">
+            <div>
+              <h2 id="legend-done-title" className="text-[15px] font-bold uppercase tracking-[0.12em] text-white">{legendMessages.done.title}</h2>
+              <p className="mt-1 text-[13px] text-emerald-300">{legendMessages.done.saved}</p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <span className="text-[13px] font-semibold text-slate-300">{legendMessages.done.obsLabel}</span>
+              <div className="flex gap-2">
+                <input
+                  readOnly
+                  value={absoluteShareLink}
+                  onFocus={(e) => e.currentTarget.select()}
+                  className="h-11 min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 text-[13px] text-slate-200 outline-none focus:border-sky-400"
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleCopyShareLink()}
+                  className="h-11 shrink-0 rounded-lg bg-emerald-500 px-4 text-[15px] font-semibold text-slate-950 transition hover:bg-emerald-400"
+                >
+                  {copiedShareLink ? legendMessages.share.copied : legendMessages.share.copy}
+                </button>
+              </div>
+              <span className="text-[13px] text-slate-400">{legendMessages.done.obsHint}</span>
+            </div>
+
+            <div className="flex flex-col gap-1 border-t border-white/10 pt-4">
+              <button
+                type="button"
+                onClick={useThisWindow}
+                className="h-11 rounded-lg border border-slate-600 bg-slate-800 px-4 text-[15px] font-semibold text-white transition hover:bg-slate-700"
+              >
+                {legendMessages.done.useWindow}
+              </button>
+              <span className="text-[13px] text-slate-400">{legendMessages.done.useWindowHint}</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setDoneOpen(false)}
+              className="h-10 self-end rounded-lg px-3 text-[15px] font-semibold text-slate-300 transition hover:bg-white/10"
+              autoFocus
+            >
+              {legendMessages.done.back}
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -515,7 +584,8 @@ function parseBooleanQuery(value: string | undefined, defaultValue: boolean): bo
 }
 
 function getLegendLightsFrameClassName(showDashedFrame: boolean): string {
-  const baseClassName = 'rounded-[clamp(14px,4.2vh,2.2rem)] p-[clamp(18px,4.5vw,50px)]';
-  if (!showDashedFrame) return baseClassName;
-  return `${baseClassName} border-4 border-dashed border-black`;
+  // Borda sempre presente (transparente quando oculta): esconder a linha não
+  // pode mudar o tamanho do quadro nem mover o relógio no recorte do OBS
+  const baseClassName = 'rounded-[clamp(14px,4.2vh,2.2rem)] p-[clamp(18px,4.5vw,50px)] border-4 border-dashed';
+  return `${baseClassName} ${showDashedFrame ? 'border-black' : 'border-transparent'}`;
 }

@@ -2,6 +2,7 @@ import { useRouter } from 'next/router';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import { connectionStore } from '@/hooks/useRoomSocket';
+import { getMessages } from '@/lib/i18n/messages';
 
 /**
  * Aviso global de conexão perdida (todas as telas de sala: admin, display,
@@ -9,6 +10,10 @@ import { connectionStore } from '@/hooks/useRoomSocket';
  * como se estivesse tudo certo — ninguém percebia que o servidor tinha sido
  * fechado ou a rede caído. Aparece após 2 s sem conexão (não pisca em
  * reconexões rápidas) e some sozinho quando volta.
+ *
+ * É também o único aviso de erro da sala (PIN inválido, link revogado...):
+ * cada tela tinha uma pílula própria que aparecia junto e por baixo deste.
+ * O admin fica de fora: ele volta para a tela de acesso com o erro.
  */
 const TEXTS = {
   pt: { lost: 'Sem conexão com o servidor', retry: 'reconectando…', room: 'Sessão encerrada ou inexistente' },
@@ -35,7 +40,11 @@ export function ConnectionLost() {
   }, [active, status]);
 
   const roomGone = active && error === 'room_not_found';
-  if (!show && !roomGone) return null;
+  // Erro conhecido da sala aparece na hora, traduzido; erro cru do socket não
+  const knownError = active && error && !roomGone && router.pathname !== '/admin'
+    ? getMessages(router.locale).common.errors[error] ?? null
+    : null;
+  if (!show && !roomGone && !knownError) return null;
   return (
     <div
       role="alert"
@@ -49,9 +58,9 @@ export function ConnectionLost() {
         <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
       </span>
       <span>
-        {roomGone ? t.room : t.lost}
+        {roomGone ? t.room : knownError ?? t.lost}
         {/* No celular fica só o principal; o ponto pulsando já diz que está tentando */}
-        {!roomGone && <span className="hidden font-normal text-slate-400 sm:inline"> · {t.retry}</span>}
+        {!roomGone && !knownError && <span className="hidden font-normal text-slate-400 sm:inline"> · {t.retry}</span>}
       </span>
     </div>
   );

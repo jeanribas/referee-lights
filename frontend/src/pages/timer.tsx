@@ -34,7 +34,7 @@ export default function TimerPage() {
   const adminPin = typeof router.query.pin === 'string' ? router.query.pin : undefined;
 
   const {
-    state, status, error,
+    state, status,
     timerStart, timerStop, timerReset, timerSet,
     intervalStart, intervalStop, intervalReset, intervalSet,
   } = useRoomSocket('display', { roomId, adminPin });
@@ -92,7 +92,7 @@ export default function TimerPage() {
                 className={`h-2.5 w-2.5 rounded-full ${status === 'connected' ? 'bg-emerald-400' : status === 'connecting' ? 'bg-amber-400' : 'bg-red-500'}`}
               />
               {/* No celular estreito fica só a bolinha + estado */}
-              <span className="max-sm:sr-only">{commonMessages.labels.status}:</span> {status}
+              <span className="max-sm:sr-only">{commonMessages.labels.status}:</span> {commonMessages.connection[status]}
             </span>
             <span className="whitespace-nowrap rounded-lg bg-slate-800 px-3 py-1.5 text-[15px] font-semibold text-slate-200">
               {commonMessages.labels.room} <span className="font-bold tracking-[0.12em] text-white">{roomId}</span>
@@ -138,17 +138,7 @@ export default function TimerPage() {
           <FooterBadges />
         </div>
       </main>
-      {error && <StatusBanner message={error} errors={commonMessages.errors} />}
     </>
-  );
-}
-
-function StatusBanner({ message, errors }: { message: string; errors: Record<string, string> }) {
-  const text = errors[message] ?? message;
-  return (
-    <div className="fixed left-1/2 top-6 z-40 -translate-x-1/2 rounded-full border border-white/20 bg-white/15 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white">
-      {text}
-    </div>
   );
 }
 

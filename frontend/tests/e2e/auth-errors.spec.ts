@@ -41,7 +41,8 @@ test.describe('display / timer / legenda', () => {
 
   test('display em sala inexistente mostra erro', async ({ page }) => {
     await page.goto('/display?roomId=ZZZZZZ&pin=1234');
-    await expect(page.getByText(errors.room_not_found)).toBeVisible({ timeout: 15_000 });
+    // aviso único de erro da sala (o mesmo da conexão perdida)
+    await expect(page.locator('[data-connection-lost]')).toBeVisible({ timeout: 15_000 });
   });
 
   test('timer sem parâmetros e com PIN errado', async ({ page }) => {
@@ -57,7 +58,7 @@ test.describe('display / timer / legenda', () => {
     await expect(page.getByText(m.legend.missingCredentials)).toBeVisible();
     const room = await createRoom();
     await page.goto(`/legend?roomId=${room.roomId}&pin=0000`);
-    await expect(page.getByText(`${m.legend.errorPrefix} ${errors.invalid_pin}`)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(errors.invalid_pin)).toBeVisible({ timeout: 15_000 });
   });
 });
 
@@ -84,14 +85,14 @@ test.describe('árbitro', () => {
 
   test('sala inexistente', async ({ page }) => {
     await page.goto('/ref/center?roomId=ZZZZZZ&token=abc');
-    await expect(page.getByText(errors.room_not_found)).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('[data-connection-lost]')).toBeVisible({ timeout: 15_000 });
   });
 
   test('links antigos param de funcionar depois de "gerar novos links" no admin', async ({ page, context }) => {
     const room = await createRoom();
     const ref = await context.newPage();
     await ref.goto(urls.ref(room, 'left'));
-    await expect(ref.getByText(`${m.common.labels.status}: connected`)).toBeVisible({ timeout: 15_000 });
+    await expect(ref.getByText(`${m.common.labels.status}: ${m.common.connection.connected}`)).toBeVisible({ timeout: 15_000 });
 
     await page.goto(urls.admin(room));
     await page.getByRole('button', { name: m.admin.preview.showQr }).click();
