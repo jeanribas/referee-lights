@@ -5,7 +5,7 @@ import { Server as SocketIOServer, type Socket } from 'socket.io';
 
 import { resolveClientIp } from './client-ip.js';
 import { lookupGeo } from './geo.js';
-import { AnalyticsStore } from './analytics.js';
+import { AnalyticsStore, parseTz } from './analytics.js';
 import { config } from './config.js';
 import { KeyRelay } from './key-relay.js';
 import { generateMasterToken, validateCredentials, verifyMasterToken } from './master-auth.js';
@@ -683,22 +683,28 @@ export async function createServer() {
     return verifyMasterToken(auth.slice(7));
   }
 
-  app.get<{ Querystring: { period?: string } }>('/master/stats', async (request, reply) => {
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/stats', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
     return {
-      ...analyticsStore.getStats(roomManager.roomCount(), request.query.period),
-      bundle: analyticsStore.getBundleSummary(telemetry.instanceId, request.query.period)
+      ...analyticsStore.getStats(roomManager.roomCount(), request.query.period, parseTz(request.query.tz)),
+      bundle: analyticsStore.getBundleSummary(telemetry.instanceId, request.query.period, parseTz(request.query.tz))
     };
   });
 
-  app.get<{ Querystring: { limit?: string; offset?: string } }>('/master/sessions', async (request, reply) => {
+  app.get<{ Querystring: { limit?: string; offset?: string; period?: string; tz?: string } }>('/master/sessions', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
     const limit = Math.min(100, Math.max(1, Number(request.query.limit) || 20));
     const offset = Math.max(0, Number(request.query.offset) || 0);
     // Estado AO VIVO por cima do histórico: sessão online ativa = sala ainda
     // na memória; sessão de bundle ativa = sala no rooms_json do último
     // status da instalação.
-    const sessions = analyticsStore.getRecentSessions(limit, offset).map((row) => {
+    const sessions = analyticsStore.getRecentSessions(
+      limit,
+      offset,
+      request.query.period,
+      parseTz(request.query.tz),
+      roomManager.listRooms().map((room) => room.id)
+    ).map((row) => {
       const state = roomManager.getRoomState(row.room_id);
       if (!state) return { ...row, live: null };
       const snap = state.getSnapshot();
@@ -709,53 +715,53 @@ export async function createServer() {
     for (const inst of analyticsStore.getOnlineBundleInstances(telemetry.instanceId)) {
       for (const room of inst.rooms) liveRooms.set(`${inst.instance_id}:${room.id}`, room.connectedJudges);
     }
-    const bundleSessions = analyticsStore.getBundleSessions(limit, telemetry.instanceId).map((row) => {
+    const bundleSessions = analyticsStore.getBundleSessions(limit, telemetry.instanceId, request.query.period, parseTz(request.query.tz)).map((row) => {
       const judges = row.room_id != null ? liveRooms.get(`${row.instance_id}:${row.room_id}`) : undefined;
       return { ...row, live: judges === undefined ? null : { connectedJudges: judges } };
     });
     return { sessions, bundleSessions };
   });
 
-  app.get<{ Querystring: { period?: string } }>('/master/geo', async (request, reply) => {
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/geo', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
-    return analyticsStore.getGeoDistribution(request.query.period);
+    return analyticsStore.getGeoDistribution(request.query.period, parseTz(request.query.tz));
   });
 
-  app.get<{ Querystring: { period?: string } }>('/master/geo-markers', async (request, reply) => {
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/geo-markers', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
     return {
-      markers: analyticsStore.getGeoMarkers(request.query.period),
-      bundleMarkers: analyticsStore.getInstanceMarkers(telemetry.instanceId)
+      markers: analyticsStore.getGeoMarkers(request.query.period, parseTz(request.query.tz)),
+      bundleMarkers: analyticsStore.getInstanceMarkers(telemetry.instanceId, request.query.period, parseTz(request.query.tz))
     };
   });
 
-  app.get<{ Querystring: { period?: string } }>('/master/timeline', async (request, reply) => {
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/timeline', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
     return {
-      timeline: analyticsStore.getTimeline(request.query.period),
-      bundleTimeline: analyticsStore.getBundleTimeline(request.query.period, telemetry.instanceId)
+      timeline: analyticsStore.getTimeline(request.query.period, parseTz(request.query.tz)),
+      bundleTimeline: analyticsStore.getBundleTimeline(request.query.period, telemetry.instanceId, parseTz(request.query.tz))
     };
   });
 
-  app.get('/master/hourly', async (request, reply) => {
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/hourly', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
     return {
-      hourly: analyticsStore.getHourlyDistribution(),
-      bundleHourly: analyticsStore.getBundleHourly(telemetry.instanceId)
+      hourly: analyticsStore.getHourlyDistribution(request.query.period, parseTz(request.query.tz)),
+      bundleHourly: analyticsStore.getBundleHourly(telemetry.instanceId, request.query.period, parseTz(request.query.tz))
     };
   });
 
-  app.get('/master/roles', async (request, reply) => {
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/roles', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
     return {
-      roles: analyticsStore.getRoleBreakdown(),
-      bundleRoles: analyticsStore.getBundleRoles(telemetry.instanceId)
+      roles: analyticsStore.getRoleBreakdown(request.query.period, parseTz(request.query.tz)),
+      bundleRoles: analyticsStore.getBundleRoles(telemetry.instanceId, request.query.period, parseTz(request.query.tz))
     };
   });
 
-  app.get<{ Querystring: { period?: string } }>('/master/duration', async (request, reply) => {
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/duration', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
-    return analyticsStore.getDurationStats(request.query.period);
+    return analyticsStore.getDurationStats(request.query.period, parseTz(request.query.tz));
   });
 
   app.get('/master/activity', async (request, reply) => {
@@ -893,19 +899,19 @@ export async function createServer() {
     }
   );
 
-  app.get<{ Querystring: { period?: string } }>('/master/devices', async (request, reply) => {
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/devices', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
-    return { devices: analyticsStore.getDevices(request.query.period) };
+    return { devices: analyticsStore.getDevices(request.query.period, parseTz(request.query.tz)) };
   });
 
-  app.get<{ Querystring: { period?: string } }>('/master/locales', async (request, reply) => {
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/locales', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
-    return { locales: analyticsStore.getLocales(request.query.period) };
+    return { locales: analyticsStore.getLocales(request.query.period, parseTz(request.query.tz)) };
   });
 
-  app.get<{ Querystring: { period?: string } }>('/master/referrers', async (request, reply) => {
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/referrers', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
-    return { referrers: analyticsStore.getReferrers(request.query.period) };
+    return { referrers: analyticsStore.getReferrers(request.query.period, parseTz(request.query.tz)) };
   });
 
   app.get('/master/active', async (request, reply) => {
@@ -955,14 +961,14 @@ export async function createServer() {
     };
   });
 
-  app.get<{ Querystring: { period?: string } }>('/master/pages', async (request, reply) => {
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/pages', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
-    return { pages: analyticsStore.getPages(request.query.period) };
+    return { pages: analyticsStore.getPages(request.query.period, parseTz(request.query.tz)) };
   });
 
-  app.get<{ Querystring: { period?: string } }>('/master/hosts', async (request, reply) => {
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/hosts', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
-    return { hosts: analyticsStore.getHosts(request.query.period) };
+    return { hosts: analyticsStore.getHosts(request.query.period, parseTz(request.query.tz)) };
   });
 
   // --- Key Relay Endpoints ---
