@@ -85,8 +85,12 @@ export function RefereeQrModal({
                 type="button"
                 onClick={handleRefreshClick}
                 disabled={refreshing}
-                className="inline-flex min-h-[52px] items-center justify-center rounded-full border border-white/15 bg-white/10 px-5 text-[15px] font-semibold uppercase tracking-[0.2em] text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3.5 text-[14px] font-medium text-slate-200 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
               >
+                <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12a9 9 0 11-2.64-6.36" />
+                  <path d="M21 4v5h-5" />
+                </svg>
                 {refreshing ? messages.regenerating : messages.regenerate}
               </button>
             </div>
