@@ -107,7 +107,6 @@ type AdminMessages = {
     };
   };
   roomSetup: {
-    badge: string;
     title: string;
     description: string;
     create: {
@@ -444,7 +443,6 @@ const MESSAGES: Record<AppLocale, Messages> = {
         }
       },
       roomSetup: {
-        badge: 'Painel Administrativo',
         title: 'Configurar plataforma',
         description: 'Gerencie as sessões do sistema em um só lugar. Gere novas salas com PIN administrativo e QR Codes exclusivos ou retome o controle de uma sessão existente informando o identificador e o PIN correspondente.',
         create: {
@@ -738,7 +736,6 @@ const MESSAGES: Record<AppLocale, Messages> = {
         }
       },
       roomSetup: {
-        badge: 'Admin Panel',
         title: 'Configure platform',
         description: 'Manage the system sessions in one place. Create new rooms with an admin PIN and dedicated QR Codes, or regain control of an existing session by entering its identifier and PIN.',
         create: {
@@ -1032,7 +1029,6 @@ const MESSAGES: Record<AppLocale, Messages> = {
         }
       },
       roomSetup: {
-        badge: 'Panel administrativo',
         title: 'Configurar plataforma',
         description: 'Gestiona las sesiones del sistema en un solo lugar. Crea nuevas salas con PIN administrativo y códigos QR exclusivos, o recupera una sesión existente introduciendo su identificador y PIN correspondiente.',
         create: {

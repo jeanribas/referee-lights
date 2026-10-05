@@ -938,25 +938,20 @@ function RoomSetup(props: {
         className="w-full max-w-6xl space-y-10"
         style={fitScale < 1 ? { transform: `scale(${fitScale})`, transformOrigin: 'center center' } : undefined}
       >
-        {/* Uma linha só: identidade à esquerda, explicação à direita
-            (antes o texto ficava numa coluna estreita e sobrava a direita) */}
-        <header className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between md:gap-12">
+        {/* Mesma grade dos cartões: identidade sobre o cartão de criar,
+            explicação alinhada à borda do cartão de entrar */}
+        <header className="grid items-center gap-6 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] md:gap-10">
           <div className="flex items-center gap-6">
             <BrandLogo size={40} />
-            <div className="h-16 w-px bg-white/10" aria-hidden="true" />
-            <div className="space-y-3">
-              <span className="inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/90">
-                {messages.roomSetup.badge}
-              </span>
-              <h1 className="whitespace-nowrap text-4xl font-semibold tracking-tight text-white md:text-5xl">
-                {messages.roomSetup.title}
-              </h1>
-            </div>
+            <div className="h-14 w-px shrink-0 bg-white/15" aria-hidden="true" />
+            <h1 className="min-w-0 text-4xl font-semibold leading-tight tracking-tight text-white md:text-[2.5rem]">
+              {messages.roomSetup.title}
+            </h1>
           </div>
-          <p className="max-w-xl text-base leading-relaxed text-slate-300 md:text-right">{messages.roomSetup.description}</p>
+          <p className="max-w-md text-[15px] leading-relaxed text-slate-400">{messages.roomSetup.description}</p>
         </header>
 
-        <section className="grid gap-10 md:grid-cols-[1.1fr_1fr]">
+        <section className="grid gap-10 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
           <article className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#101b2f] via-[#0d1728] to-[#091120] p-10 shadow-[0_26px_90px_rgba(6,11,24,0.6)]">
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/6 via-transparent to-transparent" />
 
