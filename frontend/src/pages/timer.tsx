@@ -10,24 +10,59 @@ import { BrandLogo } from '@/components/BrandLogo';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
 import { getMessages, type Messages } from '@/lib/i18n/messages';
 
-function useViewportScale() {
-  const [scale, setScale] = useState(1);
+// Cabe na janela sem rolagem medindo o conteúdo de verdade, mas encolhe no
+// máximo até 85%: abaixo disso o texto fica ilegível a um braço de distância,
+// então a tela rola em vez de encolher mais.
+const MIN_FIT_SCALE = 0.85;
+function useFitScale(el: HTMLElement | null) {
+  const [fit, setFit] = useState({ scale: 1, height: 0 });
   useEffect(() => {
+    if (!el) return;
     const update = () => {
-      // In portrait/narrow: stack vertically, scale based on height only (width is fine)
-      // In landscape/wide: side by side, scale based on both
-      const isWide = window.innerWidth >= 768;
-      const dw = isWide ? 768 : 380;
-      const dh = isWide ? 650 : 1100;
-      const sx = window.innerWidth / dw;
-      const sy = window.innerHeight / dh;
-      setScale(Math.min(sx, sy, 1));
+      const height = el.offsetHeight; // offsetHeight ignora o transform
+      const s = Math.min(1, (window.innerHeight - 32) / height);
+      setFit({ scale: Number.isFinite(s) && s > 0 ? Math.max(MIN_FIT_SCALE, s) : 1, height });
     };
     update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
     window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
-  }, []);
-  return scale;
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', update);
+    };
+  }, [el]);
+  return fit;
+}
+
+/**
+ * Campo numérico com o nome DENTRO da caixa, centralizado sobre o número:
+ * sem linha de rótulo solta (que desalinhava em cartões estreitos) e na
+ * mesma altura dos botões ao lado.
+ */
+function NumberField(props: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  step?: number;
+  className?: string;
+}) {
+  const { label, value, onChange, step, className = '' } = props;
+  return (
+    <label
+      className={`flex min-h-[60px] min-w-0 cursor-text flex-col items-center justify-center gap-0.5 rounded-lg border border-slate-700 bg-slate-950 px-1 transition focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-400/40 ${className}`}
+    >
+      <span className="text-[13px] font-semibold uppercase leading-none tracking-[0.04em] text-slate-400">{label}</span>
+      <input
+        type="number"
+        min={0}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full min-w-0 bg-transparent text-center text-2xl font-semibold leading-tight tabular-nums text-white outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+      />
+    </label>
+  );
 }
 
 function formatInterval(ms: number) {
@@ -46,13 +81,12 @@ export default function TimerPage() {
   const displayMessages = messages.display;
   const commonMessages = messages.common;
   const isSpanishLocale = Boolean(locale?.startsWith('es'));
-  const buttonTracking = isSpanishLocale ? 'tracking-[0.03em]' : 'tracking-[0.06em]';
-  // Lido a um braço de distância, em tablet/celular em pé: mesmo tamanho do painel
-  const buttonTextSize = isSpanishLocale ? 'text-[12px]' : 'text-[13px]';
-  const labelTracking = isSpanishLocale ? 'tracking-[0.12em]' : 'tracking-[0.16em]';
-  const smallLabelTracking = isSpanishLocale ? 'tracking-[0.18em]' : 'tracking-[0.26em]';
-  const cardHeadingTracking = isSpanishLocale ? 'tracking-[0.16em]' : 'tracking-[0.2em]';
-  const controlButtonBase = `min-h-[48px] rounded-lg px-3 py-2.5 ${buttonTextSize} font-semibold uppercase ${buttonTracking} leading-tight text-center whitespace-normal transition`;
+  // Lido a um braço de distância (e sem óculos): botões 15 px, rótulos 13 px
+  const buttonText = isSpanishLocale ? 'text-[14px] tracking-[0.02em]' : 'text-[15px] tracking-[0.04em]';
+  const button = `flex min-h-[56px] items-center justify-center rounded-xl px-3 py-2 ${buttonText} font-bold uppercase leading-tight text-center transition active:scale-[0.98]`;
+  // Botão do estado atual (rodando/parado) fica marcado, como no árbitro central
+  const activeRing = 'ring-4 ring-white/40 ring-offset-2 ring-offset-slate-900';
+  const secondaryButton = `${button} border border-slate-600 bg-slate-800 text-white hover:bg-slate-700`;
 
   const roomId = typeof router.query.roomId === 'string' ? router.query.roomId : undefined;
   const adminPin = typeof router.query.pin === 'string' ? router.query.pin : undefined;
@@ -91,17 +125,23 @@ export default function TimerPage() {
   const intervalConfiguredDisplay = formatInterval(state?.intervalConfiguredMs ?? 0);
   const intervalDisplay = formatInterval(state?.intervalMs ?? 0);
 
-  const viewportScale = useViewportScale();
-  const scaleStyle: CSSProperties | undefined = viewportScale < 1 ? {
-    transformOrigin: 'top left',
-    transform: `scale(${viewportScale})`,
-    width: `${100 / viewportScale}%`,
-    height: `${100 / viewportScale}vh`,
+  const [fitEl, setFitEl] = useState<HTMLDivElement | null>(null);
+  const fit = useFitScale(fitEl);
+  const fitStyle: CSSProperties | undefined = fit.scale < 1 ? {
+    transform: `scale(${fit.scale})`,
+    transformOrigin: 'top center',
+    // o transform não muda o layout: devolve a altura que sobra embaixo
+    marginBottom: -fit.height * (1 - fit.scale),
   } : undefined;
 
   if (!roomId || !adminPin) {
     return <MissingTimerCredentials messages={displayMessages} />;
   }
+
+  const timerRunning = state?.running ?? false;
+  const intervalRunning = state?.intervalRunning ?? false;
+  const intervalVisible = state?.intervalVisible ?? false;
+  const refereeShort = messages.referee.center;
 
   return (
     <>
@@ -111,181 +151,155 @@ export default function TimerPage() {
         canonicalPath="/timer"
         noIndex
       />
-      <div className="h-screen w-screen overflow-hidden bg-slate-950">
-      {/* "safe center": se o conteúdo for mais alto que a tela, alinha pelo topo em vez de cortar o logo */}
-      <main className="flex h-screen flex-col items-center gap-6 bg-slate-950 px-4 py-4 text-slate-100 overflow-hidden [justify-content:safe_center]" style={scaleStyle}>
-        {/* Cabeçalho na largura dos cartões: logo legível à esquerda e a sala
-            à direita (mesmo chip do painel), em vez do logo solto e miúdo */}
-        <header className="flex w-full max-w-3xl items-center justify-between gap-4">
-          <BrandLogo size={40} />
-          <span className="rounded-lg bg-white/10 px-3 py-1 text-sm font-bold uppercase tracking-[0.2em] text-white">
-            {commonMessages.labels.room}: {roomId}
-          </span>
-        </header>
-        <div className="flex w-full max-w-3xl flex-col gap-4 md:flex-row md:items-start">
-          {/* Timer card */}
-          <div className="flex flex-1 flex-col gap-3 rounded-3xl border border-slate-800 bg-slate-900/80 p-5 shadow-2xl">
-            <h3 className={`text-sm font-bold uppercase ${cardHeadingTracking} text-white`}>
-              {adminMessages.timer.title}
-            </h3>
-            <TimerDisplay remainingMs={state?.timerMs ?? 60_000} running={state?.running ?? false} variant="panel" large />
-            <div className="flex h-[2.6rem] items-center gap-2 pl-2 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden">
-              {cooldownBadges.map((b) => (
-                <span
-                  key={b.id}
-                  className="inline-flex -skew-x-12 items-center justify-center rounded-md h-[2.6rem] w-12 text-base font-black text-slate-900 shadow-[0_4px_0_rgba(0,0,0,0.3)]"
-                  style={{ backgroundImage: b.gradient }}
+      <div className="h-screen w-screen overflow-y-auto overflow-x-hidden bg-slate-950">
+      {/* "safe center": se o conteúdo for mais alto que a tela, alinha pelo topo em vez de cortar */}
+      <main className="flex min-h-screen flex-col items-center bg-slate-950 px-4 py-4 text-slate-100 [justify-content:safe_center]">
+        <div ref={setFitEl} className="flex w-full max-w-4xl flex-col gap-3" style={fitStyle}>
+          <header className="flex items-center justify-between gap-4">
+            <BrandLogo size={40} />
+            <span className="rounded-lg bg-white/10 px-3 py-1.5 text-base font-bold uppercase tracking-[0.18em] text-white">
+              {commonMessages.labels.room}: {roomId}
+            </span>
+          </header>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            {/* Cronômetro da tentativa */}
+            <section className="flex min-w-0 flex-col gap-3 rounded-3xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl">
+              {/* Título e contagens de 60 s na mesma linha: altura fixa, nada pula de lugar */}
+              <div className="flex min-h-[40px] items-center justify-between gap-3">
+                <h2 className="text-base font-bold uppercase tracking-[0.18em] text-white">{adminMessages.timer.title}</h2>
+                <div className="flex items-center gap-1.5">
+                  {cooldownBadges.map((b) => (
+                    <span
+                      key={b.id}
+                      className="inline-flex h-9 w-11 -skew-x-12 items-center justify-center rounded-md text-lg font-black text-slate-900"
+                      style={{ backgroundImage: b.gradient }}
+                    >
+                      <span className="skew-x-12 leading-none tabular-nums">{b.value}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <TimerDisplay remainingMs={state?.timerMs ?? 60_000} running={timerRunning} variant="panel" large />
+
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  className={`${button} bg-emerald-500 text-slate-950 hover:bg-emerald-400 ${timerRunning ? activeRing : ''}`}
+                  aria-pressed={timerRunning}
+                  onClick={timerStart}
                 >
-                  <span className="skew-x-12 leading-none tabular-nums">{b.value}</span>
-                </span>
-              ))}
-            </div>
-            <div className="grid grid-cols-3 gap-2 text-sm">
-              <button
-                className={`${controlButtonBase} bg-emerald-500 text-slate-900 hover:bg-emerald-400/90`}
-                onClick={timerStart}
-              >
-                {adminMessages.timer.start}
-              </button>
-              <button
-                className={`${controlButtonBase} bg-amber-400 text-slate-900 hover:bg-amber-300/90`}
-                onClick={timerStop}
-              >
-                {adminMessages.timer.stop}
-              </button>
-              <button
-                className={`${controlButtonBase} bg-slate-700 text-white hover:bg-slate-600`}
-                onClick={timerReset}
-              >
-                {adminMessages.timer.resetDefault}
-              </button>
-            </div>
-            <div className="flex flex-col gap-3 text-sm sm:flex-row sm:items-end sm:gap-3">
-              <label className="flex flex-1 flex-col gap-1">
-                <span className={`text-[11px] font-semibold uppercase ${labelTracking} text-slate-300`}>
-                  {adminMessages.timer.minutesLabel}
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  step={0.5}
+                  {adminMessages.timer.start}
+                </button>
+                <button
+                  className={`${button} bg-amber-400 text-slate-950 hover:bg-amber-300`}
+                  onClick={timerStop}
+                >
+                  {adminMessages.timer.stop}
+                </button>
+                <button className={`${button} bg-slate-700 text-white hover:bg-slate-600`} onClick={timerReset}>
+                  {adminMessages.timer.resetDefault}
+                </button>
+              </div>
+
+              <div className="flex gap-2">
+                <NumberField
+                  label={adminMessages.timer.minutesLabel}
                   value={customMinutes}
-                  onChange={(e) => setCustomMinutes(Number(e.target.value))}
-                  className="w-full min-h-[44px] rounded-sm border border-slate-700 bg-slate-950 px-3 text-base font-semibold tabular-nums text-white outline-hidden transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
+                  onChange={setCustomMinutes}
+                  step={0.5}
+                  className="w-32 shrink-0"
                 />
-              </label>
-              <button
-                className={`${controlButtonBase} w-full sm:w-auto bg-slate-200 text-slate-900 hover:bg-slate-100`}
-                onClick={handleSetMinutes}
-              >
-                {adminMessages.timer.set}
-              </button>
-            </div>
+                <button className={`${secondaryButton} flex-1`} onClick={handleSetMinutes}>
+                  {adminMessages.timer.set}
+                </button>
+              </div>
+            </section>
+
+            {/* Intervalo entre rodadas */}
+            <section className="flex min-w-0 flex-col gap-3 rounded-3xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl">
+              <div className="flex min-h-[40px] items-center">
+                <h2 className="text-base font-bold uppercase tracking-[0.18em] text-white">{adminMessages.interval.title}</h2>
+              </div>
+
+              {/* Restante em destaque (é um segundo relógio); configurado como referência */}
+              <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+                <div className="flex min-w-0 flex-col">
+                  <span className="text-[13px] font-semibold uppercase tracking-[0.12em] text-slate-400">{adminMessages.interval.remaining}</span>
+                  <span className="font-display text-[2.75rem] font-bold leading-none tabular-nums text-white">{intervalDisplay}</span>
+                </div>
+                <div className="flex shrink-0 flex-col items-start">
+                  <span className="text-[13px] font-semibold uppercase tracking-[0.12em] text-slate-400">{adminMessages.interval.configured}</span>
+                  <span className="text-lg font-semibold tabular-nums text-slate-300">{intervalConfiguredDisplay}</span>
+                </div>
+              </div>
+
+              {/* H/M/S + Definir: numa linha quando cabe; o Definir desce sozinho quando o cartão é estreito */}
+              <div className="flex flex-wrap gap-2">
+                <div className="grid min-w-0 flex-[3_1_15rem] grid-cols-3 gap-2">
+                  <NumberField label={adminMessages.interval.hours} value={intervalHours} onChange={setIntervalHours} />
+                  <NumberField label={adminMessages.interval.minutes} value={intervalMinutes} onChange={setIntervalMinutes} />
+                  <NumberField label={adminMessages.interval.seconds} value={intervalSeconds} onChange={setIntervalSeconds} />
+                </div>
+                <button className={`${secondaryButton} flex-[1_1_6rem]`} onClick={handleIntervalSet}>
+                  {adminMessages.interval.set}
+                </button>
+              </div>
+
+              {/* Rótulos curtos (o cartão já diz "intervalo"); o nome completo fica para leitor de tela */}
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  className={`${button} bg-emerald-500 text-slate-950 hover:bg-emerald-400 ${intervalRunning ? activeRing : ''}`}
+                  aria-label={adminMessages.interval.start}
+                  aria-pressed={intervalRunning}
+                  onClick={intervalStart}
+                >
+                  {refereeShort.start}
+                </button>
+                <button
+                  className={`${button} bg-amber-400 text-slate-950 hover:bg-amber-300`}
+                  aria-label={adminMessages.interval.pause}
+                  onClick={intervalStop}
+                >
+                  {refereeShort.pause}
+                </button>
+                <button
+                  className={`${button} bg-slate-700 text-white hover:bg-slate-600`}
+                  aria-label={adminMessages.interval.reset}
+                  onClick={intervalReset}
+                >
+                  {refereeShort.reset}
+                </button>
+              </div>
+
+              {/* O que o display mostra: escolha entre duas opções, com a atual marcada */}
+              <div className="grid grid-cols-2 gap-1 rounded-2xl border border-slate-700 bg-slate-950 p-1" role="group">
+                <button
+                  className={`${button} min-h-[52px] ${intervalVisible ? 'bg-white text-slate-950' : 'text-slate-300 hover:bg-slate-800'}`}
+                  aria-pressed={intervalVisible}
+                  onClick={intervalShow}
+                >
+                  {adminMessages.interval.showInterval}
+                </button>
+                <button
+                  className={`${button} min-h-[52px] ${!intervalVisible ? 'bg-white text-slate-950' : 'text-slate-300 hover:bg-slate-800'}`}
+                  aria-pressed={!intervalVisible}
+                  onClick={intervalHide}
+                >
+                  {adminMessages.interval.showLights}
+                </button>
+              </div>
+
+              {/* Informativo: some em telas baixas para os controles caberem sem encolher */}
+              <p className="text-[13px] leading-relaxed text-slate-400 [@media(max-height:900px)]:hidden">
+                {adminMessages.interval.note}
+              </p>
+            </section>
           </div>
 
-          {/* Interval card */}
-          <div className="flex flex-1 flex-col gap-3 rounded-3xl border border-slate-800 bg-slate-900/80 p-5 shadow-2xl">
-            <header className="flex flex-col gap-2">
-              <h3 className={`text-sm font-bold uppercase ${cardHeadingTracking} text-white`}>
-                {adminMessages.interval.title}
-              </h3>
-              {/* Leitura do intervalo: rótulo discreto, valor legível e de largura fixa */}
-              <dl className={`grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px] uppercase ${smallLabelTracking}`}>
-                <div className="flex flex-col">
-                  <dt className="text-slate-400">{adminMessages.interval.configured}</dt>
-                  <dd className="text-sm font-semibold tabular-nums tracking-normal text-slate-200">{intervalConfiguredDisplay}</dd>
-                </div>
-                <div className="flex flex-col">
-                  <dt className="text-slate-400">{adminMessages.interval.remaining}</dt>
-                  <dd className="text-sm font-semibold tabular-nums tracking-normal text-slate-200">{intervalDisplay}</dd>
-                </div>
-              </dl>
-            </header>
-
-            <div className="grid grid-cols-3 gap-3 text-sm">
-              <label className="flex flex-col gap-1">
-                <span className={`text-[11px] font-semibold uppercase ${labelTracking} text-slate-300`}>
-                  {adminMessages.interval.hours}
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  value={intervalHours}
-                  onChange={(e) => setIntervalHours(Number(e.target.value))}
-                  className="min-h-[44px] rounded-sm border border-slate-700 bg-slate-950 px-3 text-center text-base font-semibold tabular-nums text-white outline-hidden transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className={`text-[11px] font-semibold uppercase ${labelTracking} text-slate-300`}>
-                  {adminMessages.interval.minutes}
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  value={intervalMinutes}
-                  onChange={(e) => setIntervalMinutes(Number(e.target.value))}
-                  className="min-h-[44px] rounded-sm border border-slate-700 bg-slate-950 px-3 text-center text-base font-semibold tabular-nums text-white outline-hidden transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className={`text-[11px] font-semibold uppercase ${labelTracking} text-slate-300`}>
-                  {adminMessages.interval.seconds}
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  value={intervalSeconds}
-                  onChange={(e) => setIntervalSeconds(Number(e.target.value))}
-                  className="min-h-[44px] rounded-sm border border-slate-700 bg-slate-950 px-3 text-center text-base font-semibold tabular-nums text-white outline-hidden transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/40"
-                />
-              </label>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <button
-                className={`${controlButtonBase} bg-slate-200 text-slate-900 hover:bg-slate-100`}
-                onClick={handleIntervalSet}
-              >
-                {adminMessages.interval.set}
-              </button>
-              <button
-                className={`${controlButtonBase} bg-emerald-500 text-slate-900 hover:bg-emerald-400/90`}
-                onClick={intervalStart}
-              >
-                {adminMessages.interval.start}
-              </button>
-              <button
-                className={`${controlButtonBase} bg-amber-400 text-slate-900 hover:bg-amber-300/90`}
-                onClick={intervalStop}
-              >
-                {adminMessages.interval.pause}
-              </button>
-              <button
-                className={`${controlButtonBase} bg-slate-700 text-white hover:bg-slate-600`}
-                onClick={intervalReset}
-              >
-                {adminMessages.interval.reset}
-              </button>
-              <button
-                className={`col-span-2 ${controlButtonBase} bg-white/20 text-white hover:bg-white/30`}
-                onClick={intervalShow}
-              >
-                {adminMessages.interval.showInterval}
-              </button>
-              <button
-                className={`col-span-2 ${controlButtonBase} bg-white/20 text-white hover:bg-white/30`}
-                onClick={intervalHide}
-              >
-                {adminMessages.interval.showLights}
-              </button>
-            </div>
-            <p className="text-xs leading-relaxed text-slate-400">
-              {adminMessages.interval.note}
-            </p>
+          <div className="opacity-60 [@media(max-height:900px)]:hidden">
+            <FooterBadges />
           </div>
-        </div>
-        <div className="mt-4 opacity-60">
-          <FooterBadges />
         </div>
       </main>
       </div>

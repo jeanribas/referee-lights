@@ -269,14 +269,22 @@ function TimerDisplay(props: TimerDisplayProps) {
     );
   }
 
+  const color = isZero ? 'text-[#ff1f1f]' : urgency ? 'text-[#ff4d4f]' : 'text-slate-50';
+
+  if (large) {
+    // Tela do cronometrista: dígitos grandes direto no cartão (sem caixa dentro
+    // de caixa) e sem piscar — "rodando" aparece no botão Iniciar marcado.
+    return (
+      <div className={`flex w-full flex-1 items-center justify-center font-display font-bold leading-none tabular-nums tracking-tight transition-colors text-[clamp(4rem,21vw,6.5rem)] md:text-[5.5rem] ${color}`}>
+        {timerText}
+      </div>
+    );
+  }
+
   return (
     <div className="flex w-full flex-col items-center gap-2">
       <div
-        className={`rounded-3xl border border-slate-700 bg-slate-900/80 font-bold font-display shadow-inner transition-colors ${
-          large ? 'w-full py-5 text-center text-8xl tabular-nums tracking-wider' : 'px-12 py-6 text-6xl tracking-widest'
-        } ${
-          isZero ? 'text-[#ff1f1f]' : urgency ? 'text-[#ff4d4f]' : 'text-slate-50'
-        } ${running ? 'animate-pulse' : ''}`}
+        className={`rounded-3xl border border-slate-700 bg-slate-900/80 px-12 py-6 text-6xl font-bold font-display tracking-widest shadow-inner transition-colors ${color} ${running ? 'animate-pulse' : ''}`}
       >
         {timerText}
       </div>
