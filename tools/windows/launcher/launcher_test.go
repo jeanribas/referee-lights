@@ -389,18 +389,3 @@ func TestIsTimerURL(t *testing.T) {
 		}
 	}
 }
-
-func TestEdgeAppArgs(t *testing.T) {
-	args := edgeAppArgs("http://10.0.0.5:3000/timer?roomId=X&pin=1", `C:\Users\Jéan R\AppData\Local\RefereeLights\timer-window`, 0, 0, 480, 1040)
-	want := []string{
-		"--app=http://10.0.0.5:3000/timer?roomId=X&pin=1",
-		`--user-data-dir=C:\Users\Jéan R\AppData\Local\RefereeLights\timer-window`,
-		"--window-position=0,0",
-		"--window-size=480,1040",
-		"--no-first-run",
-		"--no-default-browser-check",
-	}
-	if strings.Join(args, "|") != strings.Join(want, "|") {
-		t.Fatalf("args = %q", args)
-	}
-}

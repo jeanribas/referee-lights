@@ -1,15 +1,14 @@
 package main
 
 import (
-	"fmt"
 	"net/url"
 	"regexp"
 )
 
-// Tela do cronometrista (timer) aberta pelo painel: em vez do navegador
-// padrão (que não aceita tamanho de janela), o Edge em modo app — janela sem
-// abas, estreita e na altura da tela, encostada à esquerda. É o mesmo
-// comportamento que o "Cronômetro" do admin tem no navegador (window.open).
+// Tela do cronometrista (timer) aberta pelo painel: popup do próprio WebView2
+// (script injetado em panel_windows.go), estreito e na altura da tela,
+// encostado à esquerda — sem passar pelo navegador da pessoa. isTimerURL
+// espelha a regra do script (teste em launcher_test.go).
 
 // timerWindowWidth acompanha o TIMER_WINDOW_WIDTH do frontend.
 const timerWindowWidth = 480
@@ -23,18 +22,4 @@ func isTimerURL(u *url.URL) bool {
 	}
 	path := localePrefix.ReplaceAllString(u.Path, "/")
 	return path == "/timer" || path == "/timer/"
-}
-
-// edgeAppArgs monta a linha do Edge em modo app. Perfil próprio
-// (--user-data-dir): processo separado, então tamanho e posição valem sempre,
-// mesmo com o Edge da pessoa já aberto.
-func edgeAppArgs(target, profileDir string, x, y, width, height int) []string {
-	return []string{
-		"--app=" + target,
-		"--user-data-dir=" + profileDir,
-		fmt.Sprintf("--window-position=%d,%d", x, y),
-		fmt.Sprintf("--window-size=%d,%d", width, height),
-		"--no-first-run",
-		"--no-default-browser-check",
-	}
 }
