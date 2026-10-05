@@ -5,11 +5,10 @@ import (
 	"regexp"
 )
 
-// Tela do cronometrista (timer) aberta pelo painel: numa janela própria do
-// app (WebView2, timerwin_windows.go), estreita e na altura da tela,
-// encostada à esquerda — sem passar pelo navegador da pessoa (que guardaria
-// esse tamanho e abriria as outras telas do mesmo jeito). É o mesmo
-// comportamento que o "Cronômetro" do admin tem no navegador (window.open).
+// Tela do cronometrista (timer) aberta pelo painel: popup do próprio WebView2
+// (script injetado em panel_windows.go), estreito e na altura da tela,
+// encostado à esquerda — sem passar pelo navegador da pessoa. isTimerURL
+// espelha a regra do script (teste em launcher_test.go).
 
 // timerWindowWidth acompanha o TIMER_WINDOW_WIDTH do frontend.
 const timerWindowWidth = 480
