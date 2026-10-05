@@ -7,6 +7,8 @@ import { FooterBadges } from '@/components/FooterBadges';
 import { useCooldownBadges } from '@/components/TimerDisplay';
 import { IntervalCard, TimerCard } from '@/components/TimerControls';
 import { BrandLogo } from '@/components/BrandLogo';
+import { RefereeQrModal } from '@/components/RefereeQrModal';
+import { useSessionQrTargets } from '@/hooks/useSessionQrTargets';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
 import { useRouterReady } from '@/hooks/useRouterReady';
 import { getMessages, type Messages } from '@/lib/i18n/messages';
@@ -44,6 +46,8 @@ export default function TimerPage() {
   const [intervalHours, setIntervalHours] = useState(0);
   const [intervalMinutes, setIntervalMinutes] = useState(10);
   const [intervalSeconds, setIntervalSeconds] = useState(0);
+  const [qrOpen, setQrOpen] = useState(false);
+  const qr = useSessionQrTargets({ open: qrOpen, roomId, adminPin, labels: adminMessages.qrMenu.targets });
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -86,6 +90,23 @@ export default function TimerPage() {
           <BrandLogo size={28} />
           {/* Status da conexão como no admin e nos árbitros, ao lado da sala */}
           <div className="flex items-center gap-2">
+            {/* QR dos árbitros aqui também: quem está no admin (speaker) não
+                precisa parar para reabrir a página de um árbitro */}
+            <button
+              type="button"
+              onClick={() => setQrOpen(true)}
+              className="inline-flex min-h-[44px] items-center gap-2 whitespace-nowrap rounded-lg bg-slate-800 px-3 text-[15px] font-semibold text-slate-100 transition hover:bg-slate-700"
+              aria-label={adminMessages.preview.showQr}
+            >
+              <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
+                <path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3" />
+              </svg>
+              <span className="max-sm:hidden">{adminMessages.preview.showQr}</span>
+              <span className="sm:hidden">QR</span>
+            </button>
             <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-slate-800 px-2.5 py-1.5 text-[13px] font-semibold text-slate-300">
               <span
                 aria-hidden="true"
@@ -138,6 +159,17 @@ export default function TimerPage() {
           <FooterBadges />
         </div>
       </main>
+      {qrOpen && (
+        <RefereeQrModal
+          targets={qr.targets}
+          loading={qr.loading}
+          onClose={() => setQrOpen(false)}
+          messages={adminMessages.qrMenu}
+          description={adminMessages.qrMenu.viewDescription}
+          notice={qr.errorCode ? adminMessages.qrMenu.loadError : qr.loopback ? adminMessages.qrMenu.localhostHint : null}
+          closeLabel={commonMessages.srOnly.close}
+        />
+      )}
     </>
   );
 }

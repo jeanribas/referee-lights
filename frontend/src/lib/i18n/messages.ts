@@ -31,6 +31,7 @@ type DisplayMessages = {
     fullscreenEnter: string;
     fullscreenExit: string;
     goToAdmin: string;
+    showQr: string;
     toggleButton: string;
   };
   zoom: {
@@ -122,6 +123,11 @@ type AdminMessages = {
     regenerate: string;
     regenerating: string;
     loading: string;
+    /** Timer/display: só mostra os links atuais. */
+    viewDescription: string;
+    /** Página aberta como localhost: o celular não chega nesse endereço. */
+    localhostHint: string;
+    loadError: string;
     ariaLabel: string;
     targets: {
       left: string;
@@ -498,6 +504,7 @@ const MESSAGES: Record<AppLocale, Messages> = {
         fullscreenEnter: 'Entrar em tela cheia',
         fullscreenExit: 'Sair da tela cheia',
         goToAdmin: 'Ir para Admin',
+        showQr: 'QR Codes dos árbitros',
         toggleButton: 'Alternar menu do display'
       },
       zoom: {
@@ -588,6 +595,9 @@ const MESSAGES: Record<AppLocale, Messages> = {
         regenerate: 'Gerar novos links',
         regenerating: 'Gerando...',
         loading: 'Carregando QR Codes...',
+        viewDescription: 'Para o árbitro que precisa abrir de novo a página dele: escaneie o QR Code da posição. Os links continuam os mesmos e ninguém é desconectado.',
+        localhostHint: 'Esta tela está aberta como "localhost": o celular não acessa esse endereço. Abra esta tela pelo link do admin (endereço da rede) para o QR funcionar.',
+        loadError: 'Não foi possível carregar os QR Codes. Verifique a conexão e tente de novo.',
         ariaLabel: 'QR Codes para árbitros',
         targets: {
           left: 'Árbitro Esquerdo',
@@ -893,6 +903,7 @@ const MESSAGES: Record<AppLocale, Messages> = {
         fullscreenEnter: 'Enter fullscreen',
         fullscreenExit: 'Exit fullscreen',
         goToAdmin: 'Go to Admin',
+        showQr: 'Referee QR codes',
         toggleButton: 'Toggle display menu'
       },
       zoom: {
@@ -983,6 +994,9 @@ const MESSAGES: Record<AppLocale, Messages> = {
         regenerate: 'Generate new links',
         regenerating: 'Generating...',
         loading: 'Loading QR Codes...',
+        viewDescription: 'For a referee who needs to reopen their page: scan the QR code for that position. The links stay the same and nobody is disconnected.',
+        localhostHint: 'This screen is open as "localhost": phones cannot reach that address. Open this screen through the admin link (network address) for the QR codes to work.',
+        loadError: 'Could not load the QR codes. Check the connection and try again.',
         ariaLabel: 'QR Codes for referees',
         targets: {
           left: 'Left Referee',
@@ -1288,6 +1302,7 @@ const MESSAGES: Record<AppLocale, Messages> = {
         fullscreenEnter: 'Entrar en pantalla completa',
         fullscreenExit: 'Salir de pantalla completa',
         goToAdmin: 'Ir al panel',
+        showQr: 'Códigos QR de los árbitros',
         toggleButton: 'Abrir menú del display'
       },
       zoom: {
@@ -1378,6 +1393,9 @@ const MESSAGES: Record<AppLocale, Messages> = {
         regenerate: 'Generar nuevos enlaces',
         regenerating: 'Generando...',
         loading: 'Cargando códigos QR...',
+        viewDescription: 'Para el árbitro que necesita volver a abrir su página: escanee el código QR de su posición. Los enlaces no cambian y nadie se desconecta.',
+        localhostHint: 'Esta pantalla está abierta como "localhost": el celular no accede a esa dirección. Abra esta pantalla desde el enlace del panel (dirección de red) para que el QR funcione.',
+        loadError: 'No se pudieron cargar los códigos QR. Verifique la conexión e inténtelo de nuevo.',
         ariaLabel: 'Códigos QR para árbitros',
         targets: {
           left: 'Árbitro izquierdo',
