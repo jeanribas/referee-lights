@@ -23,18 +23,21 @@ import (
 // (o app segue na bandeja, telas continuam conectadas).
 
 var (
-	user32            = windows.NewLazySystemDLL("user32.dll")
-	procSetWindowLong = user32.NewProc("SetWindowLongPtrW")
-	procCallWindowPro = user32.NewProc("CallWindowProcW")
-	procShowWindow    = user32.NewProc("ShowWindow")
-	procSetForeground = user32.NewProc("SetForegroundWindow")
-	procIsWindowVis   = user32.NewProc("IsWindowVisible")
-	procIsIconic      = user32.NewProc("IsIconic")
-	procLoadImage     = user32.NewProc("LoadImageW")
-	procSendMessage   = user32.NewProc("SendMessageW")
-	procDestroyWindow = user32.NewProc("DestroyWindow")
-	procGetSysMetrics = user32.NewProc("GetSystemMetrics")
-	procMessageBoxW   = user32.NewProc("MessageBoxW")
+	user32             = windows.NewLazySystemDLL("user32.dll")
+	procSetWindowLong  = user32.NewProc("SetWindowLongPtrW")
+	procCallWindowPro  = user32.NewProc("CallWindowProcW")
+	procShowWindow     = user32.NewProc("ShowWindow")
+	procSetForeground  = user32.NewProc("SetForegroundWindow")
+	procIsWindowVis    = user32.NewProc("IsWindowVisible")
+	procIsIconic       = user32.NewProc("IsIconic")
+	procLoadImage      = user32.NewProc("LoadImageW")
+	procSendMessage    = user32.NewProc("SendMessageW")
+	procDestroyWindow  = user32.NewProc("DestroyWindow")
+	procGetSysMetrics  = user32.NewProc("GetSystemMetrics")
+	procMessageBoxW    = user32.NewProc("MessageBoxW")
+	procMonitorFromWin = user32.NewProc("MonitorFromWindow")
+	procGetMonitorInfo = user32.NewProc("GetMonitorInfoW")
+	procGetDpiForWin   = user32.NewProc("GetDpiForWindow")
 )
 
 const (
@@ -122,6 +125,11 @@ func (p *panelWindow) run() {
 			openBrowser(parsed.String())
 		}
 	})
+	_ = w.Bind("rlOpenTimer", func(u string) {
+		if parsed, err := url.Parse(u); err == nil && isTimerURL(parsed) {
+			go p.openTimerWindow(parsed.String())
+		}
+	})
 	w.Init(externalLinksScript)
 	w.Navigate(p.app.adminURL())
 	procSetForeground.Call(p.hwnd)
@@ -134,13 +142,6 @@ const externalLinksScript = `(() => {
   const isPanel = (u) => u.origin === location.origin && u.pathname.replace(/^\/(pt-BR|en-US|es-ES)(?=\/)/, '').startsWith('/admin');
   const isTimer = (u) => u.origin === location.origin && u.pathname.replace(/^\/(pt-BR|en-US|es-ES)(?=\/|$)/, '').replace(/\/$/, '') === '/timer';
   const open = window.open;
-  // Timer: popup do próprio WebView2, estreito e na altura da tela, à
-  // esquerda (só ele; o resto vai para o navegador padrão). Falhou → navegador.
-  const openTimer = (href) => {
-    const w = 480, left = screen.availLeft || 0, top = screen.availTop || 0;
-    const win = open.call(window, href, 'referee-lights-timer', 'popup=yes,width=' + w + ',height=' + screen.availHeight + ',left=' + left + ',top=' + top);
-    if (win) { try { win.focus(); } catch {} } else { window.rlOpenExternal(href); }
-  };
   document.addEventListener('click', (e) => {
     const a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
     if (!a) return;
@@ -149,12 +150,44 @@ const externalLinksScript = `(() => {
     if (isPanel(u) && a.target !== '_blank') return;
     e.preventDefault();
     e.stopPropagation();
-    if (isTimer(u)) openTimer(u.href); else window.rlOpenExternal(u.href);
+    if (isTimer(u)) window.rlOpenTimer(u.href); else window.rlOpenExternal(u.href);
   }, true);
   window.open = (target) => {
     try { window.rlOpenExternal(new URL(String(target), location.href).href); return null; } catch { return open.apply(window, arguments); }
   };
 })();`
+
+type monitorInfo struct {
+	cbSize    uint32
+	rcMonitor windows.Rect
+	rcWork    windows.Rect
+	dwFlags   uint32
+}
+
+// timerBounds: à esquerda da área útil do monitor onde está o painel, na
+// altura dela, largura timerWindowWidth na escala do monitor (pixels físicos).
+func (p *panelWindow) timerBounds() (x, y, w, h int) {
+	p.mu.Lock()
+	hwnd := p.hwnd
+	p.mu.Unlock()
+	w, h = timerWindowWidth, 900
+	const monitorDefaultToNearest = 2
+	mon, _, _ := procMonitorFromWin.Call(hwnd, monitorDefaultToNearest)
+	if mon == 0 {
+		return
+	}
+	mi := monitorInfo{cbSize: uint32(unsafe.Sizeof(monitorInfo{}))}
+	if ok, _, _ := procGetMonitorInfo.Call(mon, uintptr(unsafe.Pointer(&mi))); ok == 0 {
+		return
+	}
+	dpi := 96
+	if procGetDpiForWin.Find() == nil {
+		if d, _, _ := procGetDpiForWin.Call(hwnd); d != 0 {
+			dpi = int(d)
+		}
+	}
+	return int(mi.rcWork.Left), int(mi.rcWork.Top), timerWindowWidth * dpi / 96, int(mi.rcWork.Bottom - mi.rcWork.Top)
+}
 
 func (p *panelWindow) setIcon() {
 	var hinst windows.Handle
