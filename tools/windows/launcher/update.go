@@ -377,14 +377,13 @@ func (u *Updater) Apply() UpdateView {
 	if !ready {
 		return u.View()
 	}
+	// Pedido da pessoa ("Atualizar"): fecha tudo e atualiza na hora — sem
+	// trava de competição. As sessões são encerradas, como ao fechar o app.
 	if busy, reason := u.busy(); busy {
-		u.mu.Lock()
-		u.applyOnQuit = true
-		u.state = "deferred"
-		u.message = reason
-		u.mu.Unlock()
-		u.app.log.Printf("atualização adiada (competição em andamento: %s): instala ao sair", reason)
-		return u.View()
+		u.app.log.Printf("atualização pedida com sala em uso (%s): encerrando as sessões", reason)
+	}
+	if u.app.sup != nil {
+		u.app.sup.EndSessions = true
 	}
 	go func() {
 		if err := u.swapAndRestart(true); err != nil {

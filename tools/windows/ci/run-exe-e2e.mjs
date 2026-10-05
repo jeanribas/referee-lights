@@ -8,9 +8,9 @@
 //   - instância única (2º duplo-clique não sobe outro);
 //   - node morto → lançador reergue e a sala continua; erro do lançador
 //     chega ao receptor (canal de erros);
-//   - --quit encerra tudo e libera a porta; lançador morto à força leva o
-//     node junto (Job Object);
-//   - reabrir mantém as salas; porta ocupada → 3001.
+//   - --quit (Sair) encerra tudo, libera a porta e encerra as sessões;
+//     lançador morto à força leva o node junto (Job Object) e as salas
+//     continuam ao reabrir; porta ocupada → 3001.
 //
 // Uso: node run-exe-e2e.mjs <RefereeLights.exe> <pastaDoZipExtraído> [--skip-ui]
 import { execFileSync, execSync, spawn } from 'node:child_process';
@@ -222,15 +222,17 @@ async function main() {
   assert(true, 'erros do lançador e das telas chegaram pelo mesmo canal');
   node = node2;
 
-  step('--quit encerra tudo e libera a porta');
+  step('--quit (Sair) encerra tudo, libera a porta e encerra as sessões');
   startExe(['--quit']);
   await waitFor(() => launchers().length === 0 && ourNodes().length === 0 && !listening(3000), 20_000, 'lançador e node encerrados, porta livre');
   assert(true, 'Sair libera a porta 3000');
 
-  step('reabrir: salas continuam, sem nova migração nem nova extração');
+  step('reabrir: sessões encerradas pelo Sair, sem nova migração nem nova extração');
   startExe();
   await waitFor(() => healthy(), 60_000, 'exe no ar de novo');
-  assert((await post(`/rooms/${legacyRoom.roomId}/access`, { adminPin: legacyRoom.adminPin })).status === 200, 'sala continua após reabrir');
+  assert((await post(`/rooms/${legacyRoom.roomId}/access`, { adminPin: legacyRoom.adminPin })).status === 404, 'sala encerrada ao Sair');
+  const crashRoom = (await post('/rooms')).body;
+  assert((await post(`/rooms/${crashRoom.roomId}/access`, { adminPin: crashRoom.adminPin })).status === 200, `sala ${crashRoom.roomId} criada após reabrir`);
   assert(readdirSync(path.join(rlRoot, 'app')).length === 1, 'mesma pasta de versão reaproveitada');
   for (const f of ['launcher.log', 'server.log']) assert(existsSync(path.join(rlRoot, 'logs', f)), `logs\\${f}`);
 
@@ -248,6 +250,7 @@ async function main() {
     delete withPanel.RL_NO_BROWSER;
     startExe([], withPanel);
     await waitFor(() => healthy(), 60_000, 'exe no ar (com painel)');
+    assert((await post(`/rooms/${crashRoom.roomId}/access`, { adminPin: crashRoom.adminPin })).status === 200, 'lançador morto à força: sala continua ao reabrir');
     const [l] = launchers();
     await waitFor(() => panelState(l.ProcessId).visible, 30_000, 'janela do painel visível');
     const st = panelState(l.ProcessId);

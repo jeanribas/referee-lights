@@ -901,6 +901,13 @@ export async function createServer() {
 
     app.post('/__launcher/shutdown', async (request, reply) => {
       if (!launcherAuth(request)) { reply.code(404); return { error: 'not_found' }; }
+      // App fechado de propósito: encerra TODAS as salas (sessão fechada,
+      // sockets derrubados, estado salvo apagado) — reabrir começa limpo.
+      // A troca de versão não manda isso e preserva as salas.
+      if (isRecord(request.body) && request.body.endSessions === true) {
+        const ended = roomManager.sweepExpired(Number.POSITIVE_INFINITY);
+        if (ended.length > 0) app.log.info(`${ended.length} sala(s) encerrada(s) ao fechar o app`);
+      }
       // SQLite grava na hora (síncrono) e a fila vai para o disco aqui; o
       // close espera conexões abertas (navegadores, keep-alive) por no
       // máximo 2 s antes de sair.

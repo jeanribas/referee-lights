@@ -26,14 +26,16 @@ const (
 )
 
 type Supervisor struct {
-	NodePath string
-	Script   string
-	Dir      string
-	Env      []string
-	Port     int
-	Token    string
-	Output   io.Writer
-	Log      *log.Logger
+	// EndSessions: no próximo Stop, pedir ao server que encerre todas as salas.
+	EndSessions bool
+	NodePath    string
+	Script      string
+	Dir         string
+	Env         []string
+	Port        int
+	Token       string
+	Output      io.Writer
+	Log         *log.Logger
 
 	// OnCrash: queda inesperada (código de saída, duração da execução).
 	OnCrash func(exitErr error, ran time.Duration)
@@ -166,6 +168,8 @@ func (s *Supervisor) sleepOrStop(d time.Duration) bool {
 }
 
 // Stop pede desligamento ao server e espera; passou do prazo, encerra.
+// Com EndSessions (fechar o app de propósito), o server encerra todas as
+// salas antes de sair — nada fica guardado para reabrir.
 func (s *Supervisor) Stop() {
 	s.mu.Lock()
 	if s.stopping {
@@ -178,7 +182,7 @@ func (s *Supervisor) Stop() {
 	s.mu.Unlock()
 
 	if cmd != nil {
-		requestShutdown(s.Port, s.Token)
+		requestShutdown(s.Port, s.Token, s.EndSessions)
 		select {
 		case <-s.done:
 			return
@@ -200,8 +204,12 @@ func (s *Supervisor) PID() int {
 	return s.cmd.Process.Pid
 }
 
-func requestShutdown(port int, token string) {
-	req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/__launcher/shutdown", port), bytes.NewReader([]byte("{}")))
+func requestShutdown(port int, token string, endSessions bool) {
+	body := []byte("{}")
+	if endSessions {
+		body = []byte(`{"endSessions":true}`)
+	}
+	req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/__launcher/shutdown", port), bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Launcher-Token", token)
 	client := &http.Client{Timeout: 2 * time.Second}
