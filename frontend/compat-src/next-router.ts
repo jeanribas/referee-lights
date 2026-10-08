@@ -1,8 +1,12 @@
 /**
  * next/router para as telas universais (pacote ES5 sem o runtime do Next):
- * a URL é lida direto do navegador; trocar de idioma recarrega a página no
- * prefixo certo, como o Next faria.
+ * a URL é lida direto do navegador. Trocar só o idioma da mesma tela não
+ * recarrega (como o Next): recarregar zerava o que só existe na tela, como
+ * os contadores de troca de pedido do display. Sem history.replaceState
+ * (navegador muito antigo), recarrega no prefixo certo.
  */
+import { useSyncExternalStore } from 'react';
+
 type CompatWindow = { RL: { data: { locale: string; locales: string[]; defaultLocale: string } } };
 const rlData = () => (window as unknown as CompatWindow).RL.data;
 
@@ -51,6 +55,17 @@ function toHref(url: UrlLike) {
   return pathname + (parts.length ? `?${parts.join('&')}` : '');
 }
 
+const listeners: Array<() => void> = [];
+let localeVersion = 0;
+function subscribe(fn: () => void) {
+  listeners.push(fn);
+  return () => {
+    const i = listeners.indexOf(fn);
+    if (i >= 0) listeners.splice(i, 1);
+  };
+}
+const getLocaleVersion = () => localeVersion;
+
 function navigate(url: UrlLike, opts: { locale?: string } | undefined, replace: boolean) {
   let href = toHref(url);
   const data = rlData();
@@ -59,6 +74,16 @@ function navigate(url: UrlLike, opts: { locale?: string } | undefined, replace: 
   const path = qi < 0 ? href : href.slice(0, qi);
   href = localizedPath(path, locale) + (qi < 0 ? '' : href.slice(qi));
   if (opts?.locale) document.cookie = `NEXT_LOCALE=${opts.locale}; path=/; max-age=31536000`;
+  const samePage = stripLocale(path, data.locales) === stripLocale(window.location.pathname, data.locales);
+  if (opts?.locale && samePage && window.history && typeof window.history.replaceState === 'function') {
+    if (replace) window.history.replaceState(null, '', href);
+    else window.history.pushState(null, '', href);
+    data.locale = opts.locale;
+    document.documentElement.lang = opts.locale;
+    localeVersion++;
+    listeners.slice().forEach((fn) => fn());
+    return Promise.resolve(true);
+  }
   if (replace) window.location.replace(href);
   else window.location.href = href;
   return Promise.resolve(true);
@@ -67,6 +92,8 @@ function navigate(url: UrlLike, opts: { locale?: string } | undefined, replace: 
 const noop = () => {};
 
 export function useRouter() {
+  // re-renderiza quem usa o router quando o idioma muda sem recarregar
+  useSyncExternalStore(subscribe, getLocaleVersion, getLocaleVersion);
   const data = rlData();
   return {
     locale: data.locale,
