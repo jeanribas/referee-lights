@@ -53,8 +53,8 @@ test('legenda: salvar configuração propaga para outra legenda da sala', async 
   await editor.getByRole('button', { name: m.buttons.frameHide }).click();
   await editor.getByRole('button', { name: m.buttons.digits.replace('{mode}', m.digitsModes.hhmmss) }).click();
   await expect(editor.getByText('00:00', { exact: true })).toBeVisible();
-  // Copiar link salva a configuração (e copia o link do OBS), sem modal
-  await editor.getByRole('button', { name: new RegExp(`^${m.share.copy}`) }).click();
+  // Salvar grava a configuração na sala, sem modal
+  await editor.getByRole('button', { name: new RegExp(`^${m.share.save}`) }).click();
   await expect(editor.getByRole('dialog')).toHaveCount(0);
 
   // o outro cliente recebe via legend:config
@@ -72,20 +72,7 @@ test('legenda: link de compartilhamento esconde os controles e aplica os parâme
     urls.legend(room, '&view=share&legendBg=%23000000&legendTimer=%23FF0000&legendDigits=mmss&legendPlaceholders=0&legendFrame=0')
   );
   await expect(share.getByText('00:00', { exact: true })).toBeVisible({ timeout: 15_000 });
-  await expect(share.getByRole('button', { name: new RegExp(`^${m.share.copy}`) })).toHaveCount(0);
+  await expect(share.getByRole('button', { name: new RegExp(`^${m.share.save}`) })).toHaveCount(0);
   await expect(share.getByText('00:00', { exact: true })).toHaveCSS('color', 'rgb(255, 0, 0)');
   await expect(share.locator('[data-legend-root]')).toHaveCSS('background-color', 'rgb(0, 0, 0)');
-});
-
-test('legenda: copiar link gera o link da própria tela (com a barra) para o OBS', async ({ context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-  const room = await createRoom();
-  const m = msg('pt-BR').legend;
-  const legend = await open(context, urls.legend(room));
-  await expect(connectedBadge(legend)).toBeVisible({ timeout: 15_000 });
-  await legend.getByRole('button', { name: new RegExp(`^${m.share.copy}`) }).click();
-  await expect(legend.getByRole('button', { name: new RegExp(`^${m.share.copied}`) })).toBeVisible();
-  const copied = await legend.evaluate(() => navigator.clipboard.readText());
-  expect(copied).toContain(`/legend?roomId=${room.roomId}&pin=${room.adminPin}`);
-  expect(copied).not.toContain('view=share');
 });

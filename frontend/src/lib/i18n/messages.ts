@@ -208,6 +208,11 @@ type LegendMessages = {
     copy: string;
     copied: string;
   };
+  help: {
+    button: string;
+    title: string;
+    steps: string[];
+  };
   wakeWarning: string;
   waiting: string;
   /** Concluir a configuração: salva e mostra como levar a legenda para o OBS */
@@ -686,6 +691,16 @@ const MESSAGES: Record<AppLocale, Messages> = {
         copy: 'Copiar link',
         copied: 'Copiado'
       },
+      help: {
+        button: 'Como usar no OBS',
+        title: 'Como usar no OBS',
+        steps: [
+          'Ajuste aqui a aparência (cor de fundo, molduras, linha, dígitos) e clique em Salvar — vale para todas as legendas desta sala.',
+          'No OBS, adicione uma Fonte de Navegador com o endereço desta janela (copie da barra de endereço do navegador).',
+          'Na cena, recorte a barra de cima (Alt + arrastar a borda da fonte).',
+          'Para ajustar dentro do OBS: clique com o botão direito na fonte → Interagir, mude o que quiser e clique em Salvar.'
+        ]
+      },
       wakeWarning: 'Não foi possível ativar o modo sem descanso. Toque na tela ou tente novamente.',
       waiting: 'Aguardando conexão...',
       done: {
@@ -1090,6 +1105,16 @@ const MESSAGES: Record<AppLocale, Messages> = {
         copy: 'Copy link',
         copied: 'Copied'
       },
+      help: {
+        button: 'How to use in OBS',
+        title: 'How to use in OBS',
+        steps: [
+          'Adjust the look here (background color, frames, line, digits) and click Save — it applies to every legend in this room.',
+          "In OBS, add a Browser Source with this window's address (copy it from the browser's address bar).",
+          'In the scene, crop out the top bar (Alt + drag the source edge).',
+          'To adjust inside OBS: right-click the source → Interact, change what you need and click Save.'
+        ]
+      },
       wakeWarning: 'Could not enable keep-awake mode. Tap the screen or try again.',
       waiting: 'Waiting for connection...',
       done: {
@@ -1493,6 +1518,16 @@ const MESSAGES: Record<AppLocale, Messages> = {
         saved: 'Guardado',
         copy: 'Copiar enlace',
         copied: 'Copiado'
+      },
+      help: {
+        button: 'Cómo usar en OBS',
+        title: 'Cómo usar en OBS',
+        steps: [
+          'Ajusta aquí la apariencia (color de fondo, marcos, línea, dígitos) y haz clic en Guardar — vale para todas las leyendas de esta sala.',
+          'En OBS, agrega una Fuente de Navegador con la dirección de esta ventana (cópiala de la barra de direcciones del navegador).',
+          'En la escena, recorta la barra superior (Alt + arrastrar el borde de la fuente).',
+          'Para ajustar dentro de OBS: clic derecho en la fuente → Interactuar, cambia lo que quieras y haz clic en Guardar.'
+        ]
       },
       wakeWarning: 'No se pudo activar el modo de mantener despierto. Toca la pantalla o inténtalo de nuevo.',
       waiting: 'Esperando la conexión...',
