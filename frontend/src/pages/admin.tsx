@@ -278,7 +278,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
   const handleCreateSession = useCallback(async () => {
     setMutationLoading(true);
     try {
-      const data = await createRoom();
+      const data = await createRoom(currentLocale);
       setRoomAccess(data);
       setRoomErrorCode(null);
       await router.replace({ pathname: '/admin', query: { roomId: data.roomId, pin: data.adminPin } });
@@ -287,7 +287,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
     } finally {
       setMutationLoading(false);
     }
-  }, [router]);
+  }, [router, currentLocale]);
 
   const handleJoinSession = useCallback(
     async (id: string, pin: string) => {
