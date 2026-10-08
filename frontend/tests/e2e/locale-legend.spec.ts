@@ -77,7 +77,7 @@ test('legenda: link de compartilhamento esconde os controles e aplica os parâme
   await expect(share.locator('[data-legend-root]')).toHaveCSS('background-color', 'rgb(0, 0, 0)');
 });
 
-test('legenda: copiar link gera URL de share com a configuração atual', async ({ context }) => {
+test('legenda: copiar link gera o link da própria tela (com a barra) para o OBS', async ({ context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   const room = await createRoom();
   const m = msg('pt-BR').legend;
@@ -86,6 +86,6 @@ test('legenda: copiar link gera URL de share com a configuração atual', async 
   await legend.getByRole('button', { name: new RegExp(`^${m.share.copy}`) }).click();
   await expect(legend.getByRole('button', { name: new RegExp(`^${m.share.copied}`) })).toBeVisible();
   const copied = await legend.evaluate(() => navigator.clipboard.readText());
-  expect(copied).toContain(`/legend?roomId=${room.roomId}`);
-  expect(copied).toContain('view=share');
+  expect(copied).toContain(`/legend?roomId=${room.roomId}&pin=${room.adminPin}`);
+  expect(copied).not.toContain('view=share');
 });
