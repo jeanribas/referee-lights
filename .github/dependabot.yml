@@ -10,6 +10,12 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+      # Piso de navegador (iPhone 5S/iOS 12, TV): Next 16 e Tailwind 4 sobem o
+      # piso. Alerta de segurança que puxe esses dois se resolve por override.
+      - dependency-name: "next"
+        versions: [">=16"]
+      - dependency-name: "tailwindcss"
+        versions: [">=4"]
     groups:
       frontend-minor-patch:
         update-types: ["minor", "patch"]
