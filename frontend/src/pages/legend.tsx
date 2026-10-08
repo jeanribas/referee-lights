@@ -290,16 +290,12 @@ export default function LegendPage() {
   const currentConfigKey = [bgColor, timerColor, digitMode, showPlaceholders ? '1' : '0', showDashedFrame ? '1' : '0', keepAwake ? '1' : '0'].join('|');
   const hasUnsaved = currentConfigKey !== remoteLegendConfigKey;
 
-  // Concluir = salvar + mostrar como levar a legenda para o OBS
-  const [doneOpen, setDoneOpen] = useState(false);
+  // Botão principal: salva a configuração e copia o link para o OBS
+  // (Fonte de Navegador). Sem modal no meio — pedido do Jean (08/out).
   const handleDone = () => {
     setMenuOpen(false);
     handleSaveLegendConfig();
-    setDoneOpen(true);
-  };
-  const useThisWindow = () => {
-    setDoneOpen(false);
-    void router.replace(shareLink);
+    void handleCopyShareLink();
   };
 
   // A paleta fecha sozinha (10 s sem uso) ou ao clicar fora, inclusive em outro
@@ -326,12 +322,6 @@ export default function LegendPage() {
       window.removeEventListener('blur', onBlur);
     };
   }, [menuOpen, paletteTouch]);
-  useEffect(() => {
-    if (!doneOpen) return;
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setDoneOpen(false); };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [doneOpen]);
 
   return (
     <>
@@ -380,7 +370,7 @@ export default function LegendPage() {
                 title={hasUnsaved ? legendMessages.done.unsaved : undefined}
               >
                 {hasUnsaved && <span className="h-2 w-2 rounded-full bg-slate-950" aria-hidden="true" />}
-                {legendMessages.done.button}
+                {copiedShareLink ? legendMessages.share.copied : legendMessages.share.copy}
                 {hasUnsaved && <span className="sr-only"> ({legendMessages.done.unsaved})</span>}
               </button>
             </div>
@@ -481,79 +471,6 @@ export default function LegendPage() {
         </main>
       </div>
 
-      {doneOpen && (
-        // Confirmação ao concluir: interrompe de propósito, para a pessoa sair
-        // daqui sabendo como levar a legenda para o OBS sem sobrar controle
-        // Clique fora do quadro fecha (como Voltar a editar)
-        <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="legend-done-title"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setDoneOpen(false);
-          }}
-        >
-          <div className="relative flex w-full max-w-lg flex-col gap-4 rounded-2xl border border-white/10 bg-slate-900 p-5 text-slate-100 shadow-[0_24px_60px_rgba(0,0,0,0.6)]">
-            {/* X igual ao do modal de QR dos árbitros */}
-            <button
-              type="button"
-              onClick={() => setDoneOpen(false)}
-              className="absolute right-4 top-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-2xl text-white transition hover:bg-white/20"
-            >
-              <span className="sr-only">{messages.common.srOnly.close}</span>
-              <span aria-hidden="true">×</span>
-            </button>
-            <div className="pr-14">
-              <h2 id="legend-done-title" className="text-[15px] font-bold uppercase tracking-[0.12em] text-white">{legendMessages.done.title}</h2>
-              <p className="mt-1 text-[13px] text-emerald-300">{legendMessages.done.saved}</p>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <span className="text-[13px] font-semibold text-slate-300">{legendMessages.done.obsLabel}</span>
-              <div className="flex gap-2">
-                <input
-                  readOnly
-                  value={absoluteShareLink}
-                  onFocus={(e) => e.currentTarget.select()}
-                  className="h-11 min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 text-[13px] text-slate-200 outline-none focus:border-sky-400"
-                />
-                <button
-                  type="button"
-                  onClick={async () => {
-                    // Copiou: mostra "Copiado!" por um instante e fecha
-                    if (await handleCopyShareLink()) window.setTimeout(() => setDoneOpen(false), 700);
-                  }}
-                  className="h-11 shrink-0 rounded-lg bg-emerald-500 px-4 text-[15px] font-semibold text-slate-950 transition hover:bg-emerald-400"
-                >
-                  {copiedShareLink ? legendMessages.share.copied : legendMessages.share.copy}
-                </button>
-              </div>
-              <span className="text-[13px] text-slate-400">{legendMessages.done.obsHint}</span>
-            </div>
-
-            <div className="flex flex-col gap-1 border-t border-white/10 pt-4">
-              <button
-                type="button"
-                onClick={useThisWindow}
-                className="h-11 rounded-lg border border-slate-600 bg-slate-800 px-4 text-[15px] font-semibold text-white transition hover:bg-slate-700"
-              >
-                {legendMessages.done.useWindow}
-              </button>
-              <span className="text-[13px] text-slate-400">{legendMessages.done.useWindowHint}</span>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setDoneOpen(false)}
-              className="h-10 self-end rounded-lg px-3 text-[15px] font-semibold text-slate-300 transition hover:bg-white/10"
-              autoFocus
-            >
-              {legendMessages.done.back}
-            </button>
-          </div>
-        </div>
-      )}
     </>
   );
 }
