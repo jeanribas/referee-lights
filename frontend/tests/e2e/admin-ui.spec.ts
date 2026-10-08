@@ -63,7 +63,7 @@ test('QR codes: modal lista os 3 juízes com links válidos e fecha', async ({ p
   await expect(dialog).toHaveCount(0);
 });
 
-test('links do painel: display, cronômetro e legenda', async ({ page }) => {
+test('links do painel: display, cronômetro e legenda', async ({ page, context }) => {
   const room = await createRoom();
   await page.goto(urls.admin(room));
   // Absolutos: com o painel em localhost usam o IP da rede (o display e o
@@ -88,10 +88,21 @@ test('links do painel: display, cronômetro e legenda', async ({ page }) => {
 
   // Clique com o admin já carregado (conectado): pela navegação do Next o
   // display (tela universal) ficava preto — o teste antigo clicava antes.
+  // Display e legenda abrem em aba nova; o admin continua aberto.
   await expect(connectedBadge(page)).toBeVisible({ timeout: 15_000 });
-  await page.getByRole('link', { name: m.admin.preview.goToDisplay }).click();
-  await expect(page).toHaveURL(/\/display\?/);
-  await expect(page.getByText('1:00').first()).toBeVisible({ timeout: 15_000 });
+  const [display] = await Promise.all([
+    context.waitForEvent('page'),
+    page.getByRole('link', { name: m.admin.preview.goToDisplay }).click()
+  ]);
+  await expect(display).toHaveURL(/\/display\?/);
+  await expect(display.getByText('1:00').first()).toBeVisible({ timeout: 15_000 });
+  const [legend] = await Promise.all([
+    context.waitForEvent('page'),
+    page.getByRole('link', { name: m.admin.preview.goToLegend }).click()
+  ]);
+  await expect(legend).toHaveURL(/\/legend\?/);
+  await expect(connectedBadge(legend)).toBeVisible({ timeout: 15_000 });
+  await expect(page).toHaveURL(/\/admin\?/);
 });
 
 test('display: menu abre, tela ativa é automática (sem botão) e volta ao admin', async ({ page }) => {
