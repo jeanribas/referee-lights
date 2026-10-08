@@ -780,11 +780,12 @@ function RoomSetup(props: {
       setFitScale(Number.isFinite(s) && s > 0 ? s : 1);
     };
     update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
+    // ResizeObserver não existe em Safari < 13.1 (iOS 12); lá o resize basta.
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(update) : null;
+    ro?.observe(el);
     window.addEventListener('resize', update);
     return () => {
-      ro.disconnect();
+      ro?.disconnect();
       window.removeEventListener('resize', update);
     };
   }, []);
