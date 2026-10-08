@@ -54,7 +54,9 @@ export default function LegendPage() {
   const [digitMode, setDigitMode] = useState<'mmss' | 'hhmmss'>('hhmmss');
   const [timerColor, setTimerColor] = useState('#FFFFFF');
   const [hydrated, setHydrated] = useState(false);
-  const [copiedShareLink, setCopiedShareLink] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const helpRef = useRef<HTMLElement | null>(null);
   const appliedRemoteConfigKeyRef = useRef<string | null>(null);
   const [keepAwake, setKeepAwake] = useState(() => {
     if (typeof window === 'undefined') return true;
@@ -214,47 +216,6 @@ export default function LegendPage() {
     : legendMessages.buttons.frameShow;
   const bgPickerValue = isHexColor(bgColor) ? bgColor : '#000B1E';
   const lightsFrameClassName = getLegendLightsFrameClassName(showDashedFrame);
-  // Link do OBS = esta mesma tela, com a barra de configuração: o operador
-  // ajusta pelo "Interagir" do OBS e recorta a barra na fonte (pedido do
-  // Jean, 08/out). Links antigos com view=share continuam valendo.
-  const shareLink = useMemo(() => {
-    const params = new URLSearchParams();
-    if (roomId) params.set('roomId', roomId);
-    if (adminPin) params.set('pin', adminPin);
-    return `/legend?${params.toString()}`;
-  }, [roomId, adminPin]);
-
-  // Endereço de rede vindo do painel (outro computador/OBS não alcança
-  // "localhost"); só aceita uma origem http(s) simples.
-  const absoluteShareLink = useMemo(() => {
-    if (typeof window === 'undefined') return shareLink;
-    const requested = typeof router.query.shareOrigin === 'string' ? router.query.shareOrigin : '';
-    const origin = /^https?:\/\/[^/?#\s]+$/.test(requested) ? requested : window.location.origin;
-    return `${origin}${shareLink}`;
-  }, [shareLink, router.query.shareOrigin]);
-
-  const handleCopyShareLink = useCallback(async () => {
-    if (typeof window === 'undefined' || !shareLink) return false;
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(absoluteShareLink);
-      } else {
-        const helperInput = document.createElement('input');
-        helperInput.value = absoluteShareLink;
-        document.body.appendChild(helperInput);
-        helperInput.select();
-        document.execCommand('copy');
-        document.body.removeChild(helperInput);
-      }
-      setCopiedShareLink(true);
-      window.setTimeout(() => setCopiedShareLink(false), 1500);
-      return true;
-    } catch {
-      setCopiedShareLink(false);
-      return false;
-    }
-  }, [shareLink, absoluteShareLink]);
-
   const handleSaveLegendConfig = useCallback(() => {
     if (typeof window === 'undefined' || isShareView) return;
     const nextLegendConfig = {
@@ -279,27 +240,31 @@ export default function LegendPage() {
   const currentConfigKey = [bgColor, timerColor, digitMode, showPlaceholders ? '1' : '0', showDashedFrame ? '1' : '0', keepAwake ? '1' : '0'].join('|');
   const hasUnsaved = currentConfigKey !== remoteLegendConfigKey;
 
-  // Mexeu na barra (ou na paleta)? A mudança vai para a sala na hora — a
-  // legenda aberta no OBS e as outras acompanham. Só depois de uma ação da
-  // pessoa: abrir a tela (no OBS, sem nada salvo no navegador) nunca
-  // sobrescreve a configuração da sala.
-  const editedAtRef = useRef(0);
-  const markEdited = () => {
-    editedAtRef.current = Date.now();
-  };
-  useEffect(() => {
-    if (isShareView || !hasUnsaved || Date.now() - editedAtRef.current > 3000) return;
-    const id = window.setTimeout(() => handleSaveLegendConfig(), 250);
-    return () => window.clearTimeout(id);
-  }, [currentConfigKey, hasUnsaved, isShareView, handleSaveLegendConfig]);
-
-  // Botão principal: salva a configuração e copia o link para o OBS
-  // (Fonte de Navegador). Sem modal no meio — pedido do Jean (08/out).
+  // Botão principal: Salvar. A legenda é uma tela só — esta janela, aberta
+  // pelo admin, é a mesma que vai para o OBS (Fonte de Navegador com este
+  // endereço); dá para ajustar e salvar aqui ou de dentro do OBS
+  // (Interagir). Pedido do Jean, 08/out.
   const handleDone = () => {
     setMenuOpen(false);
     handleSaveLegendConfig();
-    void handleCopyShareLink();
+    setSavedFlash(true);
+    window.setTimeout(() => setSavedFlash(false), 1500);
   };
+
+  // Ajuda "Como usar no OBS": fecha ao clicar fora ou com Esc
+  useEffect(() => {
+    if (!helpOpen) return;
+    const onDown = (event: PointerEvent) => {
+      if (helpRef.current && !helpRef.current.contains(event.target as Node)) setHelpOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setHelpOpen(false); };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [helpOpen]);
 
   // A paleta fecha sozinha (10 s sem uso) ou ao clicar fora, inclusive em outro
   // botão da barra: esquecida aberta, ela apareceria na captura da janela
@@ -346,9 +311,6 @@ export default function LegendPage() {
         {!isShareView && (
           <div
             className="relative z-50 shrink-0 border-b border-white/10 bg-slate-950"
-            onPointerDownCapture={markEdited}
-            onKeyDownCapture={markEdited}
-            onInputCapture={markEdited}
           >
             <div className="flex h-14 items-center gap-2 overflow-x-auto px-3 [scrollbar-width:none]">
               <div className="mr-auto flex min-w-0 shrink-0 flex-col leading-tight">
@@ -378,11 +340,43 @@ export default function LegendPage() {
                 title={hasUnsaved ? legendMessages.done.unsaved : undefined}
               >
                 {hasUnsaved && <span className="h-2 w-2 rounded-full bg-slate-950" aria-hidden="true" />}
-                {copiedShareLink ? legendMessages.share.copied : legendMessages.share.copy}
+                {savedFlash ? legendMessages.share.saved : legendMessages.share.save}
                 {hasUnsaved && <span className="sr-only"> ({legendMessages.done.unsaved})</span>}
+              </button>
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => {
+                  setMenuOpen(false);
+                  setHelpOpen((prev) => !prev);
+                }}
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 text-white transition hover:bg-white/20 ${helpOpen ? 'bg-white text-slate-950 hover:bg-white' : 'bg-white/10'}`}
+                aria-expanded={helpOpen}
+                title={legendMessages.help.button}
+              >
+                <span className="sr-only">{legendMessages.help.button}</span>
+                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 11v5M12 7.5v.01" />
+                </svg>
               </button>
             </div>
 
+            {helpOpen && (
+              // Como usar no OBS: suspenso sob a barra, à direita
+              <section
+                ref={helpRef}
+                className="absolute right-3 top-full mt-2 flex w-[min(26rem,calc(100%-1.5rem))] flex-col gap-3 rounded-2xl border border-white/10 bg-slate-950/95 p-4 text-slate-200 shadow-[0_12px_32px_rgba(0,0,0,0.5)]"
+                aria-label={legendMessages.help.title}
+              >
+                <h2 className="text-[13px] font-bold uppercase tracking-[0.12em] text-white">{legendMessages.help.title}</h2>
+                <ol className="flex list-decimal flex-col gap-2 pl-5 text-[13px] leading-snug">
+                  {legendMessages.help.steps.map((step) => (
+                    <li key={step}>{step}</li>
+                  ))}
+                </ol>
+              </section>
+            )}
             {menuOpen && (
               // Paleta suspensa sob a barra, por cima do conteúdo (não empurra nada)
               <section
