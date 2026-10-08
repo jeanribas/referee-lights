@@ -214,26 +214,15 @@ export default function LegendPage() {
     : legendMessages.buttons.frameShow;
   const bgPickerValue = isHexColor(bgColor) ? bgColor : '#000B1E';
   const lightsFrameClassName = getLegendLightsFrameClassName(showDashedFrame);
+  // Link do OBS = esta mesma tela, com a barra de configuração: o operador
+  // ajusta pelo "Interagir" do OBS e recorta a barra na fonte (pedido do
+  // Jean, 08/out). Links antigos com view=share continuam valendo.
   const shareLink = useMemo(() => {
     const params = new URLSearchParams();
     if (roomId) params.set('roomId', roomId);
     if (adminPin) params.set('pin', adminPin);
-    params.set('view', 'share');
-    params.set('legendBg', bgColor);
-    params.set('legendTimer', timerColor);
-    params.set('legendDigits', digitMode);
-    params.set('legendPlaceholders', showPlaceholders ? '1' : '0');
-    params.set('legendFrame', showDashedFrame ? '1' : '0');
     return `/legend?${params.toString()}`;
-  }, [
-    roomId,
-    adminPin,
-    bgColor,
-    timerColor,
-    digitMode,
-    showPlaceholders,
-    showDashedFrame
-  ]);
+  }, [roomId, adminPin]);
 
   // Endereço de rede vindo do painel (outro computador/OBS não alcança
   // "localhost"); só aceita uma origem http(s) simples.
@@ -290,6 +279,20 @@ export default function LegendPage() {
   const currentConfigKey = [bgColor, timerColor, digitMode, showPlaceholders ? '1' : '0', showDashedFrame ? '1' : '0', keepAwake ? '1' : '0'].join('|');
   const hasUnsaved = currentConfigKey !== remoteLegendConfigKey;
 
+  // Mexeu na barra (ou na paleta)? A mudança vai para a sala na hora — a
+  // legenda aberta no OBS e as outras acompanham. Só depois de uma ação da
+  // pessoa: abrir a tela (no OBS, sem nada salvo no navegador) nunca
+  // sobrescreve a configuração da sala.
+  const editedAtRef = useRef(0);
+  const markEdited = () => {
+    editedAtRef.current = Date.now();
+  };
+  useEffect(() => {
+    if (isShareView || !hasUnsaved || Date.now() - editedAtRef.current > 3000) return;
+    const id = window.setTimeout(() => handleSaveLegendConfig(), 250);
+    return () => window.clearTimeout(id);
+  }, [currentConfigKey, hasUnsaved, isShareView, handleSaveLegendConfig]);
+
   // Botão principal: salva a configuração e copia o link para o OBS
   // (Fonte de Navegador). Sem modal no meio — pedido do Jean (08/out).
   const handleDone = () => {
@@ -341,7 +344,12 @@ export default function LegendPage() {
           sem a barra, o OBS usa o link de compartilhamento. */}
       <div data-legend-root className="flex h-screen flex-col overflow-hidden" style={{ backgroundColor: bgColor }}>
         {!isShareView && (
-          <div className="relative z-50 shrink-0 border-b border-white/10 bg-slate-950">
+          <div
+            className="relative z-50 shrink-0 border-b border-white/10 bg-slate-950"
+            onPointerDownCapture={markEdited}
+            onKeyDownCapture={markEdited}
+            onInputCapture={markEdited}
+          >
             <div className="flex h-14 items-center gap-2 overflow-x-auto px-3 [scrollbar-width:none]">
               <div className="mr-auto flex min-w-0 shrink-0 flex-col leading-tight">
                 <h1 className="text-[15px] font-bold uppercase tracking-[0.12em] text-white">{legendMessages.title}</h1>
