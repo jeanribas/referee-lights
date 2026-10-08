@@ -692,12 +692,15 @@
       byId('rl-lost-text').innerHTML = '';
       byId('rl-lost-text').appendChild(document.createTextNode(text));
       byId('rl-lost-retry').style.display = withRetry ? '' : 'none';
+      box.setAttribute('data-connection-lost', '');
       box.style.display = '';
     }
 
     function hide() {
       var box = byId('rl-lost');
-      if (box) box.style.display = 'none';
+      if (!box) return;
+      box.style.display = 'none';
+      box.removeAttribute('data-connection-lost');
     }
 
     return function update(status, error) {
