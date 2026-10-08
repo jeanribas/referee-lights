@@ -225,6 +225,9 @@
   };
 
   window.onerror = function (message, source, line, col, error) {
+    // erro de script de terceiro (analytics, sessão) não é erro da tela
+    var src = String(source || '');
+    if (/^Script error\.?$/.test(String(message)) || src.indexOf('/_vercel/') > -1 || (src && src.indexOf(window.location.protocol + '//' + window.location.host) !== 0)) return false;
     RL.reportError((error && error.name) || 'Error', String(message), error && error.stack);
     return false;
   };

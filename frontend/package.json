@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "test:e2e": "playwright test",
-    "prebuild": "node scripts/build-compat.mjs"
+    "prebuild": "node scripts/build-compat.mjs",
+    "postbuild": "node scripts/check-compat.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
