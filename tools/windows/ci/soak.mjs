@@ -213,7 +213,18 @@ async function main() {
     if (!reloaded && Date.now() >= reloadAt) {
       reloaded = true;
       log('recarregando display e legend (operador apertou F5)');
-      for (const n of ['display', 'legend']) await pages[n].reload({ waitUntil: 'load' });
+      // O display (tela universal) troca de página sozinho ao seguir o idioma
+      // da sala; um F5 bem nessa hora vem como ERR_ABORTED — tenta de novo.
+      for (const n of ['display', 'legend']) {
+        try {
+          await pages[n].reload({ waitUntil: 'load' });
+        } catch (error) {
+          if (!/ERR_ABORTED|frame was detached/.test(String(error))) throw error;
+          log(`${n}: F5 interrompido pela troca de idioma da própria tela; recarregando de novo`);
+          await sleep(2000);
+          await pages[n].reload({ waitUntil: 'load' });
+        }
+      }
     }
 
     // --- uma decisão pelas telas dos árbitros ---
