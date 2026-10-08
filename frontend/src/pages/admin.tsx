@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { GetServerSideProps } from 'next';
 import { useRouter } from 'next/router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ChangeEvent, FormEvent, MouseEvent } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 
 import { DecisionLights } from '@/components/DecisionLights';
 import TimerDisplay from '@/components/TimerDisplay';
@@ -89,7 +89,6 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
   const [intervalSeconds, setIntervalSeconds] = useState(0);
 
   const [qrMenuOpen, setQrMenuOpen] = useState(false);
-  const [legendModalOpen, setLegendModalOpen] = useState(false);
   const [appOrigin, setAppOrigin] = useState('');
 
   const credentialsReady = Boolean(router.isReady && roomId && adminPin);
@@ -258,17 +257,12 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
     ];
   }, [adminMessages.qrMenu.targets, adminMessages.qrMenu.shortTargets, appOrigin, roomAccess, roomId]);
 
-  // Display e timer costumam abrir em OUTRO computador: mesmo endereço de
-  // rede dos QR dos árbitros (com o painel em localhost, um link relativo
-  // levaria "localhost" para a outra máquina). A legenda abre aqui (prévia),
-  // mas o "copiar link" dela usa esse endereço (shareOrigin).
+  // Display, timer e legenda costumam abrir em OUTRO computador (a legenda
+  // vai para o OBS): mesmo endereço de rede dos QR dos árbitros (com o painel
+  // em localhost, um link relativo levaria "localhost" para a outra máquina).
   const displayLink = `${appOrigin}${buildRoomViewHref('/display', roomId, adminPin)}`;
   const timerLink = `${appOrigin}${buildRoomViewHref('/timer', roomId, adminPin)}`;
-  const legendLink = useMemo(() => {
-    const href = buildRoomViewHref('/legend', roomId, adminPin);
-    if (!appOrigin) return href;
-    return `${href}${href.includes('?') ? '&' : '?'}shareOrigin=${encodeURIComponent(appOrigin)}`;
-  }, [appOrigin, roomId, adminPin]);
+  const legendLink = `${appOrigin}${buildRoomViewHref('/legend', roomId, adminPin)}`;
   const roomErrorMessage = formatApiError(roomErrorCode, commonMessages.errors);
   const socketErrorMessage = formatApiError(socketError, commonMessages.errors);
 
@@ -284,7 +278,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
   const handleCreateSession = useCallback(async () => {
     setMutationLoading(true);
     try {
-      const data = await createRoom();
+      const data = await createRoom(currentLocale);
       setRoomAccess(data);
       setRoomErrorCode(null);
       await router.replace({ pathname: '/admin', query: { roomId: data.roomId, pin: data.adminPin } });
@@ -293,7 +287,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
     } finally {
       setMutationLoading(false);
     }
-  }, [router]);
+  }, [router, currentLocale]);
 
   const handleJoinSession = useCallback(
     async (id: string, pin: string) => {
@@ -574,13 +568,12 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
               >
                 {adminMessages.preview.goToDisplay}
               </Link>
-              <button
-                type="button"
-                onClick={() => setLegendModalOpen(true)}
+              <Link
+                href={legendLink}
                 className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-white transition hover:bg-white/20"
               >
                 {adminMessages.preview.goToLegend}
-              </button>
+              </Link>
               <Link
                 href={timerLink}
                 onClick={(event) => {
@@ -691,64 +684,7 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
           closeLabel={commonMessages.srOnly.close}
         />
       )}
-      {legendModalOpen && (
-        <LegendPreviewModal
-          src={legendLink}
-          onClose={() => setLegendModalOpen(false)}
-          title={adminMessages.preview.goToLegend}
-          closeLabel={commonMessages.srOnly.close}
-        />
-      )}
     </>
-  );
-}
-
-function LegendPreviewModal({
-  src,
-  onClose,
-  title,
-  closeLabel
-}: {
-  src: string;
-  onClose: () => void;
-  title: string;
-  closeLabel: string;
-}) {
-  const handleBackdropClick = (event: MouseEvent<HTMLDivElement>) => {
-    if (event.currentTarget === event.target) {
-      onClose();
-    }
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-6 py-10"
-      onClick={handleBackdropClick}
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-    >
-      {/* Faixa própria para o título e o fechar: antes o X ficava por cima da barra da legenda */}
-      <div className="flex h-[85vh] w-full max-w-[1600px] flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#0F141F] shadow-[0_30px_80px_rgba(0,0,0,0.6)]">
-        <div className="flex h-12 shrink-0 items-center justify-between border-b border-white/10 px-4">
-          <span className="text-[15px] font-bold uppercase tracking-[0.12em] text-slate-200">{title}</span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 text-xl leading-none text-white transition hover:bg-white/20"
-          >
-            <span className="sr-only">{closeLabel}</span>
-            <span aria-hidden="true">×</span>
-          </button>
-        </div>
-        <iframe
-          src={src}
-          title={title}
-          className="min-h-0 w-full flex-1"
-          loading="lazy"
-        />
-      </div>
-    </div>
   );
 }
 
@@ -780,11 +716,12 @@ function RoomSetup(props: {
       setFitScale(Number.isFinite(s) && s > 0 ? s : 1);
     };
     update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
+    // ResizeObserver não existe em Safari < 13.1 (iOS 12); lá o resize basta.
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(update) : null;
+    ro?.observe(el);
     window.addEventListener('resize', update);
     return () => {
-      ro.disconnect();
+      ro?.disconnect();
       window.removeEventListener('resize', update);
     };
   }, []);

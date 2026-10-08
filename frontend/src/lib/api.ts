@@ -60,8 +60,9 @@ async function getJson<T>(path: string): Promise<T> {
   return requestJson<T>(path);
 }
 
-export function createRoom() {
-  return postJson<JoinQrCodesResponse>('/rooms');
+/** O idioma da interface vai junto: a sala nasce no idioma de quem a criou. */
+export function createRoom(locale?: string) {
+  return postJson<JoinQrCodesResponse>('/rooms', locale ? { locale } : undefined);
 }
 
 export function accessRoom(roomId: string, adminPin: string) {

@@ -27,6 +27,14 @@ paths:
     post:
       summary: Cria uma sala
       description: Limite de 30 salas por IP a cada 10 minutos (loopback isento).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                locale: { $ref: '#/components/schemas/Locale' }
       responses:
         '201':
           description: Sala criada
@@ -169,6 +177,9 @@ components:
       required: true
       schema: { type: string, example: ABCD }
   schemas:
+    Locale:
+      type: string
+      enum: [pt-BR, en-US, es-ES]
     AdminPinBody:
       type: object
       required: [adminPin]

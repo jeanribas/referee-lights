@@ -93,7 +93,7 @@ func main() {
 
 	if err := app.Boot(payload, filepath.Dir(exe)); err != nil {
 		app.log.Printf("falha ao iniciar: %v", err)
-		showMessageSync("Referee Lights", fmt.Sprintf(app.t.StartFailed, err, paths.Logs))
+		showMessageSync("Referee Lights", fmt.Sprintf(app.T().StartFailed, err, paths.Logs))
 		os.Exit(1)
 	}
 

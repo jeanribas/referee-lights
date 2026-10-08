@@ -1,10 +1,20 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  // O Next 15 traz o sharp (otimização de imagem) como dependência e o
+  // standalone o levava junto — um 2º binário nativo no pacote. O app não usa
+  // next/image: sem otimizador e sem sharp no trace.
+  images: { unoptimized: true },
+  outputFileTracingExcludes: {
+    '*': ['node_modules/sharp/**', 'node_modules/@img/**']
+  },
   i18n: {
     locales: ['pt-BR', 'en-US', 'es-ES'],
     defaultLocale: 'pt-BR'
   },
+  // Pacotes que chegam em sintaxe nova demais (ex.: `??`) e quebravam em
+  // navegador antigo: o Next os compila para o mesmo alvo do app.
+  transpilePackages: ['@vercel/analytics'],
   reactStrictMode: true,
   // Exposto ao cliente para ajustes só do pacote (ex.: CSS inline). Vazio na web.
   env: {
@@ -14,7 +24,7 @@ const nextConfig = {
     ignoreBuildErrors: false
   },
   eslint: {
-    dirs: ['src']
+    dirs: ['src', 'compat-src']
   },
   async redirects() {
     // Consolidação de hostname (2026-07-31): o canônico é refereelights.app

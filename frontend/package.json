@@ -1,18 +1,20 @@
 {
   "name": "luzes-arbitros-frontend",
-  "version": "1.3.5",
+  "version": "1.3.6",
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "prebuild": "node scripts/build-compat.mjs",
+    "postbuild": "node scripts/check-compat.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
     "clsx": "^2.1.1",
-    "next": "14.2.35",
+    "next": "~15.5.27",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-qr-code": "^2.0.12",
@@ -20,16 +22,35 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.55.1",
+    "@swc/core": "~1.16.0",
     "@types/node": "^20.11.30",
     "@types/react": "^18.2.73",
     "@types/react-dom": "^18.2.24",
+    "acorn": "^8.18.0",
     "autoprefixer": "^10.4.15",
+    "core-js": "~3.50.0",
+    "esbuild": "^0.28.1",
     "eslint": "^8.57.0",
-    "eslint-config-next": "^14.2.35",
+    "eslint-config-next": "~15.5.27",
     "eslint-config-prettier": "^9.1.0",
     "postcss": "^8.4.33",
     "prettier": "^3.2.5",
     "tailwindcss": "^3.4.3",
-    "typescript": "^5.4.2"
+    "typescript": "^5.4.2",
+    "whatwg-fetch": "^3.6.20"
+  },
+  "browserslist": [
+    "chrome 64",
+    "edge 79",
+    "firefox 67",
+    "opera 51",
+    "safari 12",
+    "ios_saf 12"
+  ],
+  "overrides": {
+    "next": {
+      "postcss": "^8.5.23"
+    },
+    "source-map-js": "^1.2.2"
   }
 }

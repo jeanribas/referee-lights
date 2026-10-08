@@ -273,7 +273,7 @@ export async function createServer() {
 
   app.get('/health', async () => ({ status: 'ok' }));
 
-  app.post('/rooms', async (request, reply) => {
+  app.post<{ Body: { locale?: string } }>('/rooms', async (request, reply) => {
     // Criação em massa enche a memória e o pool de códigos de 4 letras.
     // Loopback (admin na própria máquina do bundle) não entra no limite.
     const ip = extractIp(request);
@@ -281,7 +281,11 @@ export async function createServer() {
       reply.code(429);
       return { error: 'rate_limited' };
     }
-    const data = roomManager.createRoom();
+    // Idioma opcional e validado: cliente antigo (ou body ausente) segue caindo
+    // no padrão do servidor, então a rota continua compatível.
+    const requested = request.body?.locale;
+    const locale = SUPPORTED_LOCALES.find((code) => code === requested);
+    const data = roomManager.createRoom(locale);
     const sessionId = analyticsStore.logSessionCreated(data.roomId, data.adminPin);
     if (sessionId !== null) sessionMap.set(data.roomId, sessionId);
     telemetry.trackSessionCreated(data.roomId);

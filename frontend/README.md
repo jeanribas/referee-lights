@@ -1,6 +1,6 @@
 # Referee Lights · Frontend
 
-Next.js 14 (Pages Router) + TypeScript + Tailwind. Idiomas: `pt-BR` (padrão), `en-US`, `es-ES`.
+Next.js (Pages Router) + TypeScript + Tailwind. Idiomas: `pt-BR` (padrão), `en-US`, `es-ES`.
 
 ## Rotas
 

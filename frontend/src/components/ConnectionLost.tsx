@@ -15,7 +15,7 @@ import { getMessages } from '@/lib/i18n/messages';
  * cada tela tinha uma pílula própria que aparecia junto e por baixo deste.
  * O admin fica de fora: ele volta para a tela de acesso com o erro.
  */
-const TEXTS = {
+export const CONNECTION_LOST_TEXTS = {
   pt: { lost: 'Sem conexão com o servidor', retry: 'reconectando…', room: 'Sessão encerrada ou inexistente' },
   en: { lost: 'No connection to the server', retry: 'reconnecting…', room: 'Session closed or not found' },
   es: { lost: 'Sin conexión con el servidor', retry: 'reconectando…', room: 'Sesión cerrada o inexistente' }
@@ -23,7 +23,7 @@ const TEXTS = {
 
 export function ConnectionLost() {
   const router = useRouter();
-  const t = TEXTS[(router.locale ?? 'pt').slice(0, 2) as keyof typeof TEXTS] ?? TEXTS.pt;
+  const t = CONNECTION_LOST_TEXTS[(router.locale ?? 'pt').slice(0, 2) as keyof typeof CONNECTION_LOST_TEXTS] ?? CONNECTION_LOST_TEXTS.pt;
   const { active, status, error } = useSyncExternalStore(connectionStore.subscribe, connectionStore.get, connectionStore.getServer);
   const [show, setShow] = useState(false);
   const everConnected = useRef(false);
