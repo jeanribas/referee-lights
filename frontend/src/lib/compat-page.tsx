@@ -49,7 +49,8 @@ export function CompatLostBanner({ locale }: { locale: string }) {
     <div
       id="rl-lost"
       role="alert"
-      data-connection-lost
+      // data-connection-lost só enquanto aparece (o rl.js põe e tira), como
+      // o ConnectionLost, que nem existe na página quando está tudo certo
       style={{ display: 'none' }}
       className="fixed left-1/2 top-3 z-[60] flex w-max max-w-[calc(100vw-1.5rem)] -translate-x-1/2 items-center gap-2.5 rounded-xl border border-red-500/60 bg-slate-950 px-4 py-2.5 text-[15px] font-semibold leading-tight text-white shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
     >
