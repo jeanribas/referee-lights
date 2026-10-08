@@ -1,10 +1,10 @@
-# Referee Lights 1.2
+# Referee Lights
 
-![release](https://img.shields.io/github/v/tag/jeanribas/referee-lights?label=release&sort=semver) ![visitors](https://visitor-badge.laobi.icu/badge?page_id=jeanribas.referee-lights) ![license](https://img.shields.io/badge/license-Custom-blue)
+![release](https://img.shields.io/github/v/release/jeanribas/referee-lights?label=release) ![visitors](https://visitor-badge.laobi.icu/badge?page_id=jeanribas.referee-lights) ![license](https://img.shields.io/badge/license-Custom-blue)
 
 [Português](README.md) · [English](README.en.md) · Español
 
-Plataforma completa de luces de arbitraje para competiciones de Powerlifting siguiendo las reglas de la IPF. La versión **1.2** incorpora escalado responsivo del viewport en todas las pantallas, soporte PWA y la página de temporizador rediseñada. Cinco interfaces web comparten el mismo estado en tiempo real mediante Socket.IO y pueden abrirse en distintos dispositivos:
+Plataforma completa de luces de arbitraje para competiciones de Powerlifting siguiendo las reglas de la IPF. Funciona online o en red local sin internet. Cinco interfaces web comparten el mismo estado en tiempo real mediante Socket.IO y pueden abrirse en distintos dispositivos:
 
 - `/` – panel administrativo que crea/recupera sesiones, genera códigos QR, controla el temporizador y sigue el estado de la plataforma
 - `/display` – pantalla a tamaño completo con las tres luces, cronómetro, intervalo y badges de cooldown
@@ -15,16 +15,6 @@ Plataforma completa de luces de arbitraje para competiciones de Powerlifting sig
 > El panel administrativo sigue disponible en `/admin` para mantener la compatibilidad con enlaces antiguos.
 
 Cada sesión tiene `roomId` y PIN administrativo. El panel genera automáticamente los códigos QR de los árbitros y enlaces directos para la pantalla/leyenda, además de permitir rotar los tokens cuando sea necesario.
-
-## Novedades de la 1.2
-
-- **Escalado responsivo de viewport** – todas las pantallas (admin, display, timer, referee) se ajustan automáticamente a cualquier tamaño de pantalla; sin controles manuales de zoom en display; el panel admin escala proporcionalmente en ventanas menores; las consolas de árbitros funcionan en cualquier smartphone sin ajuste manual
-- **Soporte PWA** – Web App Manifest con display standalone; apple-mobile-web-app-capable para iOS; guarda la URL actual (con roomId/token) en la pantalla de inicio; ícono SVG con diseño de luces de árbitros
-- **Temporizador standalone rediseñado** (`/timer`) – ahora es un panel de control completo (no solo visualización); tarjetas de Timer + Intervalo lado a lado (paisaje) o apiladas (retrato); badges de cooldown mostrando tiempo de cambio; escalado responsivo
-- **Footer auto-hide al desplazar** – el componente FooterBadges se oculta durante el scroll, reaparece después de 1,5 s
-- **Mejoras en los badges de cooldown** – ancho fijo (tabular-nums), posicionados de forma absoluta sobre las placas LIFTER/ATTEMPT (sin desplazamiento de layout), hook `useCooldownBadges` exportado para reutilización
-- **Key Relay integrado en el servidor** – ya no requiere un proceso auxiliar separado. El panel admin tiene un toggle "Ativar Key Relay" que inicia/detiene el key relay directamente desde el navegador. Soporta cualquier combinación de teclas (F1–F12, Ctrl+tecla, Alt+tecla, etc.) configurable mediante un modal que captura pulsaciones de teclas
-
 
 ## Capturas
 
@@ -79,7 +69,6 @@ Ingrese a `http://localhost:3000` y navegue a la ruta deseada.
 | `PORT` | Puerto del servidor | `3333` |
 | `CORS_ORIGIN` | Orígenes permitidos | — |
 | `LOG_LEVEL` | Nivel de log (debug, info, warn, error) | `info` |
-| `ANALYTICS_DB_PATH` | Ruta de la base de datos local (SQLite) | `data/analytics.db` |
 
 ## Panel admin (`/`, también `/admin`)
 

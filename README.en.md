@@ -1,10 +1,10 @@
-# Referee Lights 1.2
+# Referee Lights
 
-![release](https://img.shields.io/github/v/tag/jeanribas/referee-lights?label=release&sort=semver) ![visitors](https://visitor-badge.laobi.icu/badge?page_id=jeanribas.referee-lights) ![license](https://img.shields.io/badge/license-Custom-blue)
+![release](https://img.shields.io/github/v/release/jeanribas/referee-lights?label=release) ![visitors](https://visitor-badge.laobi.icu/badge?page_id=jeanribas.referee-lights) ![license](https://img.shields.io/badge/license-Custom-blue)
 
 [Português](README.md) · English · [Español](README.es.md)
 
-Complete referee light system for Powerlifting competitions following IPF rules. Version **1.2** brings responsive viewport scaling on every screen, PWA support, and a redesigned standalone timer page. Five web interfaces share the same real-time state via Socket.IO and can be opened on different devices:
+Complete referee light system for Powerlifting competitions following IPF rules. Works online or on a local network without internet. Five web interfaces share the same real-time state via Socket.IO and can be opened on different devices:
 
 - `/` – admin panel that creates/resumes sessions, generates QR codes, controls the timer, and monitors the platform state
 - `/display` – full-screen display with the three lights, countdown timer, interval alerts, and cooldown badges
@@ -15,16 +15,6 @@ Complete referee light system for Powerlifting competitions following IPF rules.
 > The admin panel remains available at `/admin` for backwards compatibility with older links.
 
 Each session has a `roomId` and an admin PIN. The panel automatically generates referee QR codes and direct links for the display/legend, and it can rotate tokens if needed.
-
-## What's new in 1.2
-
-- **Responsive viewport scaling** – all screens (admin, display, timer, referee) auto-scale to fit any screen size; no more manual zoom controls on display; admin panel scales proportionally on smaller windows; referee consoles work on any smartphone without manual zoom adjustment
-- **PWA support** – Web App Manifest with standalone display mode; apple-mobile-web-app-capable for iOS; saves the current URL (with roomId/token) to home screen; SVG app icon with referee lights design
-- **Redesigned standalone timer** (`/timer`) – now a full control panel (not just a display); Timer + Interval cards side by side (landscape) or stacked (portrait); cooldown badges showing lifter change time; responsive scaling
-- **Footer auto-hide on scroll** – FooterBadges component hides during scroll, reappears after 1.5 s
-- **Cooldown badge improvements** – fixed-width badges (tabular-nums), positioned absolutely above LIFTER/ATTEMPT plates (no layout shift), exported `useCooldownBadges` hook for reuse
-- **Key Relay built into server** – no longer requires a separate helper process. The admin panel has an "Ativar Key Relay" toggle that starts/stops the key relay directly from the browser. Supports any key combination (F1–F12, Ctrl+key, Alt+key, etc.) configurable via a modal that captures keystrokes
-
 
 ## Screenshots
 
@@ -79,7 +69,6 @@ Open `http://localhost:3000` and navigate to the desired route.
 | `PORT` | Server port | `3333` |
 | `CORS_ORIGIN` | Allowed origins | — |
 | `LOG_LEVEL` | Log level (debug, info, warn, error) | `info` |
-| `ANALYTICS_DB_PATH` | Local database path (SQLite) | `data/analytics.db` |
 
 ## Admin panel (`/`, also `/admin`)
 
