@@ -110,7 +110,7 @@ for (const [name, p] of Object.entries(pages)) {
   await page.close();
 }
 
-// Legenda em telas comuns (inclui a prévia dentro do painel, ~1150x790):
+// Legenda em telas comuns (inclui janela pequena, ~1150x790):
 // rodapé nunca por cima do timer; no modo de transmissão (OBS) tudo cabe.
 for (const [w, h] of [[1150, 790], [1280, 720], [1366, 768], [1920, 1080]]) {
   for (const share of [false, true]) {
