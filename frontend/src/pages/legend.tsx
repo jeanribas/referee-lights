@@ -245,7 +245,7 @@ export default function LegendPage() {
   }, [shareLink, router.query.shareOrigin]);
 
   const handleCopyShareLink = useCallback(async () => {
-    if (typeof window === 'undefined' || !shareLink) return;
+    if (typeof window === 'undefined' || !shareLink) return false;
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(absoluteShareLink);
@@ -259,8 +259,10 @@ export default function LegendPage() {
       }
       setCopiedShareLink(true);
       window.setTimeout(() => setCopiedShareLink(false), 1500);
+      return true;
     } catch {
       setCopiedShareLink(false);
+      return false;
     }
   }, [shareLink, absoluteShareLink]);
 
@@ -482,9 +484,27 @@ export default function LegendPage() {
       {doneOpen && (
         // Confirmação ao concluir: interrompe de propósito, para a pessoa sair
         // daqui sabendo como levar a legenda para o OBS sem sobrar controle
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="legend-done-title">
-          <div className="flex w-full max-w-lg flex-col gap-4 rounded-2xl border border-white/10 bg-slate-900 p-5 text-slate-100 shadow-[0_24px_60px_rgba(0,0,0,0.6)]">
-            <div>
+        // Clique fora do quadro fecha (como Voltar a editar)
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="legend-done-title"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setDoneOpen(false);
+          }}
+        >
+          <div className="relative flex w-full max-w-lg flex-col gap-4 rounded-2xl border border-white/10 bg-slate-900 p-5 text-slate-100 shadow-[0_24px_60px_rgba(0,0,0,0.6)]">
+            {/* X igual ao do modal de QR dos árbitros */}
+            <button
+              type="button"
+              onClick={() => setDoneOpen(false)}
+              className="absolute right-4 top-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-2xl text-white transition hover:bg-white/20"
+            >
+              <span className="sr-only">{messages.common.srOnly.close}</span>
+              <span aria-hidden="true">×</span>
+            </button>
+            <div className="pr-14">
               <h2 id="legend-done-title" className="text-[15px] font-bold uppercase tracking-[0.12em] text-white">{legendMessages.done.title}</h2>
               <p className="mt-1 text-[13px] text-emerald-300">{legendMessages.done.saved}</p>
             </div>
@@ -500,7 +520,10 @@ export default function LegendPage() {
                 />
                 <button
                   type="button"
-                  onClick={() => void handleCopyShareLink()}
+                  onClick={async () => {
+                    // Copiou: mostra "Copiado!" por um instante e fecha
+                    if (await handleCopyShareLink()) window.setTimeout(() => setDoneOpen(false), 700);
+                  }}
                   className="h-11 shrink-0 rounded-lg bg-emerald-500 px-4 text-[15px] font-semibold text-slate-950 transition hover:bg-emerald-400"
                 >
                   {copiedShareLink ? legendMessages.share.copied : legendMessages.share.copy}

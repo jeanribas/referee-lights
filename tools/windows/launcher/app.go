@@ -23,21 +23,25 @@ var (
 )
 
 type App struct {
-	paths      Paths
-	t          texts
-	log        *log.Logger
-	logFile    *rotatingFile
-	serverLog  *rotatingFile
-	errs       *errorQueue
-	sup        *Supervisor
-	appDir     string
-	nodePath   string
-	port       int
-	token      string
-	noBrowser  bool
-	exePath    string
-	updater    *Updater
-	controlURL string
+	paths Paths
+	// Idioma dos avisos e da bandeja: o escolhido no seletor do app (o
+	// painel avisa); antes da 1ª escolha, o do Windows.
+	langMu       sync.Mutex
+	lang         string
+	onLangChange func()
+	log          *log.Logger
+	logFile      *rotatingFile
+	serverLog    *rotatingFile
+	errs         *errorQueue
+	sup          *Supervisor
+	appDir       string
+	nodePath     string
+	port         int
+	token        string
+	noBrowser    bool
+	exePath      string
+	updater      *Updater
+	controlURL   string
 	// openPanelFn: no Windows, janela própria do painel; fora dele, navegador
 	openPanelFn func()
 
@@ -50,7 +54,7 @@ type App struct {
 func newApp(p Paths, logFile *rotatingFile, noBrowser bool) *App {
 	return &App{
 		paths:     p,
-		t:         textsFor(userLanguage()),
+		lang:      initialLang(p),
 		log:       log.New(logFile, "", log.LstdFlags),
 		logFile:   logFile,
 		errs:      newErrorQueue(p, systemDescription()),
@@ -61,6 +65,56 @@ func newApp(p Paths, logFile *rotatingFile, noBrowser bool) *App {
 }
 
 func (a *App) requestExit() { a.exitOnce.Do(func() { close(a.exitReq) }) }
+
+func initialLang(p Paths) string {
+	if l := savedLang(p); l != "" {
+		return l
+	}
+	if l := normalizeLang(userLanguage()); l != "" {
+		return l
+	}
+	return "en"
+}
+
+// Lang: idioma atual dos avisos (pt, en ou es).
+func (a *App) Lang() string {
+	a.langMu.Lock()
+	defer a.langMu.Unlock()
+	return a.lang
+}
+
+// T: textos no idioma atual — lido na hora de cada aviso, não na partida.
+func (a *App) T() texts { return textsFor(a.Lang()) }
+
+// SetLang: o painel trocou de idioma (seletor do app). Salva para as
+// próximas aberturas e atualiza a bandeja.
+func (a *App) SetLang(lang string) {
+	l := normalizeLang(lang)
+	if l == "" {
+		return
+	}
+	a.langMu.Lock()
+	changed := l != a.lang
+	a.lang = l
+	cb := a.onLangChange
+	a.langMu.Unlock()
+	if !changed {
+		return
+	}
+	if err := os.WriteFile(langFile(a.paths), []byte(l), 0o644); err != nil && a.log != nil {
+		a.log.Printf("idioma: %v", err)
+	}
+	if cb != nil {
+		cb()
+	}
+}
+
+// OnLangChange: chamado depois de cada troca de idioma.
+func (a *App) OnLangChange(fn func()) {
+	a.langMu.Lock()
+	a.onLangChange = fn
+	a.langMu.Unlock()
+}
 
 func (a *App) adminURL() string { return fmt.Sprintf("http://localhost:%d/admin", a.port) }
 
@@ -96,7 +150,7 @@ func (a *App) Boot(payload []byte, exeDir string) error {
 		a.log.Printf("migração de %s falhou: %v", from, err)
 	} else if from != "" {
 		a.log.Printf("dados migrados de %s", from)
-		showMessage("Referee Lights", fmt.Sprintf(a.t.Migrated, from), false)
+		showMessage("Referee Lights", fmt.Sprintf(a.T().Migrated, from), false)
 	}
 
 	port, changed, err := choosePort(a.paths, portFree)
@@ -108,7 +162,7 @@ func (a *App) Boot(payload []byte, exeDir string) error {
 	if changed {
 		a.log.Printf("porta preferida ocupada: usando %d", port)
 		a.errs.Record("port_busy", "port", fmt.Sprintf("porta preferida ocupada, usando %d", port), "")
-		showMessage("Referee Lights", fmt.Sprintf(a.t.PortChanged, defaultPort, port), true)
+		showMessage("Referee Lights", fmt.Sprintf(a.T().PortChanged, defaultPort, port), true)
 	}
 
 	a.token = randomToken()
@@ -141,7 +195,7 @@ func (a *App) Boot(payload []byte, exeDir string) error {
 		},
 		OnCrashLoop: func() {
 			a.errs.Record("crash_loop", "supervisor", "mais de 5 quedas em 2 minutos", "")
-			showMessage("Referee Lights", fmt.Sprintf(a.t.CrashLoop, a.paths.Logs), true)
+			showMessage("Referee Lights", fmt.Sprintf(a.T().CrashLoop, a.paths.Logs), true)
 		},
 		OnStart: func(int) {
 			go a.afterServerStart()

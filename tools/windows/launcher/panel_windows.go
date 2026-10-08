@@ -130,7 +130,10 @@ func (p *panelWindow) run() {
 			go p.openTimerWindow(parsed.String())
 		}
 	})
+	// Idioma da página (seletor do app) → avisos e bandeja do lançador
+	_ = w.Bind("rlSetLanguage", func(lang string) { p.app.SetLang(lang) })
 	w.Init(externalLinksScript)
+	w.Init(languageScript)
 	w.Navigate(p.app.adminURL())
 	procSetForeground.Call(p.hwnd)
 	p.ready <- true
@@ -155,6 +158,17 @@ const externalLinksScript = `(() => {
   window.open = (target) => {
     try { window.rlOpenExternal(new URL(String(target), location.href).href); return null; } catch { return open.apply(window, arguments); }
   };
+})();`
+
+// languageScript: avisa o lançador do idioma da página (o lang do <html>,
+// que o Next troca junto com o seletor de idioma do app).
+const languageScript = `(() => {
+  const send = () => { try { if (window.rlSetLanguage && document.documentElement.lang) window.rlSetLanguage(document.documentElement.lang); } catch (e) {} };
+  const start = () => {
+    send();
+    new MutationObserver(send).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();`
 
 type monitorInfo struct {
@@ -221,7 +235,7 @@ func (p *panelWindow) subclass() {
 }
 
 func (p *panelWindow) askClose() {
-	t := p.app.t
+	t := p.app.T()
 	text, _ := windows.UTF16PtrFromString(t.ClosePanel)
 	title, _ := windows.UTF16PtrFromString("Referee Lights")
 	r, _, _ := procMessageBoxW.Call(p.hwnd, uintptr(unsafe.Pointer(text)), uintptr(unsafe.Pointer(title)), mbYesNo|mbIconWarning)

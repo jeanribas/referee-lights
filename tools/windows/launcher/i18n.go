@@ -1,6 +1,10 @@
 package main
 
-import "strings"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+)
 
 // Textos do lançador (bandeja e avisos) nos três idiomas do app.
 type texts struct {
@@ -112,4 +116,27 @@ func textsFor(lang string) texts {
 		}
 	}
 	return allTexts["en"]
+}
+
+// normalizeLang: "pt-BR"/"en-US"/"es-ES" (lang do <html> do painel) → pt/en/es.
+func normalizeLang(lang string) string {
+	lang = strings.ToLower(strings.TrimSpace(lang))
+	for _, prefix := range []string{"pt", "es", "en"} {
+		if strings.HasPrefix(lang, prefix) {
+			return prefix
+		}
+	}
+	return ""
+}
+
+// O idioma escolhido no seletor do app fica salvo aqui; sem arquivo (nunca
+// abriu o painel), vale o idioma do Windows.
+func langFile(p Paths) string { return filepath.Join(p.Root, "idioma.txt") }
+
+func savedLang(p Paths) string {
+	b, err := os.ReadFile(langFile(p))
+	if err != nil {
+		return ""
+	}
+	return normalizeLang(string(b))
 }

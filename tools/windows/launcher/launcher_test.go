@@ -389,3 +389,29 @@ func TestIsTimerURL(t *testing.T) {
 		}
 	}
 }
+
+func TestLanguageFollowsApp(t *testing.T) {
+	root := t.TempDir()
+	p := Paths{Root: root}
+	for in, want := range map[string]string{"pt-BR": "pt", "en-US": "en", "es-ES": "es", " PT ": "pt", "fr-FR": "", "": ""} {
+		if got := normalizeLang(in); got != want {
+			t.Fatalf("normalizeLang(%q) = %q, want %q", in, got, want)
+		}
+	}
+	a := &App{paths: p, lang: "en"}
+	calls := 0
+	a.OnLangChange(func() { calls++ })
+	a.SetLang("pt-BR")
+	if a.Lang() != "pt" || a.T().UpdateNone != allTexts["pt"].UpdateNone {
+		t.Fatalf("idioma não trocou: %q", a.Lang())
+	}
+	a.SetLang("pt-BR") // mesmo idioma: não chama de novo
+	a.SetLang("xx")    // desconhecido: ignora
+	if calls != 1 {
+		t.Fatalf("OnLangChange chamado %d vezes, want 1", calls)
+	}
+	// próxima abertura usa o idioma salvo, não o do Windows
+	if got := initialLang(p); got != "pt" {
+		t.Fatalf("initialLang = %q, want pt (salvo)", got)
+	}
+}
