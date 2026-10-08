@@ -21,7 +21,7 @@ const nextConfig = {
     ignoreBuildErrors: false
   },
   eslint: {
-    dirs: ['src']
+    dirs: ['src', 'compat-src']
   },
   async redirects() {
     // Consolidação de hostname (2026-07-31): o canônico é refereelights.app
