@@ -1,6 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  // O Next 15 traz o sharp (otimização de imagem) como dependência e o
+  // standalone o levava junto — um 2º binário nativo no pacote. O app não usa
+  // next/image: sem otimizador e sem sharp no trace.
+  images: { unoptimized: true },
+  outputFileTracingExcludes: {
+    '*': ['node_modules/sharp/**', 'node_modules/@img/**']
+  },
   i18n: {
     locales: ['pt-BR', 'en-US', 'es-ES'],
     defaultLocale: 'pt-BR'
