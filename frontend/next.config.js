@@ -14,6 +14,9 @@ const nextConfig = {
     locales: ['pt-BR', 'en-US', 'es-ES'],
     defaultLocale: 'pt-BR'
   },
+  // Pacotes que chegam em sintaxe nova demais (ex.: `??`) e quebravam em
+  // navegador antigo: o Next os compila para o mesmo alvo do app.
+  transpilePackages: ['@vercel/analytics'],
   reactStrictMode: true,
   typescript: {
     ignoreBuildErrors: false
