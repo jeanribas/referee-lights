@@ -1,10 +1,13 @@
 // Gera os ícones a partir da logo DO PRÓPRIO APP — o componente BrandLogo,
 // capturado do frontend em alta resolução, nada redesenhado — em fundo
-// escuro arredondado. Ícone do exe/atalho: logo completa (quadrados +
-// REFEREE LIGHTS) em TODOS os tamanhos — o Windows usa 32 px ou menos na área
-// de trabalho com escala 100%, e só os quadrados ali foi reprovado pelo Jean
-// (08/out). Aba do navegador (favicon/icon.svg): só os quadrados.
-//   tools/windows/launcher/app.ico   exe, atalho, janela e barra — completa
+// escuro arredondado. Regra do Jean (08/out):
+//   - 16 e 24 px (barra de título, barra de tarefas, bandeja): SÓ os três
+//     quadrados — o texto não é legível nesse tamanho;
+//   - 32 px para cima (atalho da área de trabalho, Explorer): logo completa
+//     (quadrados + REFEREE LIGHTS) — com escala 100% o Windows usa 32 px na
+//     área de trabalho, e só os quadrados ali foi reprovado.
+//   Aba do navegador (favicon/icon.svg): só os quadrados.
+//   tools/windows/launcher/app.ico   exe/atalho (≥32 completa) e janela/barra (≤24 quadrados)
 //   frontend/public/favicon.ico      16/32/48 — quadrados
 //   frontend/public/images/icon.svg  favicon da aba — quadrados
 //   frontend/public/images/icon-192.png, icon-512.png (atalho/instalação) — completa
@@ -68,7 +71,7 @@ try {
     return Buffer.from(dataUrl.split(',')[1], 'base64');
   };
   const pngs = [];
-  for (const size of sizes) pngs.push({ size, data: await tile(size, 'full') });
+  for (const size of sizes) pngs.push({ size, data: await tile(size, size >= 32 ? 'full' : 'squares') });
   const icon192 = await tile(192);
   const icon512 = await tile(512);
   const tab512 = await tile(512, 'squares');
