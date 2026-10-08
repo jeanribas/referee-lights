@@ -74,6 +74,12 @@ test('/ref lista as três posições e /ref/xyz mostra rota inválida', async ({
   for (const label of [m.side.leftTitle, m.center.title, m.side.rightTitle]) {
     await expect(page.getByRole('link', { name: label })).toBeVisible();
   }
+  // Clicar (página já carregada) abre o console de verdade: sem credenciais,
+  // o script da tela universal mostra o aviso — pela navegação do Next nada rodava.
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('link', { name: m.side.leftTitle }).click();
+  await expect(page).toHaveURL(/\/ref\/left$/);
+  await expect(page.getByRole('heading', { name: m.missing.title })).toBeVisible({ timeout: 15_000 });
   await page.goto('/ref/xyz');
   await expect(page.getByText(m.invalidRoute)).toBeVisible();
 });
