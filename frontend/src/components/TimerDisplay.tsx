@@ -289,7 +289,7 @@ export default TimerDisplay;
 
 function CooldownBadge({ value, gradient, size = 'md' }: { value: number; gradient: string; size?: 'sm' | 'md' }) {
   const height = size === 'sm' ? 'h-[2.6rem]' : 'h-16';
-  const width = size === 'sm' ? 'w-12' : 'w-18';
+  const width = size === 'sm' ? 'w-12' : 'w-[4.5rem]';
   const text = size === 'sm' ? 'text-base' : 'text-4xl';
 
   return (

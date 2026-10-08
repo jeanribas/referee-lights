@@ -389,7 +389,7 @@ export default function LegendPage() {
                 ref={paletteRef}
                 onPointerDown={() => setPaletteTouch((n) => n + 1)}
                 onInput={() => setPaletteTouch((n) => n + 1)}
-                className="absolute left-3 top-full mt-2 flex max-w-[calc(100%-1.5rem)] flex-col gap-3 rounded-2xl border border-white/10 bg-slate-950/95 p-4 shadow-[0_12px_32px_rgba(0,0,0,0.5)] backdrop-blur-sm"
+                className="absolute left-3 top-full mt-2 flex max-w-[calc(100%-1.5rem)] flex-col gap-3 rounded-2xl border border-white/10 bg-slate-950/95 p-4 shadow-[0_12px_32px_rgba(0,0,0,0.5)] backdrop-blur"
               >
                 <h2 className="text-[13px] font-semibold text-slate-300">{legendMessages.palette.title}</h2>
                 <div className="flex flex-wrap items-center gap-2">
