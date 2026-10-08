@@ -1,5 +1,5 @@
 // Painel admin pela interface: criar sessão, entrar em sessão existente,
-// QR codes, modal da legenda e links para as telas da sala.
+// QR codes e links para as telas da sala.
 import { createRoom, expect, msg, test, urls, connectedBadge } from './helpers';
 
 const m = msg('pt-BR');
@@ -63,7 +63,7 @@ test('QR codes: modal lista os 3 juízes com links válidos e fecha', async ({ p
   await expect(dialog).toHaveCount(0);
 });
 
-test('links do painel: display, cronômetro e modal da legenda', async ({ page }) => {
+test('links do painel: display, cronômetro e legenda', async ({ page }) => {
   const room = await createRoom();
   await page.goto(urls.admin(room));
   // Absolutos: com o painel em localhost usam o IP da rede (o display e o
@@ -78,11 +78,13 @@ test('links do painel: display, cronômetro e modal da legenda', async ({ page }
     absolute(urls.timer(room))
   );
 
-  await page.getByRole('button', { name: m.admin.preview.goToLegend }).click();
-  const dialog = page.getByRole('dialog', { name: m.admin.preview.goToLegend });
-  await expect(dialog).toBeVisible();
-  await dialog.getByRole('button', { name: m.common.srOnly.close }).click();
-  await expect(dialog).toHaveCount(0);
+  // Legenda abre direto no navegador, como o display e o timer (sem prévia
+  // dentro do admin): é a mesma janela que vai para o OBS.
+  await expect(page.getByRole('link', { name: m.admin.preview.goToLegend })).toHaveAttribute(
+    'href',
+    absolute(urls.legend(room))
+  );
+  await expect(page.getByRole('dialog')).toHaveCount(0);
 
   await page.getByRole('link', { name: m.admin.preview.goToDisplay }).click();
   await expect(page).toHaveURL(/\/display\?/);

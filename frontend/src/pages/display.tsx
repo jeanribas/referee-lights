@@ -1,100 +1,24 @@
-import Link from 'next/link';
-import { useRouter } from 'next/router';
+import type { GetStaticProps } from 'next';
 
-import { DecisionLights } from '@/components/DecisionLights';
-import { FullscreenButton } from '@/components/FullscreenButton';
-import TimerDisplay from '@/components/TimerDisplay';
-import IntervalCountdown from '@/components/IntervalCountdown';
-import IntervalFull from '@/components/IntervalFull';
-import { useRoomSocket } from '@/hooks/useRoomSocket';
-import { useRouterReady } from '@/hooks/useRouterReady';
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { useWakeLock } from '@/hooks/useWakeLock';
-import { getMessages, type Messages } from '@/lib/i18n/messages';
 import { Seo } from '@/components/Seo';
-import { FooterBadges } from '@/components/FooterBadges';
-import { RefereeQrModal } from '@/components/RefereeQrModal';
-import { useSessionQrTargets } from '@/hooks/useSessionQrTargets';
+import { compatData, COMPAT_SCRIPT_VERSION, CompatThirdParty } from '@/lib/compat-page';
+import { getMessages } from '@/lib/i18n/messages';
 
-function useViewportScale(designWidth = 1920, designHeight = 1080) {
-  const [scale, setScale] = useState(1);
-  useEffect(() => {
-    const update = () => {
-      const sx = window.innerWidth / designWidth;
-      const sy = window.innerHeight / designHeight;
-      // Amplia também (telas maiores que o desenho): tudo mede em cqw/rem
-      // dentro desta tela de desenho, então a cara é a mesma em qualquer resolução.
-      setScale(Math.min(sx, sy));
-    };
-    update();
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
-  }, [designWidth, designHeight]);
-  return scale;
-}
+/**
+ * Display — tela UNIVERSAL (TV/monitor, muitas vezes com navegador que não
+ * atualiza). Sem o runtime do Next no navegador: a tela React de sempre
+ * (src/screens/DisplayScreen.tsx) vem empacotada em ES5 em
+ * /compat/display.js (scripts/build-compat.mjs). Visual e comportamento
+ * iguais — conferido pixel a pixel.
+ */
+export const config = { unstable_runtimeJS: false };
 
-export default function DisplayPage() {
-  const router = useRouter();
-  const locale = typeof router.locale === 'string' ? router.locale : undefined;
-  const messages = useMemo(() => getMessages(locale), [locale]);
-  const displayMessages = messages.display;
-  const isSpanishLocale = Boolean(locale?.startsWith('es'));
-  const buttonTrackingClass = isSpanishLocale ? 'tracking-[0.22em]' : 'tracking-[0.3em]';
-  const sectionLabelTrackingClass = isSpanishLocale ? 'tracking-[0.26em]' : 'tracking-[0.32em]';
-  const routerReady = useRouterReady();
-  const roomId = typeof router.query.roomId === 'string' ? router.query.roomId : undefined;
-  const adminPin = typeof router.query.pin === 'string' ? router.query.pin : undefined;
+export const getStaticProps: GetStaticProps<{ locale: string }> = async ({ locale }) => ({
+  props: { locale: locale ?? 'pt-BR' }
+});
 
-  const { state } = useRoomSocket('display', {
-    roomId,
-    adminPin
-  });
-
-  // 1080 + 104px (6.5rem) reservados para a fileira de cartões abaixo das luzes.
-  const viewportScale = useViewportScale(1920, 1184);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-  const [qrOpen, setQrOpen] = useState(false);
-  const qr = useSessionQrTargets({ open: qrOpen, roomId, adminPin, labels: messages.admin.qrMenu.targets, shortLabels: messages.admin.qrMenu.shortTargets });
-
-  const intervalVisible = Boolean(
-    state && state.intervalVisible && state.intervalConfiguredMs > 0 && state.intervalMs > 0
-  );
-
-  const closeMenu = useCallback(() => setMenuOpen(false), []);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    function handleClick(event: MouseEvent) {
-      const target = event.target as Node;
-      if (menuRef.current && !menuRef.current.contains(target)) {
-        closeMenu();
-      }
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [menuOpen, closeMenu]);
-
-  // Tela sempre acordada, sem botão: a TV/monitor do display nunca deve apagar
-  const wakeActive = useWakeLock(true);
-
-  useEffect(() => {
-    if (!router.isReady) return;
-    const targetLocale = state?.locale;
-    if (!targetLocale) return;
-    if (router.locale === targetLocale) return;
-    document.cookie = `NEXT_LOCALE=${targetLocale}; path=/; max-age=31536000`;
-    void router.replace({ pathname: router.pathname, query: router.query }, undefined, { locale: targetLocale });
-  }, [router, state?.locale]);
-
-  // Até ler a URL, só o fundo (sem piscar "display não configurado" ao recarregar)
-  if (!routerReady) return <div className="h-screen w-screen bg-black" />;
-  if (!roomId || !adminPin) {
-    return <MissingDisplayCredentials messages={displayMessages} />;
-  }
-
-  const adminLink = `/admin?roomId=${encodeURIComponent(roomId)}&pin=${encodeURIComponent(adminPin)}`;
-
+export default function DisplayPage({ locale }: { locale: string }) {
+  const displayMessages = getMessages(locale).display;
   return (
     <>
       <Seo
@@ -106,164 +30,14 @@ export default function DisplayPage() {
         canonicalPath="/display"
         noIndex
       />
-      <div className="h-screen w-screen overflow-hidden bg-black">
-      <main
-        className="relative flex h-screen flex-col bg-black px-6 pt-12 pb-16 text-white overflow-hidden"
-        // Container de tamanho: luzes e relógio medem em cqw (largura desta
-        // tela de desenho), não em vw. Com vw a tela encolhia duas vezes em
-        // janelas estreitas — pela unidade e de novo pelo scale abaixo.
-        style={viewportScale !== 1 ? {
-          containerType: 'inline-size',
-          transformOrigin: 'top left',
-          transform: `scale(${viewportScale})`,
-          width: `${100 / viewportScale}%`,
-          height: `${100 / viewportScale}vh`,
-        } as CSSProperties : { containerType: 'inline-size' } as CSSProperties}
-      >
-        <div className="fixed bottom-6 left-6 z-30 flex flex-col items-start gap-3" ref={menuRef}>
-          {menuOpen && (
-            <div
-              className="w-full max-w-[20rem] rounded-3xl border border-white/10 bg-[#141820]/95 p-5 shadow-2xl backdrop-blur"
-              style={{ width: 'min(20rem, calc(100vw - 2.5rem))' }}
-            >
-              <h2 className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-200">
-                {displayMessages.menu.optionsTitle}
-              </h2>
-              <div className="mt-4 flex flex-col gap-5">
-                <section className="flex flex-col gap-3">
-                  <span className={`text-[10px] uppercase ${sectionLabelTrackingClass} text-slate-400`}>
-                    {displayMessages.menu.quickActionsTitle}
-                  </span>
-                  <FullscreenButton
-                    className={`w-full !rounded-xl bg-white/15 px-4 py-3 text-[10px] font-semibold uppercase ${buttonTrackingClass} text-white transition hover:bg-white/25`}
-                    enterLabel={displayMessages.menu.fullscreenEnter}
-                    exitLabel={displayMessages.menu.fullscreenExit}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setQrOpen(true);
-                      setMenuOpen(false);
-                    }}
-                    className={`inline-flex w-full items-center justify-center rounded-xl bg-white/15 px-4 py-3 text-[10px] font-semibold uppercase ${buttonTrackingClass} text-white transition hover:bg-white/25`}
-                  >
-                    {displayMessages.menu.showQr}
-                  </button>
-                  <Link
-                    href={adminLink}
-                    className={`inline-flex w-full items-center justify-center rounded-xl bg-white/15 px-4 py-3 text-[10px] font-semibold uppercase ${buttonTrackingClass} text-white transition hover:bg-white/25`}
-                  >
-                    {displayMessages.menu.goToAdmin}
-                  </Link>
-                </section>
-
-                <section className="flex flex-col gap-3 border-t border-white/10 pt-4">
-                  <span className={`text-[10px] uppercase ${sectionLabelTrackingClass} text-slate-400`}>
-                    {displayMessages.wake.title}
-                  </span>
-                  {/* Automático: só avisa se nenhum método conseguiu manter a tela acesa */}
-                  <span className={`text-[13px] font-semibold ${wakeActive ? 'text-emerald-300' : 'text-amber-300'}`}>
-                    {wakeActive ? displayMessages.wake.on : displayMessages.wake.warning}
-                  </span>
-                </section>
-              </div>
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setMenuOpen((prev) => !prev)}
-            className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white shadow-lg hover:bg-white/20"
-          >
-            <span className="sr-only">{displayMessages.menu.toggleButton}</span>
-            <div className="flex flex-col gap-[5px]">
-              <span className="block h-[3px] w-6 rounded bg-white"></span>
-              <span className="block h-[3px] w-6 rounded bg-white"></span>
-              <span className="block h-[3px] w-6 rounded bg-white"></span>
-            </div>
-          </button>
-        </div>
-
-        {intervalVisible && state ? (
-          <div className="flex flex-1 items-center justify-center">
-            <div>
-              <IntervalFull
-                intervalMs={state.intervalMs}
-                configuredMs={state.intervalConfiguredMs}
-                running={state.intervalRunning}
-                labels={displayMessages.interval}
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-1 flex-col items-center justify-center gap-[5.4rem]">
-            {/* A fileira de cartões do DecisionLights é absolute (top-full,
-                mt-6 + 5rem) e não ocupa espaço no layout: sem esta reserva o
-                relógio encostava nos cartões em telas mais baixas. */}
-            <div className="flex w-full justify-center" style={{ paddingBottom: '6.5rem' }}>
-              {state ? (
-                <div>
-                  <DecisionLights
-                    state={state}
-                    showLightPlaceholders={false}
-                    forceConnectedPlaceholders
-                  />
-                </div>
-              ) : (
-                <p className="text-[15px] font-semibold text-slate-300">
-                  {displayMessages.status.waiting}
-                </p>
-              )}
-            </div>
-            <div className="flex flex-col items-center gap-10">
-              {state && (state.intervalConfiguredMs > 0 || state.intervalMs > 0) && state.intervalVisible && (
-                <IntervalCountdown
-                  intervalMs={state.intervalMs}
-                  configuredMs={state.intervalConfiguredMs}
-                  running={state.intervalRunning}
-                  labels={displayMessages.countdown}
-                />
-              )}
-              <TimerDisplay
-                variant="display"
-                remainingMs={state?.timerMs ?? 60_000}
-                running={state?.running ?? false}
-                phase={state?.phase ?? 'idle'}
-              />
-            </div>
-          </div>
-        )}
-        <div className="fixed bottom-2 left-1/2 -translate-x-1/2 opacity-60 hover:opacity-100 transition">
-          <FooterBadges />
-        </div>
-      </main>
+      {/* Até o script montar a tela, só o fundo (como a versão React) */}
+      <div id="rl-root">
+        <div className="h-screen w-screen bg-black" />
       </div>
-      {qrOpen && (
-        <RefereeQrModal
-          targets={qr.targets}
-          loading={qr.loading}
-          onClose={() => setQrOpen(false)}
-          messages={messages.admin.qrMenu}
-          description={messages.admin.qrMenu.viewDescription}
-          notice={qr.errorCode ? messages.admin.qrMenu.loadError : qr.loopback ? messages.admin.qrMenu.localhostHint : null}
-          closeLabel={messages.common.srOnly.close}
-        />
-      )}
+      <script id="rl-data" type="application/json" dangerouslySetInnerHTML={{ __html: JSON.stringify(compatData(locale, {})) }} />
+      <script defer src={`/compat/rl.js?v=${COMPAT_SCRIPT_VERSION}`} />
+      <script defer src={`/compat/display.js?v=${COMPAT_SCRIPT_VERSION}`} />
+      <CompatThirdParty />
     </>
-  );
-}
-
-function MissingDisplayCredentials({ messages }: { messages: Messages['display'] }) {
-  return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-black px-6 py-12 text-center text-white">
-      <h1 className="text-2xl font-semibold uppercase tracking-[0.45em]">{messages.missing.title}</h1>
-      <p className="max-w-xl text-sm text-white/70">{messages.missing.description}</p>
-      <Link
-        href="/admin"
-        className="rounded-full border border-white/20 px-5 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-white transition hover:bg-white/10"
-      >
-        {messages.missing.goToAdmin}
-      </Link>
-    </main>
   );
 }
