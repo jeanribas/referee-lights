@@ -81,7 +81,8 @@ function watchPage(page: Page, issues: PageIssues) {
   page.on('requestfailed', (r) => {
     const failure = r.failure()?.errorText ?? '';
     // navegação cancelada por troca de rota/locale não é falha real
-    if (/ERR_ABORTED|blockedbyclient|NS_BINDING_ABORTED/.test(failure)) return;
+    // ("cancelled" é como o WebKit chama o mesmo aborto)
+    if (/ERR_ABORTED|blockedbyclient|NS_BINDING_ABORTED|^cancelled$/.test(failure)) return;
     issues.failed.push(`${r.method()} ${r.url()} :: ${failure}`);
   });
   page.on('response', (r) => {

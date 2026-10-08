@@ -32,7 +32,8 @@ for (const locale of LOCALES) {
     });
 
     test('rota inexistente cai no 404 próprio', async ({ page, allowIssue }) => {
-      allowIssue(/rota-que-nao-existe/);
+      // WebKit registra o 404 da própria página como about:blank
+      allowIssue(/rota-que-nao-existe|about:blank :: .*status of 404/);
       const res = await page.goto(localePath(locale, '/rota-que-nao-existe'));
       expect(res?.status()).toBe(404);
       await expect(page).toHaveTitle(/404/);
