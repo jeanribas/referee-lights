@@ -1,6 +1,6 @@
 // Idioma da sala propagando para todas as telas e configuração da legenda
 // (paleta, molduras, dígitos, salvar no servidor, link de compartilhamento).
-import { JUDGES, createRoom, expect, msg, open, test, urls, connectedBadge } from './helpers';
+import { JUDGES, adminSocket, createRoom, emitAck, expect, msg, open, test, urls, connectedBadge } from './helpers';
 
 test('admin troca idioma → display, legenda, timer e 3 árbitros seguem', async ({ page, context }) => {
   test.setTimeout(90_000);
@@ -30,6 +30,22 @@ test('admin troca idioma → display, legenda, timer e 3 árbitros seguem', asyn
   await page.locator('select').first().selectOption('es-ES');
   for (const p of others) await expect(p).toHaveURL(/\/es-ES\//, { timeout: 15_000 });
   await expect(others[4].getByText(msg('es-ES').referee.center.timeLabel)).toBeVisible();
+});
+
+test('display troca de idioma sem recarregar (contadores de troca de pedido continuam)', async ({ context }) => {
+  const room = await createRoom('pt-BR');
+  const display = await open(context, urls.display(room));
+  await expect(display.getByRole('button', { name: msg('pt-BR').display.menu.toggleButton })).toBeVisible({ timeout: 15_000 });
+  await display.evaluate(() => {
+    (window as unknown as { __semRecarregar?: boolean }).__semRecarregar = true;
+  });
+  const admin = await adminSocket(room);
+  expect(await emitAck(admin, 'locale:change', { locale: 'en-US' })).toMatchObject({ ok: true });
+  await expect(display).toHaveURL(/\/en-US\/display\?/, { timeout: 15_000 });
+  await expect(display.getByRole('button', { name: msg('en-US').display.menu.toggleButton })).toBeVisible({ timeout: 15_000 });
+  expect(await display.evaluate(() => (window as unknown as { __semRecarregar?: boolean }).__semRecarregar)).toBe(true);
+  expect(await display.evaluate(() => document.documentElement.lang)).toBe('en-US');
+  admin.disconnect();
 });
 
 test('sala criada em inglês abre as telas em inglês mesmo pela URL sem prefixo', async ({ context }) => {
