@@ -86,6 +86,9 @@ test('links do painel: display, cronômetro e legenda', async ({ page }) => {
   );
   await expect(page.getByRole('dialog')).toHaveCount(0);
 
+  // Clique com o admin já carregado (conectado): pela navegação do Next o
+  // display (tela universal) ficava preto — o teste antigo clicava antes.
+  await expect(connectedBadge(page)).toBeVisible({ timeout: 15_000 });
   await page.getByRole('link', { name: m.admin.preview.goToDisplay }).click();
   await expect(page).toHaveURL(/\/display\?/);
   await expect(page.getByText('1:00').first()).toBeVisible({ timeout: 15_000 });

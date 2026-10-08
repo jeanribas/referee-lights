@@ -577,12 +577,15 @@ export default function AdminPage({ networkIps }: AdminPageProps) {
               >
                 {adminMessages.preview.showQr}
               </button>
-              <Link
+              {/* <a> e não <Link>: o display é tela universal (sem o runtime do
+                  Next) e só funciona carregando a página inteira — pela navegação
+                  do Next ficava tela preta. */}
+              <a
                 href={displayLink}
                 className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-white transition hover:bg-white/20"
               >
                 {adminMessages.preview.goToDisplay}
-              </Link>
+              </a>
               <Link
                 href={legendLink}
                 className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-white transition hover:bg-white/20"

@@ -55,7 +55,16 @@ async function isolateNetwork(context: BrowserContext) {
     (url) => BLOCKED.some((re) => re.test(url.href)),
     (route) => route.fulfill({ status: 204, body: '' })
   );
-  await context.route(/refereelights\.app|assist\.com\.br/, (route) => route.abort('blockedbyclient'));
+  // Exceção só para o alvo passado de propósito (bateria pós-deploy contra
+  // produção: E2E_BASE_URL / E2E_API_URL); qualquer outro host de produção
+  // continua bloqueado.
+  const targets = [process.env.E2E_BASE_URL, process.env.E2E_API_URL]
+    .filter((u): u is string => Boolean(u))
+    .map((u) => new URL(u).host);
+  await context.route(
+    (url) => /refereelights\.app|assist\.com\.br/.test(url.host) && !targets.includes(url.host),
+    (route) => route.abort('blockedbyclient')
+  );
 }
 
 interface PageIssues {
