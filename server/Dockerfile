@@ -8,6 +8,8 @@ RUN npm run build
 
 FROM node:20-alpine AS runner
 ENV NODE_ENV=production
+# Sala só renova com voto ou com os 3 árbitros conectados (nuvem/Dokploy).
+ENV ROOM_IDLE_POLICY=votes
 WORKDIR /app
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules

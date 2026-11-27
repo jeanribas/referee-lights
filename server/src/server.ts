@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 import { readFileSync } from 'node:fs';
 import { Server as SocketIOServer, type Socket } from 'socket.io';
 
+import { sanitizeRole, sanitizeRoomId, type AuthFailKind, type AuthFailVia } from './auth-audit.js';
 import { resolveClientIp } from './client-ip.js';
 import { lookupGeo } from './geo.js';
 import { AnalyticsStore, parseTz } from './analytics.js';
@@ -181,6 +182,9 @@ export async function createServer() {
     else judgeConnections.set(k, left);
     if (left === 0) roomManager.getRoomState(roomId)?.setConnected(judge, false);
   };
+  if (config.ROOM_IDLE_POLICY_INVALID !== null) {
+    app.log.warn({ value: config.ROOM_IDLE_POLICY_INVALID }, 'ROOM_IDLE_POLICY inválida; usando activity');
+  }
   const roomManager = new RoomManager((roomId, snapshot) => {
     io.to(roomChannel(roomId)).emit('state:update', snapshot);
     const snap = snapshot as { phase: string; votes: Record<string, string | null> };
@@ -197,6 +201,7 @@ export async function createServer() {
     lastPhaseByRoom.set(roomId, snap.phase);
   }, {
     ttlMs: config.ROOM_TTL_HOURS * 3600_000,
+    idlePolicy: config.ROOM_IDLE_POLICY,
     onExpire: (roomId) => {
       // Arquiva: fecha a sessão registrada e derruba os sockets restantes —
       // clientes órfãos recebem room_not_found na próxima ação e recomeçam.
@@ -254,6 +259,25 @@ export async function createServer() {
     return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
   }
 
+  /** Ponto único de auditoria de falha de auth: log sem PIN/token/IP cru, e analytics. */
+  function auditAuthFailure(kind: AuthFailKind, via: AuthFailVia, ip: string, roomId: unknown, role: unknown): void {
+    const safeRoom = sanitizeRoomId(roomId);
+    const safeRole = sanitizeRole(role);
+    const rec = analyticsStore.recordAuthFailure({ kind, via, roomId: safeRoom, role: safeRole, ip });
+    if (!rec.logged) return;
+    app.log.warn({
+      event: 'auth_fail',
+      kind,
+      via,
+      roomId: safeRoom,
+      role: safeRole,
+      ipHash: rec.ipHash,
+      city: rec.city,
+      country: rec.country,
+      ...(rec.suppressed > 0 ? { suppressed: rec.suppressed } : {})
+    }, 'falha de autenticação');
+  }
+
   function socketHost(socket: AppSocket): string {
     const host = socket.handshake.headers.host;
     if (typeof host === 'string') return host.split(':')[0];
@@ -297,8 +321,10 @@ export async function createServer() {
     const { roomId } = request.params;
     const { adminPin } = request.body ?? {};
 
-    const failKey = authFailKey(extractIp(request));
+    const ip = extractIp(request);
+    const failKey = authFailKey(ip);
     if (failureBlocked(failKey, AUTH_FAIL_LIMIT)) {
+      auditAuthFailure('blocked', 'http', ip, roomId, 'admin');
       reply.code(429);
       return { error: 'too_many_attempts' };
     }
@@ -311,6 +337,7 @@ export async function createServer() {
 
     if (!roomManager.verifyAdminPin(roomId, adminPin)) {
       recordFailure(failKey, AUTH_FAIL_WINDOW_MS);
+      auditAuthFailure('invalid_pin', 'http', ip, roomId, 'admin');
       reply.code(403);
       return { error: 'invalid_pin' };
     }
@@ -331,8 +358,10 @@ export async function createServer() {
     const { roomId } = request.params;
     const { adminPin } = request.body ?? {};
 
-    const failKey = authFailKey(extractIp(request));
+    const ip = extractIp(request);
+    const failKey = authFailKey(ip);
     if (failureBlocked(failKey, AUTH_FAIL_LIMIT)) {
+      auditAuthFailure('blocked', 'http', ip, roomId, 'admin');
       reply.code(429);
       return { error: 'too_many_attempts' };
     }
@@ -345,6 +374,7 @@ export async function createServer() {
 
     if (!roomManager.verifyAdminPin(roomId, adminPin)) {
       recordFailure(failKey, AUTH_FAIL_WINDOW_MS);
+      auditAuthFailure('invalid_pin', 'http', ip, roomId, 'admin');
       reply.code(403);
       return { error: 'invalid_pin' };
     }
@@ -405,6 +435,7 @@ export async function createServer() {
 
       const failKey = authFailKey(socketIp(socket));
       if (failureBlocked(failKey, AUTH_FAIL_LIMIT)) {
+        auditAuthFailure('blocked', 'socket', socketIp(socket), payload.roomId, payload.role);
         ack?.({ error: 'too_many_attempts' });
         return;
       }
@@ -418,6 +449,7 @@ export async function createServer() {
       if (isAdmin(payload.role) || isDisplay(payload.role)) {
         if (!roomManager.verifyAdminPin(payload.roomId, payload.pin)) {
           recordFailure(failKey, AUTH_FAIL_WINDOW_MS);
+          auditAuthFailure('invalid_pin', 'socket', socketIp(socket), payload.roomId, payload.role);
           ack?.({ error: 'invalid_pin' });
           return;
         }
@@ -426,6 +458,7 @@ export async function createServer() {
       if (isJudge(payload.role)) {
         if (!roomManager.isValidRefToken(payload.roomId, payload.role, payload.token)) {
           recordFailure(failKey, AUTH_FAIL_WINDOW_MS);
+          auditAuthFailure('invalid_token', 'socket', socketIp(socket), payload.roomId, payload.role);
           ack?.({ error: 'invalid_token' });
           return;
         }
@@ -1017,6 +1050,11 @@ export async function createServer() {
     };
   });
 
+  app.get<{ Querystring: { period?: string; tz?: string } }>('/master/auth-failures', async (request, reply) => {
+    if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
+    return analyticsStore.getAuthFailures(request.query.period, parseTz(request.query.tz));
+  });
+
   // Key Relay aperta teclas NA MÁQUINA do servidor: só existe onde foi
   // habilitado (bundle) e exige o PIN da sala — antes qualquer um na rede
   // ligava, desligava ou reconfigurava as teclas sem credencial.
@@ -1026,11 +1064,16 @@ export async function createServer() {
     adminPin: unknown
   ): { ok: true } | { ok: false; code: number; error: string } {
     if (!keyRelayAvailable) return { ok: false, code: 403, error: 'key_relay_unavailable' };
-    const failKey = authFailKey(extractIp(request));
-    if (failureBlocked(failKey, AUTH_FAIL_LIMIT)) return { ok: false, code: 429, error: 'too_many_attempts' };
+    const ip = extractIp(request);
+    const failKey = authFailKey(ip);
+    if (failureBlocked(failKey, AUTH_FAIL_LIMIT)) {
+      auditAuthFailure('blocked', 'key_relay', ip, roomId, 'admin');
+      return { ok: false, code: 429, error: 'too_many_attempts' };
+    }
     if (!roomId || !roomManager.getRoomState(roomId)) return { ok: false, code: 404, error: 'room_not_found' };
     if (!roomManager.verifyAdminPin(roomId, typeof adminPin === 'string' ? adminPin : undefined)) {
       recordFailure(failKey, AUTH_FAIL_WINDOW_MS);
+      auditAuthFailure('invalid_pin', 'key_relay', ip, roomId, 'admin');
       return { ok: false, code: 403, error: 'invalid_pin' };
     }
     return { ok: true };

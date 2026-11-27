@@ -16,7 +16,7 @@ npm test           # Vitest
 
 ## Variáveis de ambiente
 
-Veja `.env.example`. Principais: `PORT` (3333), `CORS_ORIGIN`, `LOG_LEVEL`, `ROOM_TTL_HOURS` (24), `TRUST_PROXY_HOPS` (0), `KEY_RELAY_AVAILABLE` (false). Descrição completa em `../docs/architecture.md`.
+Veja `.env.example`. Principais: `PORT` (3333), `CORS_ORIGIN`, `LOG_LEVEL`, `ROOM_TTL_HOURS` (24), `ROOM_IDLE_POLICY` (activity; `votes` na imagem Docker), `TRUST_PROXY_HOPS` (0), `KEY_RELAY_AVAILABLE` (false). Descrição completa em `../docs/architecture.md`.
 
 ## Interfaces
 

@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 
+import type { RoomIdlePolicy } from './config.js';
 import { RoomState, type AppState, type Judge, type Locale } from './state.js';
 
 type RefereeTokens = Record<Judge, string>;
@@ -20,6 +21,8 @@ interface Room {
   createdAt: number;
   /** Última mudança de estado (voto, timer, conexão…) — base do arquivamento. */
   lastActivityAt: number;
+  /** Último snapshot tinha os 3 árbitros conectados (para marcar a saída desse estado). */
+  allConnectedBefore: boolean;
 }
 
 export interface RoomAccessPayload {
@@ -45,6 +48,12 @@ export interface PersistedRoom {
 interface RoomManagerOptions {
   /** Sala sem NENHUMA atividade por este tempo é arquivada (código volta ao pool). */
   ttlMs?: number;
+  /**
+   * `activity` (padrão): qualquer snapshot renova a sala. `votes`: só voto/cartão
+   * ou os 3 árbitros conectados ao mesmo tempo renovam; sala com os 3 conectados
+   * nunca é arquivada.
+   */
+  idlePolicy?: RoomIdlePolicy;
   /** Chamado ao arquivar — fecha a sessão registrada e notifica quem precisa. */
   onExpire?: (roomId: string) => void;
   /** Persistência para recuperação pós-restart (salas voltam em até TTL). */
@@ -66,10 +75,12 @@ export class RoomManager {
   private readonly ttlMs: number;
   private readonly onExpire?: (roomId: string) => void;
   private readonly store?: RoomManagerOptions['store'];
+  private readonly idlePolicy: RoomIdlePolicy;
   private lastPersistedTouch = new Map<string, number>();
 
   constructor(private onStateUpdate: RoomStateListener, options: RoomManagerOptions = {}) {
     this.ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
+    this.idlePolicy = options.idlePolicy ?? 'activity';
     this.onExpire = options.onExpire;
     this.store = options.store;
     // Varredura periódica; unref para não segurar o processo vivo.
@@ -86,6 +97,11 @@ export class RoomManager {
   sweepExpired(now = Date.now()): string[] {
     const expired: string[] = [];
     for (const [roomId, room] of this.rooms) {
+      // Os 3 árbitros conectados é uso vivo: a sala não expira enquanto durar.
+      if (this.idlePolicy === 'votes' && this.allJudgesConnected(room)) {
+        this.markActivity(room, now);
+        continue;
+      }
       if (now - room.lastActivityAt > this.ttlMs) {
         this.rooms.delete(roomId);
         this.lastPersistedTouch.delete(roomId);
@@ -109,7 +125,8 @@ export class RoomManager {
       refereeTokens,
       state,
       createdAt: Date.now(),
-      lastActivityAt: Date.now()
+      lastActivityAt: Date.now(),
+      allConnectedBefore: false
     };
 
     this.attachActivityTracking(room);
@@ -128,7 +145,8 @@ export class RoomManager {
       refereeTokens: rec.refereeTokens as RefereeTokens,
       state: new RoomState(),
       createdAt: rec.createdAt,
-      lastActivityAt: rec.lastActivityAt
+      lastActivityAt: rec.lastActivityAt,
+      allConnectedBefore: false
     };
     this.attachActivityTracking(room);
     this.rooms.set(room.id, room);
@@ -145,14 +163,33 @@ export class RoomManager {
         this.onStateUpdate(room.id, snapshot);
         return;
       }
-      room.lastActivityAt = Date.now();
-      const last = this.lastPersistedTouch.get(room.id) ?? 0;
-      if (room.lastActivityAt - last > TOUCH_THROTTLE_MS) {
-        this.lastPersistedTouch.set(room.id, room.lastActivityAt);
-        this.store?.touch(room.id, room.lastActivityAt);
+      if (this.idlePolicy === 'activity') {
+        this.markActivity(room, Date.now());
+      } else {
+        // Estar com os 3 conectados é uso vivo; a SAÍDA desse estado também é
+        // (o último momento com os 3 vira o início do prazo, não a varredura anterior).
+        const allConnected = this.allJudgesConnected(room);
+        if (allConnected || room.allConnectedBefore) this.markActivity(room, Date.now());
+        room.allConnectedBefore = allConnected;
       }
       this.onStateUpdate(room.id, snapshot);
     });
+    // Voto ou cartão é atividade em qualquer política.
+    room.state.onVote(() => this.markActivity(room, Date.now()));
+  }
+
+  private markActivity(room: Room, at: number): void {
+    room.lastActivityAt = at;
+    const last = this.lastPersistedTouch.get(room.id) ?? 0;
+    if (at - last > TOUCH_THROTTLE_MS) {
+      this.lastPersistedTouch.set(room.id, at);
+      this.store?.touch(room.id, at);
+    }
+  }
+
+  private allJudgesConnected(room: Room): boolean {
+    const { connected } = room.state.getSnapshot();
+    return connected.left && connected.center && connected.right;
   }
 
   verifyAdminPin(roomId: string, pin?: string) {
