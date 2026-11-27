@@ -1,16 +1,17 @@
 import fastifyCors from '@fastify/cors';
-import Fastify from 'fastify';
+import Fastify, { LogController } from 'fastify';
 import { readFileSync } from 'node:fs';
 import { Server as SocketIOServer, type Socket } from 'socket.io';
 
 import { sanitizeRole, sanitizeRoomId, type AuthFailKind, type AuthFailVia } from './auth-audit.js';
 import { resolveClientIp } from './client-ip.js';
-import { lookupGeo } from './geo.js';
-import { AnalyticsStore, parseTz } from './analytics.js';
+import { lookupGeo, lookupNetwork } from './geo.js';
+import { AnalyticsStore, hashIpAddress, parseTz } from './analytics.js';
 import { config } from './config.js';
 import { KeyRelay } from './key-relay.js';
 import { generateMasterToken, validateCredentials, verifyMasterToken } from './master-auth.js';
 import { failureBlocked, rateLimitOk, recordFailure } from './rate-limit.js';
+import { buildRequestLine, isNoiseRequest, requestPath } from './request-log.js';
 import { RoomManager } from './rooms.js';
 import { Telemetry } from './telemetry.js';
 import {
@@ -133,15 +134,41 @@ function readAppVersion(): string {
 }
 
 export async function createServer() {
+  // compact (nuvem): o log padrão do Fastify tem o IP do proxy e sem user-agent;
+  // o hook abaixo escreve uma linha própria por requisição.
+  const compactRequestLog = config.REQUEST_LOG === 'compact';
   const app = Fastify({
     logger: {
       level: config.LOG_LEVEL
-    }
+    },
+    logController: new LogController({ disableRequestLogging: compactRequestLog })
   });
 
   await app.register(fastifyCors, {
     origin: config.CORS_ORIGIN === '*' ? true : config.CORS_ORIGIN.split(',').map((origin) => origin.trim())
   });
+
+  if (compactRequestLog) {
+    app.addHook('onResponse', (request, reply, done) => {
+      const path = requestPath(request.url);
+      const status = reply.statusCode;
+      if (!isNoiseRequest(request.method, path, status)) {
+        // IP cru só entra no hash e na consulta de datacenter; nunca no log.
+        const ip = extractIp(request);
+        app.log.info(buildRequestLine({
+          method: request.method,
+          url: request.url,
+          status,
+          elapsedMs: reply.elapsedTime,
+          ipHash: hashIpAddress(ip),
+          userAgent: request.headers['user-agent'],
+          host: request.headers.host,
+          datacenter: lookupNetwork(ip).datacenter
+        }));
+      }
+      done();
+    });
+  }
 
   // socket.io acoplado direto ao http.Server do Fastify (o plugin
   // fastify-socket.io não suporta Fastify 5)
@@ -762,9 +789,15 @@ export async function createServer() {
 
   app.get<{ Querystring: { period?: string; tz?: string } }>('/master/geo-markers', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
+    const period = request.query.period;
+    const tz = parseTz(request.query.tz);
     return {
-      markers: analyticsStore.getGeoMarkers(request.query.period, parseTz(request.query.tz)),
-      bundleMarkers: analyticsStore.getInstanceMarkers(telemetry.instanceId, request.query.period, parseTz(request.query.tz))
+      markers: analyticsStore.getGeoMarkers(period, tz),
+      bundleMarkers: analyticsStore.getInstanceMarkers(telemetry.instanceId, period, tz),
+      // Campos novos: cada fonte separada (site sem datacenter, salas, bots = datacenter/VPN)
+      markersSite: analyticsStore.getGeoMarkersBySource('site', period, tz),
+      markersSalas: analyticsStore.getGeoMarkersBySource('salas', period, tz),
+      markersBots: analyticsStore.getGeoMarkersBySource('bots', period, tz)
     };
   });
 
@@ -1039,7 +1072,10 @@ export async function createServer() {
 
   // --- Key Relay Endpoints ---
 
-  app.get('/key-relay/status', async () => {
+  // Na nuvem o relay nunca existe e o admin consulta isto a cada 5 s: quando
+  // indisponível, o status pode ser cacheado (fetch padrão respeita o cache HTTP).
+  app.get('/key-relay/status', async (request, reply) => {
+    reply.header('Cache-Control', keyRelayAvailable ? 'no-store' : 'public, max-age=600');
     return {
       available: keyRelayAvailable,
       active: keyRelay.isActive,

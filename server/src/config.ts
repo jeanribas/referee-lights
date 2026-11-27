@@ -24,6 +24,19 @@ export function parseRoomIdlePolicy(raw: string | undefined): { policy: RoomIdle
 
 const roomIdle = parseRoomIdlePolicy(process.env.ROOM_IDLE_POLICY);
 
+export const REQUEST_LOG_MODES = ['default', 'compact'] as const;
+export type RequestLogMode = (typeof REQUEST_LOG_MODES)[number];
+
+/**
+ * `default` (padrão): log de requisições do Fastify (bundle/LAN). `compact`
+ * (nuvem): uma linha `info` por requisição, sem query, sem corpo e com o
+ * IP em hash. Valor inválido cai em `default`.
+ */
+export function parseRequestLog(raw: string | undefined): RequestLogMode {
+  const value = (raw ?? '').trim().toLowerCase();
+  return value === 'compact' ? 'compact' : 'default';
+}
+
 export const config = {
   PORT: Number(process.env.PORT ?? 3333),
   CORS_ORIGIN: process.env.CORS_ORIGIN ?? '*',
@@ -44,6 +57,8 @@ export const config = {
   // activity = comportamento antigo; votes = só voto ou 3 árbitros conectados renovam a sala
   ROOM_IDLE_POLICY: roomIdle.policy,
   ROOM_IDLE_POLICY_INVALID: roomIdle.invalid,
+  // default = log do Fastify (bundle); compact = uma linha por requisição (nuvem)
+  REQUEST_LOG: parseRequestLog(process.env.REQUEST_LOG),
   // Quantos proxies NOSSOS ficam na frente da API (Traefik/Dokploy = 1).
   // 0 = sem proxy (bundle na LAN): X-Forwarded-For é ignorado.
   TRUST_PROXY_HOPS: parseTrustProxyHops(process.env.TRUST_PROXY_HOPS)

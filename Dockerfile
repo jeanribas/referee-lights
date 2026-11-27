@@ -8,6 +8,10 @@ RUN npm run build
 
 FROM node:22-alpine AS runner
 ENV NODE_ENV=production
+# Envs da nuvem (mesmas de server/Dockerfile): sala renova só com voto ou com os 3 árbitros conectados;
+# log compacto por requisição com IP em hash.
+ENV ROOM_IDLE_POLICY=votes
+ENV REQUEST_LOG=compact
 WORKDIR /app
 COPY --from=builder /app/package*.json ./
 RUN npm ci --omit=dev

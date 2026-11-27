@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import Database from 'better-sqlite3';
 import { AuthFailThrottle, type AuthFailKind, type AuthFailVia } from './auth-audit.js';
-import { lookupGeo } from './geo.js';
+import { lookupGeo, lookupNetwork } from './geo.js';
 
 interface GeoInfo {
   country: string;
@@ -30,11 +30,25 @@ export interface StatsResult {
   totalConnections: number;
   uniqueIps: number;
   activeRooms: number;
+  /** Visitantes do site distintos (IP hash) no recorte, sem datacenter. Campo novo. */
+  siteVisitorsDistinct: number;
+  /** Visitas (page_view) vindas de datacenter no recorte (datacenter/VPN). Campo novo. */
+  siteBotViews: number;
 }
 
-export interface GeoDistribution {
+/** Fonte de geo: site (page_view sem datacenter), salas (conexões) ou bots (page_view de datacenter/VPN). */
+export type GeoSource = 'site' | 'salas' | 'bots';
+
+export interface GeoBySource {
   countries: Array<{ country: string; count: number }>;
   cities: Array<{ city: string; country: string; count: number }>;
+}
+
+/** Geo da união (site + salas, como antes) e, em campos novos, cada fonte à parte. */
+export interface GeoDistribution extends GeoBySource {
+  site: GeoBySource;
+  salas: GeoBySource;
+  bots: GeoBySource;
 }
 
 /**
@@ -59,6 +73,14 @@ export interface PeriodWindow {
 
 const PERIOD_DAYS: Record<string, number> = { today: 1, '7d': 7, '30d': 30 };
 const AUTH_PRUNE_INTERVAL_MS = 24 * 3600_000;
+
+/**
+ * Hash de IP usado em todo o analytics e no log compacto: mesmo IP, mesmo hash.
+ * Unidirecional; o IP cru não é guardado.
+ */
+export function hashIpAddress(ip: string): string {
+  return crypto.createHash('sha256').update(ip + 'referee-lights-salt').digest('hex').slice(0, 16);
+}
 
 /** Fuso da consulta em minutos; inválido ou fora de ±14h vira UTC. */
 export function parseTz(raw: unknown): number {
@@ -245,6 +267,20 @@ export class AnalyticsStore {
     try {
       this.db!.exec("ALTER TABLE connections ADD COLUMN lng REAL DEFAULT 0");
     } catch { /* exists */ }
+    // Migrate: datacenter/VPN (is_dc) e ASN de quem conectou. Linhas antigas ficam 0:
+    // o IP cru não é guardado, então o histórico não é reclassificado.
+    for (const ddl of [
+      'ALTER TABLE access_logs ADD COLUMN is_dc INTEGER DEFAULT 0',
+      'ALTER TABLE access_logs ADD COLUMN asn INTEGER DEFAULT 0',
+      'ALTER TABLE connections ADD COLUMN is_dc INTEGER DEFAULT 0',
+      'ALTER TABLE connections ADD COLUMN asn INTEGER DEFAULT 0'
+    ]) {
+      try {
+        this.db!.exec(ddl);
+      } catch {
+        /* coluna já existe */
+      }
+    }
 
     // Limpeza única (user_version 1): o geoip-lite antigo gravava país errado
     // sem coordenadas (ex.: faixa BR marcada como RW). País sem lat/lng não é
@@ -385,7 +421,7 @@ export class AnalyticsStore {
 
   /** One-way hash of IP — keeps uniqueness counting without storing PII */
   private hashIp(ip: string): string {
-    return crypto.createHash('sha256').update(ip + 'referee-lights-salt').digest('hex').slice(0, 16);
+    return hashIpAddress(ip);
   }
 
   /** Condição de período para uma coluna de data no formato do SQLite (UTC). */
@@ -427,11 +463,12 @@ export class AnalyticsStore {
     if (!this.db) return null;
     try {
       const geo = this.resolveGeo(ip);
+      const net = lookupNetwork(ip);
       const ipHash = this.hashIp(ip);
       const stmt = this.db.prepare(
-        'INSERT INTO connections (session_id, role, judge_position, ip, country, region, city, host, lat, lng) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO connections (session_id, role, judge_position, ip, country, region, city, host, lat, lng, is_dc, asn) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
       );
-      const result = stmt.run(sessionId, role, judgePosition, ipHash, geo.country, geo.region, geo.city, host, geo.lat, geo.lng);
+      const result = stmt.run(sessionId, role, judgePosition, ipHash, geo.country, geo.region, geo.city, host, geo.lat, geo.lng, net.datacenter ? 1 : 0, net.asn);
       return result.lastInsertRowid as number;
     } catch (err) {
       console.error('[analytics] logConnection error:', err);
@@ -488,10 +525,11 @@ export class AnalyticsStore {
     if (!this.db) return;
     try {
       const geo = this.resolveGeo(ip);
+      const net = lookupNetwork(ip);
       const ipHash = this.hashIp(ip);
       this.db
         .prepare(
-          'INSERT INTO access_logs (event_type, room_id, ip, country, region, city, user_agent, lat, lng, device, locale, referrer) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+          'INSERT INTO access_logs (event_type, room_id, ip, country, region, city, user_agent, lat, lng, device, locale, referrer, is_dc, asn) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         )
         .run(
           eventType,
@@ -505,7 +543,9 @@ export class AnalyticsStore {
           geo.lng,
           meta?.device ?? '',
           meta?.locale ?? '',
-          meta?.referrer ?? ''
+          meta?.referrer ?? '',
+          net.datacenter ? 1 : 0,
+          net.asn
         );
     } catch (err) {
       console.error('[analytics] logAccess error:', err);
@@ -589,27 +629,42 @@ export class AnalyticsStore {
   }
 
   getStats(activeRoomCount: number, period?: string, tz = 0): StatsResult {
-    if (!this.db) {
-      return { totalSessions: 0, totalConnections: 0, uniqueIps: 0, activeRooms: activeRoomCount };
-    }
+    const empty: StatsResult = {
+      totalSessions: 0, totalConnections: 0, uniqueIps: 0, activeRooms: activeRoomCount,
+      siteVisitorsDistinct: 0, siteBotViews: 0
+    };
+    if (!this.db) return empty;
     try {
       const win = periodWindow(period, tz);
       const whereSess = this.inWindow('created_at', win);
       const whereConn = this.inWindow('connected_at', win);
+      const whereLog = this.inWindow('timestamp', win);
       const sessions = this.db.prepare(`SELECT COUNT(*) as c FROM sessions WHERE ${whereSess}`).get() as { c: number };
       const connections = this.db.prepare(`SELECT COUNT(*) as c FROM connections WHERE ${whereConn}`).get() as { c: number };
       const ips = this.db
         .prepare(`SELECT COUNT(DISTINCT ip) as c FROM connections WHERE ip IS NOT NULL AND ip != '' AND ${whereConn}`)
         .get() as { c: number };
+      // Distintos no PERÍODO (não soma de dias): quem volta em outro dia conta uma vez.
+      const site = this.db
+        .prepare(
+          `SELECT COUNT(DISTINCT ip) as c FROM access_logs
+           WHERE event_type = 'page_view' AND is_dc = 0 AND ip IS NOT NULL AND ip != '' AND ${whereLog}`
+        )
+        .get() as { c: number };
+      const bots = this.db
+        .prepare(`SELECT COUNT(*) as c FROM access_logs WHERE event_type = 'page_view' AND is_dc = 1 AND ${whereLog}`)
+        .get() as { c: number };
       return {
         totalSessions: sessions.c,
         totalConnections: connections.c,
         uniqueIps: ips.c,
-        activeRooms: activeRoomCount
+        activeRooms: activeRoomCount,
+        siteVisitorsDistinct: site.c,
+        siteBotViews: bots.c
       };
     } catch (err) {
       console.error('[analytics] getStats error:', err);
-      return { totalSessions: 0, totalConnections: 0, uniqueIps: 0, activeRooms: activeRoomCount };
+      return empty;
     }
   }
 
@@ -736,29 +791,38 @@ export class AnalyticsStore {
     views: number;
     visitors: number;
     devices: number;
+    siteVisitors: number;
+    bots: number;
   }> {
     if (!this.db) return [];
     try {
       const win = periodWindow(period, tz);
       // União por dia local: dias com só visitas (sem sessão) também aparecem.
-      // `visitors` = IPs (hash) distintos no dia; `devices` = aparelhos
-      // distintos no dia — reconexão do mesmo aparelho não conta de novo.
+      // `visitors` = IPs (hash) distintos no dia (inclui datacenter, como antes);
+      // `devices` = aparelhos distintos no dia — reconexão do mesmo aparelho não
+      // conta de novo. Campos novos: `siteVisitors` = IPs distintos do dia sem
+      // datacenter; `bots` = visitas (page_view) de datacenter/VPN no dia.
       return this.db.prepare(
         `SELECT date, SUM(sessions) as sessions, SUM(connections) as connections, SUM(views) as views,
-                COUNT(DISTINCT visitor) as visitors, COUNT(DISTINCT device) as devices FROM (
+                COUNT(DISTINCT visitor) as visitors, COUNT(DISTINCT device) as devices,
+                COUNT(DISTINCT site_visitor) as siteVisitors, SUM(bot) as bots FROM (
           SELECT ${this.localDay('created_at', win)} as date, 1 as sessions, 0 as connections, 0 as views,
-                 NULL as visitor, NULL as device
+                 NULL as visitor, NULL as device, NULL as site_visitor, 0 as bot
             FROM sessions WHERE ${this.inWindow('created_at', win)}
           UNION ALL
-          SELECT ${this.localDay('connected_at', win)}, 0, 1, 0, NULL, ${ONLINE_DEVICE}
+          SELECT ${this.localDay('connected_at', win)}, 0, 1, 0, NULL, ${ONLINE_DEVICE}, NULL, 0
             FROM connections WHERE ${this.inWindow('connected_at', win)}
           UNION ALL
-          SELECT ${this.localDay('timestamp', win)}, 0, 0, 1, NULLIF(ip, ''), NULL
+          SELECT ${this.localDay('timestamp', win)}, 0, 0, 1, NULLIF(ip, ''), NULL,
+                 CASE WHEN is_dc = 0 THEN NULLIF(ip, '') END, CASE WHEN is_dc = 1 THEN 1 ELSE 0 END
             FROM access_logs WHERE event_type = 'page_view' AND ${this.inWindow('timestamp', win)}
         )
         GROUP BY date
         ORDER BY date ASC`
-      ).all() as Array<{ date: string; sessions: number; connections: number; views: number; visitors: number; devices: number }>;
+      ).all() as Array<{
+        date: string; sessions: number; connections: number; views: number; visitors: number; devices: number;
+        siteVisitors: number; bots: number;
+      }>;
     } catch (err) {
       console.error('[analytics] getTimeline error:', err);
       return [];
@@ -1383,27 +1447,59 @@ export class AnalyticsStore {
     }
   }
 
-  /** Países/cidades por IPs (hash) distintos no recorte — site e salas somados. */
+  /**
+   * Origem de geo para um recorte, como subconsulta com lat, lng, city, country e
+   * ip (hash, NULL se vazio). `site` = page_view sem datacenter; `bots` = page_view
+   * de datacenter; `salas` = conexões de socket.
+   */
+  private geoSourceSql(source: GeoSource | 'visitas', win: PeriodWindow): string {
+    if (source === 'salas') {
+      return `SELECT lat, lng, city, country, NULLIF(ip, '') as ip FROM connections WHERE ${this.inWindow('connected_at', win)}`;
+    }
+    // 'visitas' = todo page_view (site + datacenter/VPN), base do campo antigo `countries`/`cities`
+    const dcFilter = source === 'visitas' ? '' : `AND is_dc = ${source === 'bots' ? 1 : 0}`;
+    return `SELECT lat, lng, city, country, NULLIF(ip, '') as ip FROM access_logs
+      WHERE event_type = 'page_view' ${dcFilter} AND ${this.inWindow('timestamp', win)}`;
+  }
+
+  /** Países e cidades por IPs (hash) distintos sobre uma subconsulta de geo. */
+  private geoCounts(sourceSql: string): GeoBySource {
+    const countries = this.db!.prepare(
+      `SELECT country, COUNT(DISTINCT ip) as count FROM (${sourceSql})
+       WHERE country != '' GROUP BY country ORDER BY count DESC LIMIT 30`
+    ).all() as Array<{ country: string; count: number }>;
+    const cities = this.db!.prepare(
+      `SELECT city, country, COUNT(DISTINCT ip) as count FROM (${sourceSql})
+       WHERE city != '' GROUP BY city, country ORDER BY count DESC LIMIT 30`
+    ).all() as Array<{ city: string; country: string; count: number }>;
+    return { countries, cities };
+  }
+
+  /**
+   * Países/cidades por IPs (hash) distintos no recorte — site e salas somados
+   * (campos `countries`/`cities`, como antes). Campos novos: `site`, `salas` e
+   * `bots`, cada fonte à parte.
+   */
   getGeoDistribution(period?: string, tz = 0): GeoDistribution {
-    if (!this.db) return { countries: [], cities: [] };
+    const empty: GeoDistribution = {
+      countries: [], cities: [],
+      site: { countries: [], cities: [] }, salas: { countries: [], cities: [] }, bots: { countries: [], cities: [] }
+    };
+    if (!this.db) return empty;
     try {
       const win = periodWindow(period, tz);
-      const unionSql = `
-        SELECT country, city, ip FROM connections WHERE ${this.inWindow('connected_at', win)}
-        UNION ALL
-        SELECT country, city, ip FROM access_logs WHERE event_type = 'page_view' AND ${this.inWindow('timestamp', win)}`;
-      const countries = this.db.prepare(
-        `SELECT country, COUNT(DISTINCT NULLIF(ip, '')) as count FROM (${unionSql})
-         WHERE country != '' GROUP BY country ORDER BY count DESC LIMIT 30`
-      ).all() as Array<{ country: string; count: number }>;
-      const cities = this.db.prepare(
-        `SELECT city, country, COUNT(DISTINCT NULLIF(ip, '')) as count FROM (${unionSql})
-         WHERE city != '' GROUP BY city, country ORDER BY count DESC LIMIT 30`
-      ).all() as Array<{ city: string; country: string; count: number }>;
-      return { countries, cities };
+      const union = `${this.geoSourceSql('salas', win)} UNION ALL ${this.geoSourceSql('visitas', win)}`;
+      const both = this.geoCounts(union);
+      return {
+        countries: both.countries,
+        cities: both.cities,
+        site: this.geoCounts(this.geoSourceSql('site', win)),
+        salas: this.geoCounts(this.geoSourceSql('salas', win)),
+        bots: this.geoCounts(this.geoSourceSql('bots', win))
+      };
     } catch (err) {
       console.error('[analytics] getGeoDistribution error:', err);
-      return { countries: [], cities: [] };
+      return empty;
     }
   }
 
@@ -1438,6 +1534,35 @@ export class AnalyticsStore {
       ).all() as Array<{ city: string; country: string; lat: number; lng: number; count: number; users: number; visitors: number }>;
     } catch (err) {
       console.error('[analytics] getGeoMarkers error:', err);
+      return [];
+    }
+  }
+
+  /**
+   * Marcadores de mapa de UMA fonte (`site`, `salas` ou `bots`), clusterizados
+   * como em getGeoMarkers. `count` = IPs (hash) distintos da fonte no cluster.
+   */
+  getGeoMarkersBySource(
+    source: GeoSource,
+    period?: string,
+    tz = 0
+  ): Array<{ city: string; country: string; lat: number; lng: number; count: number }> {
+    if (!this.db) return [];
+    try {
+      const win = periodWindow(period, tz);
+      return this.db.prepare(
+        `SELECT
+          MAX(city) as city, MAX(country) as country,
+          ROUND(AVG(lat), 4) as lat, ROUND(AVG(lng), 4) as lng,
+          COUNT(DISTINCT ip) as count
+        FROM (${this.geoSourceSql(source, win)})
+        WHERE lat != 0 AND lng != 0
+        GROUP BY ROUND(lat, 1), ROUND(lng, 1)
+        ORDER BY count DESC
+        LIMIT 100`
+      ).all() as Array<{ city: string; country: string; lat: number; lng: number; count: number }>;
+    } catch (err) {
+      console.error(`[analytics] getGeoMarkersBySource(${source}) error:`, err);
       return [];
     }
   }
@@ -1479,7 +1604,12 @@ export class AnalyticsStore {
     return this.pageViewFacet('referrer', period, tz);
   }
 
-  getPages(period?: string, tz = 0): Array<{ page: string; count: number }> {
+  /**
+   * Páginas no recorte. `count` = soma de tudo (como antes). Campos novos, separados:
+   * `views` = page_view sem datacenter, `botViews` = page_view de datacenter,
+   * `connections` = conexões de socket daquela tela (cada reconexão conta).
+   */
+  getPages(period?: string, tz = 0): Array<{ page: string; count: number; views: number; botViews: number; connections: number }> {
     if (!this.db) return [];
     try {
       const win = periodWindow(period, tz);
@@ -1489,8 +1619,12 @@ export class AnalyticsStore {
       // as telas de app derivadas das conexões de socket — antes só as
       // segundas existiam e o tráfego da landing/windows era invisível.
       return this.db.prepare(
-        `SELECT page, SUM(count) as count FROM (
-          SELECT room_id as page, COUNT(*) as count
+        `SELECT page, SUM(views) as views, SUM(bot_views) as botViews, SUM(conns) as connections,
+                SUM(views + bot_views + conns) as count FROM (
+          SELECT room_id as page,
+            SUM(CASE WHEN is_dc = 0 THEN 1 ELSE 0 END) as views,
+            SUM(CASE WHEN is_dc = 1 THEN 1 ELSE 0 END) as bot_views,
+            0 as conns
           FROM access_logs
           WHERE event_type = 'page_view' AND room_id IS NOT NULL AND ${whereLog}
           GROUP BY room_id
@@ -1502,14 +1636,15 @@ export class AnalyticsStore {
               WHEN role = 'display' THEN '/display'
               ELSE '/'
             END as page,
-            COUNT(*) as count
+            0 as views, 0 as bot_views,
+            COUNT(*) as conns
           FROM connections
           WHERE ${whereConn}
           GROUP BY page
         )
         GROUP BY page
         ORDER BY count DESC`
-      ).all() as Array<{ page: string; count: number }>;
+      ).all() as Array<{ page: string; count: number; views: number; botViews: number; connections: number }>;
     } catch (err) {
       console.error('[analytics] getPages error:', err);
       return [];
