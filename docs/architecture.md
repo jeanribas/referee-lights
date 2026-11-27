@@ -52,6 +52,7 @@ Embutido no servidor (`server/src/key-relay.ts`). Ativado pelo admin com o PIN d
 | `KEY_RELAY_AVAILABLE` | `false` | Habilita o Key Relay |
 | `REQUEST_LOG` | `default` | Formato do log de requisições: `default` (log do Fastify) ou `compact` (uma linha por requisição). A imagem Docker da raiz (`Dockerfile`) seta `compact` |
 | `GEO_ENABLED` | `true` | Carrega a base GeoLite2 de localização e rede. Desligado no bundle Windows |
+| `TRACK_ALLOWED_ORIGINS` | vazio | Origens aceitas pelas rotas públicas de rastreio, separadas por vírgula. Vazio aceita qualquer origem |
 
 Frontend: `NEXT_PUBLIC_WS_URL` e `NEXT_PUBLIC_API_URL` (URL do servidor).
 

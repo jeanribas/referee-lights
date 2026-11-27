@@ -7,6 +7,8 @@
  * em query). Rotas de ruído conhecido com sucesso não geram linha.
  */
 
+import { sanitizeLogOrigin } from './track-origin.js';
+
 const PATH_MAX = 120;
 const UA_MAX = 160;
 const HOST_MAX = 253;
@@ -74,6 +76,8 @@ export interface RequestLogLine {
   ua: string;
   h: string;
   dc: boolean;
+  /** Origin sanitizado; só nas requisições a /track/*. */
+  o?: string;
 }
 
 export function buildRequestLine(input: {
@@ -84,9 +88,11 @@ export function buildRequestLine(input: {
   ipHash: string;
   userAgent: string | undefined;
   host: string | undefined;
+  origin?: string | undefined;
   datacenter: boolean;
 }): RequestLogLine {
-  return {
+  const path = requestPath(input.url);
+  const line: RequestLogLine = {
     event: 'req',
     m: input.method.slice(0, 10),
     p: requestPath(input.url),
@@ -97,4 +103,6 @@ export function buildRequestLine(input: {
     h: sanitizeHost(input.host),
     dc: input.datacenter
   };
+  if (path.startsWith('/track/')) line.o = sanitizeLogOrigin(input.origin);
+  return line;
 }

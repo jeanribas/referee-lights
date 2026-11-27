@@ -1,6 +1,7 @@
 import { config as loadEnv } from 'dotenv';
 
 import { parseTrustProxyHops } from './client-ip.js';
+import { parseTrackAllowedOrigins } from './track-origin.js';
 
 // dotenv 17 loga uma dica de runtime a cada boot; quiet mantém o stdout limpo.
 loadEnv({ quiet: true });
@@ -61,5 +62,7 @@ export const config = {
   REQUEST_LOG: parseRequestLog(process.env.REQUEST_LOG),
   // Quantos proxies NOSSOS ficam na frente da API (Traefik/Dokploy = 1).
   // 0 = sem proxy (bundle na LAN): X-Forwarded-For é ignorado.
-  TRUST_PROXY_HOPS: parseTrustProxyHops(process.env.TRUST_PROXY_HOPS)
+  TRUST_PROXY_HOPS: parseTrustProxyHops(process.env.TRUST_PROXY_HOPS),
+  // Origens exatas (esquema+host+porta) aceitas em /track/page e /track/click. Vazia = aceita tudo.
+  TRACK_ALLOWED_ORIGINS: parseTrackAllowedOrigins(process.env.TRACK_ALLOWED_ORIGINS)
 };

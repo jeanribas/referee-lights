@@ -12,6 +12,8 @@ ENV NODE_ENV=production
 # log compacto por requisição com IP em hash.
 ENV ROOM_IDLE_POLICY=votes
 ENV REQUEST_LOG=compact
+# Rastreio público (/track/page, /track/click) só aceita a origem do site.
+ENV TRACK_ALLOWED_ORIGINS=https://refereelights.app
 WORKDIR /app
 COPY --from=builder /app/package*.json ./
 RUN npm ci --omit=dev
