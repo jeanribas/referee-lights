@@ -8,12 +8,15 @@ RUN npm run build
 
 FROM node:22-alpine AS runner
 ENV NODE_ENV=production
-# Envs da nuvem (mesmas de server/Dockerfile): sala renova só com voto ou com os 3 árbitros conectados;
+# Envs da nuvem: sala renova só com voto ou com os 3 árbitros conectados;
 # log compacto por requisição com IP em hash.
 ENV ROOM_IDLE_POLICY=votes
 ENV REQUEST_LOG=compact
 # Rastreio público (/track/page, /track/click) só aceita a origem do site.
 ENV TRACK_ALLOWED_ORIGINS=https://refereelights.app
+# Assist Stats: host e site (o token de serviço fica nas envs do Dokploy, nunca aqui).
+ENV STATS_API_URL=https://stats.assist.com.br
+ENV STATS_SITE_ID=refereelights
 WORKDIR /app
 COPY --from=builder /app/package*.json ./
 RUN npm ci --omit=dev
