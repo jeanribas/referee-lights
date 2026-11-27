@@ -36,9 +36,13 @@ export function originHostOf(header: string | undefined): string {
   return HOST_RE.test(host) ? host : '';
 }
 
-/** Origem para o log: cortada em 100 chars e só [a-z0-9.:/-]. */
+/** Origem para o log: cortada em 100 chars, minúscula, vírgula vira espaço, só [a-z0-9.:/ -]. */
 export function sanitizeLogOrigin(raw: string | undefined): string {
-  return (raw ?? '').slice(0, LOG_ORIGIN_MAX).replace(/[^a-z0-9.:/-]/g, '');
+  return (raw ?? '')
+    .slice(0, LOG_ORIGIN_MAX)
+    .toLowerCase()
+    .replace(/,/g, ' ')
+    .replace(/[^a-z0-9.:/ -]/g, '');
 }
 
 export interface TrackRejectLine {

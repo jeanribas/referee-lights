@@ -69,6 +69,7 @@ describe('lista e origem (puro)', () => {
     expect(sanitizeLogOrigin('https://evil.example/<script>"')).toBe('https://evil.example/script');
     expect(sanitizeLogOrigin(`https://${'a'.repeat(200)}`)).toHaveLength(100);
     expect(sanitizeLogOrigin(undefined)).toBe('');
+    expect(sanitizeLogOrigin('HTTPS://Evil.Example,https://b.test')).toBe('https://evil.example https://b.test');
   });
 });
 
@@ -214,6 +215,25 @@ describe('POST /track/page com TRACK_ALLOWED_ORIGINS definida', () => {
     expect(rows('page_view')).toHaveLength(before);
   });
 
+  it.each([
+    ['Origin null', 'null'],
+    ['maiúsculas', 'HTTPS://REFEREELIGHTS.APP'],
+    ['porta padrão explícita', 'https://refereelights.app:443'],
+    ['barra final', 'https://refereelights.app/']
+  ])('%s → 204 sem linha', async (_nome, origin) => {
+    const before = rows('page_view').length;
+    const res = await post('/track/page', { origin }, { path: '/' });
+    expect(res.statusCode).toBe(204);
+    expect(rows('page_view')).toHaveLength(before);
+  });
+
+  it('dois headers Origin, mesmo com o primeiro certo → 204 sem linha', async () => {
+    const before = rows('page_view').length;
+    const res = await post('/track/page', { origin: [SITE, 'https://evil.example'] }, { path: '/' });
+    expect(res.statusCode).toBe(204);
+    expect(rows('page_view')).toHaveLength(before);
+  });
+
   it('origem certa → 200 com origin_host gravado', async () => {
     const res = await post('/track/page', { origin: SITE }, { path: '/timer/WXYZ' });
     expect(res.statusCode).toBe(200);
@@ -231,6 +251,21 @@ describe('POST /track/page com TRACK_ALLOWED_ORIGINS definida', () => {
     const res = await post('/track/page', { origin: SITE, 'user-agent': '' }, { path: '/' });
     expect(res.statusCode).toBe(200);
     expect(rows('page_view').at(-1)).toMatchObject({ isBot: 1 });
+  });
+});
+
+describe('is_bot desconhecido', () => {
+  it('logAccess sem UA informado grava NULL, não 0', async () => {
+    const { AnalyticsStore } = await import('../src/analytics.js');
+    const store = new AnalyticsStore(path.join(dataDir, 'null-ua.db'));
+    store.logAccess('room_created', 'ABCD', '10.9.9.9');
+    const db = new Database(path.join(dataDir, 'null-ua.db'), { readonly: true });
+    try {
+      const row = db.prepare("SELECT is_bot AS isBot FROM access_logs WHERE event_type = 'room_created'").get() as { isBot: number | null };
+      expect(row.isBot).toBeNull();
+    } finally {
+      db.close();
+    }
   });
 });
 
