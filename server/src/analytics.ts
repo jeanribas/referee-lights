@@ -35,6 +35,10 @@ export interface StatsResult {
   siteVisitorsDistinct: number;
   /** Visitas (page_view) de datacenter/VPN ou robô de UA no recorte. Campo novo. */
   siteBotViews: number;
+  /** Salas online com atividade no recorte: criadas no período ou com conexão no período. Campo novo. */
+  activeSessions: number;
+  /** Mesma contagem na janela anterior de mesmo tamanho; null em period='all'. Campo novo. */
+  activeSessionsPrevious: number | null;
 }
 
 /** Fonte de geo: site (page_view sem datacenter/VPN nem robô), salas (conexões) ou bots (page_view de datacenter/VPN ou robô). */
@@ -101,6 +105,27 @@ export function periodWindow(period?: string, tz = 0, now = Date.now()): PeriodW
   return { since, tz: offset };
 }
 
+/**
+ * Janela anterior de mesmo tamanho, como [from, to) em UTC do SQLite.
+ * null quando o período é todo o histórico (não há janela anterior).
+ */
+export function previousWindowBounds(period: string | undefined, tz: number, now: number): { from: string; to: string } | null {
+  const cur = periodWindow(period, tz, now);
+  if (cur.since === null) return null;
+  const days = PERIOD_DAYS[period ?? ''] ?? 30;
+  const prev = periodWindow(period, tz, now - days * 86400_000);
+  return prev.since === null ? null : { from: prev.since, to: cur.since };
+}
+
+/** Condição com parâmetros para um intervalo [from, to); null = sem limite naquele lado. */
+function rangeSql(column: string, from: string | null, to: string | null): { sql: string; params: string[] } {
+  const parts: string[] = [];
+  const params: string[] = [];
+  if (from !== null) { parts.push(`${column} >= ?`); params.push(from); }
+  if (to !== null) { parts.push(`${column} < ?`); params.push(to); }
+  return { sql: parts.join(' AND ') || '1=1', params };
+}
+
 /** Payload truncado na ingestão não é JSON válido — json_extract lançaria. */
 const VALID_PAYLOAD = 'CASE WHEN json_valid(payload) THEN payload END';
 
@@ -117,6 +142,14 @@ function bundleDevice(t = ''): string {
   );
 }
 const BUNDLE_DEVICE = bundleDevice();
+
+/** Sala de um evento de bundle (coluna ou payload); vazia vira NULL. `t` = alias da tabela. */
+function bundleRoom(t = ''): string {
+  const payload = `CASE WHEN json_valid(${t}payload) THEN ${t}payload END`;
+  return `NULLIF(COALESCE(${t}room_id, json_extract(${payload}, '$.roomId')), '')`;
+}
+/** Par instalação|sala distinto; NULL quando não há sala (COUNT DISTINCT ignora). */
+const BUNDLE_ROOM_PAIR = `instance_id || '|' || ${bundleRoom()}`;
 
 export class AnalyticsStore {
   private db: Database.Database | null = null;
@@ -437,6 +470,33 @@ export class AnalyticsStore {
     return hashIpAddress(ip);
   }
 
+  /** Salas online com atividade no intervalo: criadas ou com conexão no intervalo. */
+  private countActiveOnline(from: string | null, to: string | null): number {
+    if (!this.db) return 0;
+    const sess = rangeSql('created_at', from, to);
+    const conn = rangeSql('connected_at', from, to);
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM (
+           SELECT id AS sid FROM sessions WHERE ${sess.sql}
+           UNION
+           SELECT session_id AS sid FROM connections WHERE session_id IS NOT NULL AND ${conn.sql}
+         )`
+      )
+      .get(...sess.params, ...conn.params) as { c: number };
+    return row.c;
+  }
+
+  /** Pares instalação|sala distintos com evento no intervalo, sem a instância própria. */
+  private countActiveBundleRooms(excludeInstanceId: string, from: string | null, to: string | null): number {
+    if (!this.db) return 0;
+    const ev = rangeSql('received_at', from, to);
+    const row = this.db
+      .prepare(`SELECT COUNT(DISTINCT ${BUNDLE_ROOM_PAIR}) AS c FROM instance_events WHERE instance_id != ? AND ${ev.sql}`)
+      .get(excludeInstanceId, ...ev.params) as { c: number };
+    return row.c;
+  }
+
   /** Condição de período para uma coluna de data no formato do SQLite (UTC). */
   private inWindow(column: string, win: PeriodWindow): string {
     return win.since ? `${column} >= '${win.since}'` : '1=1';
@@ -650,11 +710,14 @@ export class AnalyticsStore {
   getStats(activeRoomCount: number, period?: string, tz = 0): StatsResult {
     const empty: StatsResult = {
       totalSessions: 0, totalConnections: 0, uniqueIps: 0, activeRooms: activeRoomCount,
-      siteVisitorsDistinct: 0, siteBotViews: 0
+      siteVisitorsDistinct: 0, siteBotViews: 0,
+      activeSessions: 0, activeSessionsPrevious: period === 'all' ? null : 0
     };
     if (!this.db) return empty;
     try {
-      const win = periodWindow(period, tz);
+      const now = Date.now();
+      const win = periodWindow(period, tz, now);
+      const prev = previousWindowBounds(period, tz, now);
       const whereSess = this.inWindow('created_at', win);
       const whereConn = this.inWindow('connected_at', win);
       const whereLog = this.inWindow('timestamp', win);
@@ -679,7 +742,9 @@ export class AnalyticsStore {
         uniqueIps: ips.c,
         activeRooms: activeRoomCount,
         siteVisitorsDistinct: site.c,
-        siteBotViews: bots.c
+        siteBotViews: bots.c,
+        activeSessions: this.countActiveOnline(win.since, null),
+        activeSessionsPrevious: prev ? this.countActiveOnline(prev.from, prev.to) : null
       };
     } catch (err) {
       console.error('[analytics] getStats error:', err);
@@ -812,6 +877,7 @@ export class AnalyticsStore {
     devices: number;
     siteVisitors: number;
     bots: number;
+    activeSessions: number;
   }> {
     if (!this.db) return [];
     try {
@@ -824,23 +890,25 @@ export class AnalyticsStore {
       return this.db.prepare(
         `SELECT date, SUM(sessions) as sessions, SUM(connections) as connections, SUM(views) as views,
                 COUNT(DISTINCT visitor) as visitors, COUNT(DISTINCT device) as devices,
-                COUNT(DISTINCT site_visitor) as siteVisitors, SUM(bot) as bots FROM (
+                COUNT(DISTINCT site_visitor) as siteVisitors, SUM(bot) as bots,
+                COUNT(DISTINCT session_ref) as activeSessions FROM (
           SELECT ${this.localDay('created_at', win)} as date, 1 as sessions, 0 as connections, 0 as views,
-                 NULL as visitor, NULL as device, NULL as site_visitor, 0 as bot
+                 NULL as visitor, NULL as device, NULL as site_visitor, 0 as bot, id as session_ref
             FROM sessions WHERE ${this.inWindow('created_at', win)}
           UNION ALL
-          SELECT ${this.localDay('connected_at', win)}, 0, 1, 0, NULL, ${ONLINE_DEVICE}, NULL, 0
+          SELECT ${this.localDay('connected_at', win)}, 0, 1, 0, NULL, ${ONLINE_DEVICE}, NULL, 0, session_id
             FROM connections WHERE ${this.inWindow('connected_at', win)}
           UNION ALL
           SELECT ${this.localDay('timestamp', win)}, 0, 0, 1, NULLIF(ip, ''), NULL,
-                 CASE WHEN is_dc = 0 AND is_bot IS NOT 1 THEN NULLIF(ip, '') END, CASE WHEN is_dc = 1 OR is_bot = 1 THEN 1 ELSE 0 END
+                 CASE WHEN is_dc = 0 AND is_bot IS NOT 1 THEN NULLIF(ip, '') END, CASE WHEN is_dc = 1 OR is_bot = 1 THEN 1 ELSE 0 END,
+                 NULL
             FROM access_logs WHERE event_type = 'page_view' AND ${this.inWindow('timestamp', win)}
         )
         GROUP BY date
         ORDER BY date ASC`
       ).all() as Array<{
         date: string; sessions: number; connections: number; views: number; visitors: number; devices: number;
-        siteVisitors: number; bots: number;
+        siteVisitors: number; bots: number; activeSessions: number;
       }>;
     } catch (err) {
       console.error('[analytics] getTimeline error:', err);
@@ -1056,13 +1124,18 @@ export class AnalyticsStore {
     errors: number;
     lifetimeSessions: number;
     lifetimeConnections: number;
+    /** Pares instalação|sala distintos com evento no período. Campo novo. */
+    activeSessions: number;
+    /** Mesma contagem na janela anterior de mesmo tamanho; null em period='all'. Campo novo. */
+    activeSessionsPrevious: number | null;
   } {
     // excludeInstanceId = a instância do PRÓPRIO servidor central, que também
     // se reporta — sem excluir, as sessões online seriam contadas de novo
     // como "bundle".
     const zero = {
       instances: 0, onlineInstances: 0, sessions: 0, connections: 0,
-      decisions: 0, errors: 0, lifetimeSessions: 0, lifetimeConnections: 0
+      decisions: 0, errors: 0, lifetimeSessions: 0, lifetimeConnections: 0,
+      activeSessions: 0, activeSessionsPrevious: period === 'all' ? null : 0
     };
     if (!this.db) return zero;
     try {
@@ -1086,7 +1159,12 @@ export class AnalyticsStore {
            FROM instance_events WHERE instance_id != ? AND ${where}`
         )
         .get(excludeInstanceId) as { sessions: number; connections: number; decisions: number; errors: number };
-      return { ...inst, ...ev };
+      const now = Date.now();
+      const cur = periodWindow(period, tz, now);
+      const prev = previousWindowBounds(period, tz, now);
+      const activeSessions = this.countActiveBundleRooms(excludeInstanceId, cur.since, null);
+      const activeSessionsPrevious = prev ? this.countActiveBundleRooms(excludeInstanceId, prev.from, prev.to) : null;
+      return { ...inst, ...ev, activeSessions, activeSessionsPrevious };
     } catch (err) {
       console.error('[analytics] getBundleSummary error:', err);
       return zero;
@@ -1149,6 +1227,7 @@ export class AnalyticsStore {
     connections: number;
     devices: number;
     decisions: number;
+    activeSessions: number;
   }> {
     if (!this.db) return [];
     try {
@@ -1159,7 +1238,8 @@ export class AnalyticsStore {
                   SUM(CASE WHEN event_type = 'session_created' THEN 1 ELSE 0 END) AS sessions,
                   SUM(CASE WHEN event_type = 'connection' THEN 1 ELSE 0 END) AS connections,
                   COUNT(DISTINCT CASE WHEN event_type = 'connection' THEN ${BUNDLE_DEVICE} END) AS devices,
-                  SUM(CASE WHEN event_type = 'decision' THEN 1 ELSE 0 END) AS decisions
+                  SUM(CASE WHEN event_type = 'decision' THEN 1 ELSE 0 END) AS decisions,
+                  COUNT(DISTINCT ${BUNDLE_ROOM_PAIR}) AS activeSessions
            FROM instance_events WHERE instance_id != ? AND ${this.inWindow('received_at', win)}
            GROUP BY date ORDER BY date ASC`
         )
