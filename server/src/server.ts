@@ -750,9 +750,17 @@ export async function createServer() {
 
   app.get<{ Querystring: { period?: string; tz?: string } }>('/master/stats', async (request, reply) => {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
+    const tz = parseTz(request.query.tz);
+    const active = analyticsStore.getActiveSessions(request.query.period, tz, telemetry.instanceId);
     return {
-      ...analyticsStore.getStats(roomManager.roomCount(), request.query.period, parseTz(request.query.tz)),
-      bundle: analyticsStore.getBundleSummary(telemetry.instanceId, request.query.period, parseTz(request.query.tz))
+      ...analyticsStore.getStats(roomManager.roomCount(), request.query.period, tz),
+      activeSessions: active.online.current,
+      activeSessionsPrevious: active.online.previous,
+      bundle: {
+        ...analyticsStore.getBundleSummary(telemetry.instanceId, request.query.period, tz),
+        activeSessions: active.bundle.current,
+        activeSessionsPrevious: active.bundle.previous
+      }
     };
   });
 
