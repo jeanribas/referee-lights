@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import Database from 'better-sqlite3';
+import { AuthFailThrottle, type AuthFailKind, type AuthFailVia } from './auth-audit.js';
 import { lookupGeo } from './geo.js';
 
 interface GeoInfo {
@@ -41,6 +42,15 @@ export interface GeoDistribution {
  * (Brasília = -180). Hoje / 7 dias / 30 dias são dias de CALENDÁRIO locais
  * (hoje + os N-1 anteriores) — a mesma régua da série diária no painel.
  */
+export interface AuthFailuresResult {
+  total: number;
+  byKind: Record<string, number>;
+  byVia: Record<string, number>;
+  topIps: Array<{ ipHash: string; city: string; country: string; n: number; rooms: number; first: string; last: string }>;
+  byDay: Array<{ day: string; count: number }>;
+  recent: Array<{ ts: string; kind: string; via: string; roomId: string; role: string; ipHash: string; country: string; city: string }>;
+}
+
 export interface PeriodWindow {
   /** Início do recorte em UTC, formato do SQLite; null = todo o histórico. */
   since: string | null;
@@ -85,6 +95,7 @@ const BUNDLE_DEVICE = bundleDevice();
 
 export class AnalyticsStore {
   private db: Database.Database | null = null;
+  private readonly authThrottle = new AuthFailThrottle();
 
   constructor(dbPath: string) {
     try {
@@ -186,6 +197,19 @@ export class AnalyticsStore {
 
       CREATE INDEX IF NOT EXISTS idx_instance_events_instance ON instance_events(instance_id, received_at);
       CREATE INDEX IF NOT EXISTS idx_instance_samples ON instance_samples(instance_id, sampled_at);
+
+      CREATE TABLE IF NOT EXISTS auth_failures (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts TEXT NOT NULL DEFAULT (datetime('now')),
+        kind TEXT NOT NULL,
+        via TEXT NOT NULL,
+        room_id TEXT,
+        role TEXT,
+        ip_hash TEXT,
+        country TEXT,
+        city TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_auth_failures_ts ON auth_failures(ts);
     `);
 
     // Migrate: add host column
@@ -322,6 +346,7 @@ export class AnalyticsStore {
       //  - eventos e amostras: 180 dias
       //  - instância sumida há 180+ dias: sai por completo
       //  - instância que nunca teve uso e sumiu há 7+ dias: ruído, sai
+      this.db!.exec(`DELETE FROM auth_failures WHERE ts < datetime('now', '-90 days')`);
       this.db!.exec(`DELETE FROM instance_events WHERE received_at < datetime('now', '-180 days')`);
       this.db!.exec(`DELETE FROM instance_samples WHERE sampled_at < datetime('now', '-180 days')`);
       this.db!.exec(`DELETE FROM instances WHERE last_seen < datetime('now', '-180 days')`);
@@ -469,6 +494,70 @@ export class AnalyticsStore {
         );
     } catch (err) {
       console.error('[analytics] logAccess error:', err);
+    }
+  }
+
+  /**
+   * Registra uma falha de autenticação. Devolve o hash e o geo para o log (o IP
+   * cru nunca sai daqui) e se esta falha deve ser registrada agora: no máximo 1
+   * por (IP, tipo) a cada 10 s; as demais entram só no contador `suppressed`.
+   */
+  recordAuthFailure(
+    input: { kind: AuthFailKind; via: AuthFailVia; roomId: string; role: string; ip: string },
+    now = Date.now()
+  ): { logged: boolean; ipHash: string; country: string; city: string; suppressed: number } {
+    const geo = this.resolveGeo(input.ip);
+    const ipHash = this.hashIp(input.ip);
+    const { allowed, suppressed } = this.authThrottle.take(`${input.kind}|${ipHash}`, now);
+    if (allowed && this.db) {
+      try {
+        this.db
+          .prepare('INSERT INTO auth_failures (kind, via, room_id, role, ip_hash, country, city) VALUES (?, ?, ?, ?, ?, ?, ?)')
+          .run(input.kind, input.via, input.roomId, input.role, ipHash, geo.country, geo.city);
+      } catch (err) {
+        console.error('[analytics] recordAuthFailure error:', err);
+      }
+    }
+    return { logged: allowed, ipHash, country: geo.country, city: geo.city, suppressed };
+  }
+
+  getAuthFailures(period?: string, tz = 0): AuthFailuresResult {
+    const empty: AuthFailuresResult = { total: 0, byKind: {}, byVia: {}, topIps: [], byDay: [], recent: [] };
+    if (!this.db) return empty;
+    try {
+      const win = periodWindow(period, tz);
+      const where = this.inWindow('ts', win);
+      const total = (this.db.prepare(`SELECT COUNT(*) AS n FROM auth_failures WHERE ${where}`).get() as { n: number }).n;
+      const kinds = this.db.prepare(
+        `SELECT kind, COUNT(*) AS count FROM auth_failures WHERE ${where} GROUP BY kind`
+      ).all() as Array<{ kind: string; count: number }>;
+      const vias = this.db.prepare(
+        `SELECT via, COUNT(*) AS count FROM auth_failures WHERE ${where} GROUP BY via`
+      ).all() as Array<{ via: string; count: number }>;
+      const topIps = this.db.prepare(
+        `SELECT ip_hash AS ipHash, MAX(city) AS city, MAX(country) AS country, COUNT(*) AS n,
+                COUNT(DISTINCT room_id) AS rooms, MIN(ts) AS first, MAX(ts) AS last
+         FROM auth_failures WHERE ${where} GROUP BY ip_hash ORDER BY n DESC LIMIT 20`
+      ).all() as AuthFailuresResult['topIps'];
+      const byDay = this.db.prepare(
+        `SELECT ${this.localDay('ts', win)} AS day, COUNT(*) AS count
+         FROM auth_failures WHERE ${where} GROUP BY day ORDER BY day`
+      ).all() as Array<{ day: string; count: number }>;
+      const recent = this.db.prepare(
+        `SELECT ts, kind, via, room_id AS roomId, role, ip_hash AS ipHash, country, city
+         FROM auth_failures WHERE ${where} ORDER BY id DESC LIMIT 50`
+      ).all() as AuthFailuresResult['recent'];
+      return {
+        total,
+        byKind: Object.fromEntries(kinds.map((row) => [row.kind, row.count])),
+        byVia: Object.fromEntries(vias.map((row) => [row.via, row.count])),
+        topIps,
+        byDay,
+        recent
+      };
+    } catch (err) {
+      console.error('[analytics] getAuthFailures error:', err);
+      return empty;
     }
   }
 

@@ -18,6 +18,7 @@ Admin ──HTTP (criar/recuperar sala, Key Relay)──▶ Server
 - Estado (`AppState`): fase `idle`/`revealed`, votos e cartões por árbitro, cronômetro (padrão 60 s), intervalo, idioma e configuração da legenda.
 - Com os três votos a decisão é revelada; o resultado fica na tela por 10 s e limpa sozinho.
 - Sala sem atividade por `ROOM_TTL_HOURS` (padrão 24 h) é arquivada e o código volta ao pool. Salas com atividade dentro desse prazo são restauradas após reinício com o mesmo código, PIN e tokens.
+- O que é atividade depende de `ROOM_IDLE_POLICY`. `activity` (padrão): qualquer mudança de estado. `votes` (usada na imagem Docker): só voto/cartão ou os 3 árbitros conectados ao mesmo tempo; reconexão de 1 ou 2 árbitros, timer, intervalo e legenda não contam, e sala com os 3 conectados nunca é arquivada.
 
 ## Papéis e autenticação
 
@@ -46,6 +47,7 @@ Embutido no servidor (`server/src/key-relay.ts`). Ativado pelo admin com o PIN d
 | `CORS_ORIGIN` | `*` | Origens permitidas, separadas por vírgula |
 | `LOG_LEVEL` | `info` | Nível de log do Fastify |
 | `ROOM_TTL_HOURS` | `24` | Horas sem atividade até arquivar a sala |
+| `ROOM_IDLE_POLICY` | `activity` | O que renova a sala: `activity` ou `votes` (ver acima). Valor inválido vira `activity` com aviso no log |
 | `TRUST_PROXY_HOPS` | `0` | Proxies reversos confiáveis |
 | `KEY_RELAY_AVAILABLE` | `false` | Habilita o Key Relay |
 

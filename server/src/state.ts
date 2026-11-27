@@ -83,6 +83,7 @@ export class RoomState {
   private tickInterval: NodeJS.Timeout | null = null;
   private autoClearTimeout: NodeJS.Timeout | null = null;
   private subscribers = new Set<(snapshot: AppState) => void>();
+  private voteListeners = new Set<(judge: Judge) => void>();
   private intervalTickHandle: NodeJS.Timeout | null = null;
   private intervalLastTickAt: number | undefined;
 
@@ -92,6 +93,23 @@ export class RoomState {
     return () => {
       this.subscribers.delete(listener);
     };
+  }
+
+  /**
+   * Avisa a cada mudança de voto ou cartão de um árbitro (ação real, não
+   * reconexão nem snapshot). Usado para saber o que é atividade de competição.
+   */
+  onVote(listener: (judge: Judge) => void) {
+    this.voteListeners.add(listener);
+    return () => {
+      this.voteListeners.delete(listener);
+    };
+  }
+
+  private emitVote(judge: Judge) {
+    for (const listener of this.voteListeners) {
+      listener(judge);
+    }
   }
 
   getSnapshot(): AppState {
@@ -134,6 +152,7 @@ export class RoomState {
     if (vote !== 'red') {
       this.state.cards[judge] = [];
     }
+    this.emitVote(judge);
     this.notify();
     if (this.allVotesCast()) {
       this.triggerReveal();
@@ -148,6 +167,7 @@ export class RoomState {
     if (this.state.phase === 'revealed' && this.state.votes[judge] !== 'red') return;
     if (card === null) {
       this.state.cards[judge] = [];
+      this.emitVote(judge);
       this.notify();
       return;
     }
@@ -155,6 +175,7 @@ export class RoomState {
     const cards = this.state.cards[judge];
     if (cards.includes(card)) {
       this.state.cards[judge] = cards.filter((value) => value !== card);
+      this.emitVote(judge);
       this.notify();
       return;
     }
@@ -162,6 +183,7 @@ export class RoomState {
       return;
     }
     this.state.cards[judge] = [...cards, card];
+    this.emitVote(judge);
     this.notify();
   }
 
