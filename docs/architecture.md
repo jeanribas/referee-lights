@@ -37,7 +37,7 @@ Admin ──HTTP (criar/recuperar sala, Key Relay)──▶ Server
 
 ## Key Relay
 
-Embutido no servidor (`server/src/key-relay.ts`). Ativado pelo admin com o PIN da sala; ao revelar a decisão envia a tecla configurada para a janela em foco na máquina do servidor (Windows: SendKeys; macOS: System Events; Linux: `xdotool`). Teclas aceitas por lista branca (F1–F12 ou uma letra/dígito com até 3 modificadores). Só existe com `KEY_RELAY_AVAILABLE=true`.
+Embutido no servidor (`server/src/key-relay.ts`). Ativado pelo admin com o PIN da sala; ao revelar a decisão envia a tecla configurada para a janela em foco na máquina do servidor (Windows: SendKeys; macOS: System Events; Linux: `xdotool`). Teclas aceitas por lista branca (F1–F12 ou uma letra/dígito com até 3 modificadores). Só existe com `KEY_RELAY_AVAILABLE=true`. `GET /key-relay/status` responde `Cache-Control: public, max-age=600` quando o relay está indisponível e `no-store` quando está disponível.
 
 ## Variáveis de ambiente (server)
 
@@ -47,9 +47,11 @@ Embutido no servidor (`server/src/key-relay.ts`). Ativado pelo admin com o PIN d
 | `CORS_ORIGIN` | `*` | Origens permitidas, separadas por vírgula |
 | `LOG_LEVEL` | `info` | Nível de log do Fastify |
 | `ROOM_TTL_HOURS` | `24` | Horas sem atividade até arquivar a sala |
-| `ROOM_IDLE_POLICY` | `activity` | O que renova a sala: `activity` ou `votes` (ver acima). Valor inválido vira `activity` com aviso no log |
+| `ROOM_IDLE_POLICY` | `activity` | O que renova a sala: `activity` ou `votes` (ver acima). Valor inválido vira `activity` com aviso no log. A imagem Docker da raiz (`Dockerfile`) seta `votes` |
 | `TRUST_PROXY_HOPS` | `0` | Proxies reversos confiáveis |
 | `KEY_RELAY_AVAILABLE` | `false` | Habilita o Key Relay |
+| `REQUEST_LOG` | `default` | Formato do log de requisições: `default` (log do Fastify) ou `compact` (uma linha por requisição). A imagem Docker da raiz (`Dockerfile`) seta `compact` |
+| `GEO_ENABLED` | `true` | Carrega a base GeoLite2 de localização e rede. Desligado no bundle Windows |
 
 Frontend: `NEXT_PUBLIC_WS_URL` e `NEXT_PUBLIC_API_URL` (URL do servidor).
 

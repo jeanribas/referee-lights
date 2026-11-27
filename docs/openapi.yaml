@@ -81,41 +81,12 @@ paths:
         '403': { $ref: '#/components/responses/InvalidPin' }
         '404': { $ref: '#/components/responses/RoomNotFound' }
         '429': { $ref: '#/components/responses/TooManyAttempts' }
-  /master/auth-failures:
-    get:
-      summary: Falhas de PIN/token agregadas (área master)
-      description: |
-        Conta tentativas de PIN/token erradas e bloqueios por excesso (`429`), vindos
-        de HTTP, socket e Key Relay. Nunca traz o PIN/token tentado nem o IP cru: o IP
-        aparece só como `ipHash`. No máximo 1 linha por (IP, tipo) a cada 10 s entra
-        no banco; as demais tentativas da janela não são contadas individualmente.
-        Registros com mais de 90 dias são apagados na inicialização do servidor.
-      security:
-        - bearerMaster: []
-      parameters:
-        - name: period
-          in: query
-          required: false
-          schema: { type: string, enum: [today, 7d, 30d, all], default: 30d }
-        - name: tz
-          in: query
-          required: false
-          description: 'Fuso em minutos (ex.: -180 para Brasília). Fora de ±840 vira UTC.'
-          schema: { type: integer, example: -180 }
-      responses:
-        '200':
-          description: Agregados do período
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/AuthFailures' }
-        '401':
-          description: Token master ausente ou inválido
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorBody' }
   /key-relay/status:
     get:
       summary: Estado do Key Relay
+      description: |
+        Cache: com o relay indisponível (nuvem) a resposta vem com
+        `Cache-Control: public, max-age=600`; com o relay disponível (bundle), `no-store`.
       responses:
         '200':
           description: Estado atual
@@ -202,11 +173,6 @@ paths:
         '404': { $ref: '#/components/responses/RoomNotFound' }
         '429': { $ref: '#/components/responses/TooManyAttempts' }
 components:
-  securitySchemes:
-    bearerMaster:
-      type: http
-      scheme: bearer
-      description: Token devolvido por POST /master/auth
   parameters:
     RoomId:
       name: roomId
@@ -214,56 +180,6 @@ components:
       required: true
       schema: { type: string, example: ABCD }
   schemas:
-    AuthFailures:
-      type: object
-      properties:
-        total: { type: integer }
-        byKind:
-          type: object
-          description: 'Contagem por tipo: invalid_pin, invalid_token, blocked'
-          additionalProperties: { type: integer }
-        byVia:
-          type: object
-          description: 'Contagem por canal: socket, http, key_relay'
-          additionalProperties: { type: integer }
-        topIps:
-          type: array
-          description: Até 20 IPs (já com hash) ordenados por número de falhas
-          items:
-            type: object
-            properties:
-              ipHash: { type: string, example: 3f9a0c1d7b2e4a58 }
-              city: { type: string }
-              country: { type: string }
-              n: { type: integer, description: Falhas no período }
-              rooms: { type: integer, description: Salas distintas atingidas }
-              first: { type: string, description: 'Primeira falha (UTC, YYYY-MM-DD HH:MM:SS)' }
-              last: { type: string, description: 'Última falha (UTC)' }
-        byDay:
-          type: array
-          items:
-            type: object
-            properties:
-              day: { type: string, example: '2026-11-27' }
-              count: { type: integer }
-        recent:
-          type: array
-          description: Últimas 50 falhas do período, da mais nova para a mais antiga
-          items:
-            type: object
-            properties:
-              ts: { type: string, description: 'UTC, YYYY-MM-DD HH:MM:SS' }
-              kind: { type: string }
-              via: { type: string }
-              roomId: { type: string, description: 'Código da sala, ou `invalid` se fora do formato' }
-              role: { type: string, description: 'Papel pedido, ou `invalid`' }
-              ipHash: { type: string }
-              country: { type: string }
-              city: { type: string }
-    ErrorBody:
-      type: object
-      properties:
-        error: { type: string }
     Locale:
       type: string
       enum: [pt-BR, en-US, es-ES]
