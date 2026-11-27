@@ -12,6 +12,7 @@ import { KeyRelay } from './key-relay.js';
 import { generateMasterToken, validateCredentials, verifyMasterToken } from './master-auth.js';
 import { failureBlocked, rateLimitOk, recordFailure } from './rate-limit.js';
 import { buildRequestLine, isNoiseRequest, requestPath } from './request-log.js';
+import { isTrackOriginAllowed, originHostOf, TrackRejectCounter } from './track-origin.js';
 import { RoomManager } from './rooms.js';
 import { Telemetry } from './telemetry.js';
 import {
@@ -163,6 +164,7 @@ export async function createServer() {
           ipHash: hashIpAddress(ip),
           userAgent: request.headers['user-agent'],
           host: request.headers.host,
+          origin: request.headers.origin,
           datacenter: lookupNetwork(ip).datacenter
         }));
       }
@@ -186,6 +188,8 @@ export async function createServer() {
   });
 
   const io = app.io as AppSocketServer;
+
+  const trackRejects = new TrackRejectCounter((line) => app.log.info(line));
 
   const keyRelay = new KeyRelay();
   const keyRelayAvailable = config.KEY_RELAY_AVAILABLE;
@@ -964,13 +968,21 @@ export async function createServer() {
   });
 
   app.post<{ Body: { url?: string } }>('/track/click', async (request, reply) => {
+    if (!isTrackOriginAllowed(request.headers.origin, config.TRACK_ALLOWED_ORIGINS)) {
+      trackRejects.record(request.headers.origin);
+      reply.code(204);
+      return null;
+    }
     if (!rateLimitOk(`click:${extractIp(request)}`, 30, 60_000)) {
       reply.code(429);
       return { error: 'rate_limited' };
     }
     const url = request.body?.url?.trim().slice(0, 300) ?? '';
     if (!url) { reply.code(400); return { error: 'missing_url' }; }
-    analyticsStore.logAccess('link_click', url, extractIp(request));
+    analyticsStore.logAccess('link_click', url, extractIp(request), {
+      userAgent: request.headers['user-agent'] ?? '',
+      originHost: originHostOf(request.headers.origin)
+    });
     return { ok: true };
   });
 
@@ -980,6 +992,12 @@ export async function createServer() {
       // Page views do site: só o pathname (nunca query string — PINs e tokens
       // de sala viajam em query e não podem chegar aos logs). IP é hasheado
       // dentro do logAccess, como nos demais eventos.
+      // Origem fora da lista (ou ausente, com lista definida) = 204 opaco, sem gravar.
+      if (!isTrackOriginAllowed(request.headers.origin, config.TRACK_ALLOWED_ORIGINS)) {
+        trackRejects.record(request.headers.origin);
+        reply.code(204);
+        return null;
+      }
       if (!rateLimitOk(`page:${extractIp(request)}`, 60, 60_000)) {
         reply.code(429);
         return { error: 'rate_limited' };
@@ -993,7 +1011,13 @@ export async function createServer() {
       const locale = (request.body?.locale ?? '').slice(0, 10).replace(/[^a-zA-Z-]/g, '');
       // Referrer: só o hostname, nunca a URL completa
       const referrer = (request.body?.referrer ?? '').slice(0, 100).replace(/[^a-zA-Z0-9.-]/g, '');
-      analyticsStore.logAccess('page_view', path, extractIp(request), { device, locale, referrer });
+      analyticsStore.logAccess('page_view', path, extractIp(request), {
+        device,
+        locale,
+        referrer,
+        userAgent: request.headers['user-agent'] ?? '',
+        originHost: originHostOf(request.headers.origin)
+      });
       return { ok: true };
     }
   );

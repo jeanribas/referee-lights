@@ -5,6 +5,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import { AuthFailThrottle, type AuthFailKind, type AuthFailVia } from './auth-audit.js';
 import { lookupGeo, lookupNetwork } from './geo.js';
+import { isBotUserAgent } from './bot-ua.js';
 
 interface GeoInfo {
   country: string;
@@ -71,6 +72,7 @@ export interface PeriodWindow {
   tz: number;
 }
 
+const HOST_RE = /^[a-z0-9.-]{1,253}$/;
 const PERIOD_DAYS: Record<string, number> = { today: 1, '7d': 7, '30d': 30 };
 const AUTH_PRUNE_INTERVAL_MS = 24 * 3600_000;
 
@@ -267,6 +269,17 @@ export class AnalyticsStore {
     try {
       this.db!.exec("ALTER TABLE connections ADD COLUMN lng REAL DEFAULT 0");
     } catch { /* exists */ }
+    // Migrate: host da origem aceita em /track/* e robô pelo User-Agent (is_bot).
+    for (const ddl of [
+      "ALTER TABLE access_logs ADD COLUMN origin_host TEXT DEFAULT ''",
+      'ALTER TABLE access_logs ADD COLUMN is_bot INTEGER DEFAULT 0'
+    ]) {
+      try {
+        this.db!.exec(ddl);
+      } catch {
+        /* coluna já existe */
+      }
+    }
     // Migrate: datacenter/VPN (is_dc) e ASN de quem conectou. Linhas antigas ficam 0:
     // o IP cru não é guardado, então o histórico não é reclassificado.
     for (const ddl of [
@@ -516,20 +529,23 @@ export class AnalyticsStore {
     }
   }
 
+  /** O UA cru não é gravado; só o robô é marcado. */
   logAccess(
     eventType: string,
     roomId: string | null,
     ip: string,
-    meta?: { device?: string; locale?: string; referrer?: string }
+    meta?: { device?: string; locale?: string; referrer?: string; userAgent?: string; originHost?: string }
   ): void {
     if (!this.db) return;
     try {
       const geo = this.resolveGeo(ip);
       const net = lookupNetwork(ip);
       const ipHash = this.hashIp(ip);
+      const originHost = HOST_RE.test(meta?.originHost ?? '') ? (meta?.originHost ?? '') : '';
+      const isBot = meta?.userAgent === undefined ? 0 : isBotUserAgent(meta.userAgent) ? 1 : 0;
       this.db
         .prepare(
-          'INSERT INTO access_logs (event_type, room_id, ip, country, region, city, user_agent, lat, lng, device, locale, referrer, is_dc, asn) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+          'INSERT INTO access_logs (event_type, room_id, ip, country, region, city, user_agent, lat, lng, device, locale, referrer, is_dc, asn, origin_host, is_bot) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         )
         .run(
           eventType,
@@ -545,7 +561,9 @@ export class AnalyticsStore {
           meta?.locale ?? '',
           meta?.referrer ?? '',
           net.datacenter ? 1 : 0,
-          net.asn
+          net.asn,
+          originHost,
+          isBot
         );
     } catch (err) {
       console.error('[analytics] logAccess error:', err);
@@ -648,11 +666,11 @@ export class AnalyticsStore {
       const site = this.db
         .prepare(
           `SELECT COUNT(DISTINCT ip) as c FROM access_logs
-           WHERE event_type = 'page_view' AND is_dc = 0 AND ip IS NOT NULL AND ip != '' AND ${whereLog}`
+           WHERE event_type = 'page_view' AND is_dc = 0 AND is_bot = 0 AND ip IS NOT NULL AND ip != '' AND ${whereLog}`
         )
         .get() as { c: number };
       const bots = this.db
-        .prepare(`SELECT COUNT(*) as c FROM access_logs WHERE event_type = 'page_view' AND is_dc = 1 AND ${whereLog}`)
+        .prepare(`SELECT COUNT(*) as c FROM access_logs WHERE event_type = 'page_view' AND (is_dc = 1 OR is_bot = 1) AND ${whereLog}`)
         .get() as { c: number };
       return {
         totalSessions: sessions.c,
@@ -814,7 +832,7 @@ export class AnalyticsStore {
             FROM connections WHERE ${this.inWindow('connected_at', win)}
           UNION ALL
           SELECT ${this.localDay('timestamp', win)}, 0, 0, 1, NULLIF(ip, ''), NULL,
-                 CASE WHEN is_dc = 0 THEN NULLIF(ip, '') END, CASE WHEN is_dc = 1 THEN 1 ELSE 0 END
+                 CASE WHEN is_dc = 0 AND is_bot = 0 THEN NULLIF(ip, '') END, CASE WHEN is_dc = 1 OR is_bot = 1 THEN 1 ELSE 0 END
             FROM access_logs WHERE event_type = 'page_view' AND ${this.inWindow('timestamp', win)}
         )
         GROUP BY date
@@ -1457,9 +1475,10 @@ export class AnalyticsStore {
       return `SELECT lat, lng, city, country, NULLIF(ip, '') as ip FROM connections WHERE ${this.inWindow('connected_at', win)}`;
     }
     // 'visitas' = todo page_view (site + datacenter/VPN), base do campo antigo `countries`/`cities`
-    const dcFilter = source === 'visitas' ? '' : `AND is_dc = ${source === 'bots' ? 1 : 0}`;
+    const botFilter =
+      source === 'visitas' ? '' : source === 'bots' ? 'AND (is_dc = 1 OR is_bot = 1)' : 'AND is_dc = 0 AND is_bot = 0';
     return `SELECT lat, lng, city, country, NULLIF(ip, '') as ip FROM access_logs
-      WHERE event_type = 'page_view' ${dcFilter} AND ${this.inWindow('timestamp', win)}`;
+      WHERE event_type = 'page_view' ${botFilter} AND ${this.inWindow('timestamp', win)}`;
   }
 
   /** Países e cidades por IPs (hash) distintos sobre uma subconsulta de geo. */
@@ -1622,8 +1641,8 @@ export class AnalyticsStore {
         `SELECT page, SUM(views) as views, SUM(bot_views) as botViews, SUM(conns) as connections,
                 SUM(views + bot_views + conns) as count FROM (
           SELECT room_id as page,
-            SUM(CASE WHEN is_dc = 0 THEN 1 ELSE 0 END) as views,
-            SUM(CASE WHEN is_dc = 1 THEN 1 ELSE 0 END) as bot_views,
+            SUM(CASE WHEN is_dc = 0 AND is_bot = 0 THEN 1 ELSE 0 END) as views,
+            SUM(CASE WHEN is_dc = 1 OR is_bot = 1 THEN 1 ELSE 0 END) as bot_views,
             0 as conns
           FROM access_logs
           WHERE event_type = 'page_view' AND room_id IS NOT NULL AND ${whereLog}
