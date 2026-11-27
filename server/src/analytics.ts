@@ -58,6 +58,7 @@ export interface PeriodWindow {
 }
 
 const PERIOD_DAYS: Record<string, number> = { today: 1, '7d': 7, '30d': 30 };
+const AUTH_PRUNE_INTERVAL_MS = 24 * 3600_000;
 
 /** Fuso da consulta em minutos; inválido ou fora de ±14h vira UTC. */
 export function parseTz(raw: unknown): number {
@@ -104,6 +105,10 @@ export class AnalyticsStore {
       this.db = new Database(dbPath);
       this.db.pragma('journal_mode = WAL');
       this.createTables();
+      // Limpeza diária além da do boot: processo que fica dias no ar também apaga.
+      // unref: o timer não segura o processo vivo.
+      const pruneTimer = setInterval(() => this.pruneAuthFailures(), AUTH_PRUNE_INTERVAL_MS);
+      pruneTimer.unref();
     } catch (err) {
       console.error('[analytics] Failed to open database:', err);
       this.db = null;
@@ -346,7 +351,7 @@ export class AnalyticsStore {
       //  - eventos e amostras: 180 dias
       //  - instância sumida há 180+ dias: sai por completo
       //  - instância que nunca teve uso e sumiu há 7+ dias: ruído, sai
-      this.db!.exec(`DELETE FROM auth_failures WHERE ts < datetime('now', '-90 days')`);
+      this.pruneAuthFailures();
       this.db!.exec(`DELETE FROM instance_events WHERE received_at < datetime('now', '-180 days')`);
       this.db!.exec(`DELETE FROM instance_samples WHERE sampled_at < datetime('now', '-180 days')`);
       this.db!.exec(`DELETE FROM instances WHERE last_seen < datetime('now', '-180 days')`);
@@ -357,6 +362,16 @@ export class AnalyticsStore {
       `);
     } catch (err) {
       console.error('[analytics] migração user_version falhou:', err);
+    }
+  }
+
+  /** Apaga falhas de auth com mais de 90 dias. */
+  private pruneAuthFailures(): void {
+    if (!this.db) return;
+    try {
+      this.db.exec(`DELETE FROM auth_failures WHERE ts < datetime('now', '-90 days')`);
+    } catch (err) {
+      console.error('[analytics] pruneAuthFailures error:', err);
     }
   }
 

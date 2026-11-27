@@ -109,6 +109,68 @@ describe('política votes: voto renova', () => {
   });
 });
 
+describe('política votes: decisão e timer não renovam', () => {
+  it('clearDecision não renova a sala', () => {
+    const { rm, roomId, state } = votesRoom();
+    vi.setSystemTime(at(1));
+    state().setVote('left', 'white');
+    vi.setSystemTime(at(20));
+    state().clearDecision();
+    expect(rm.sweepExpired(at(26))).toEqual([roomId]);
+  });
+
+  it('releaseDecision e a limpeza automática não renovam a sala', () => {
+    const { rm, roomId, state } = votesRoom();
+    vi.setSystemTime(at(1));
+    state().setVote('left', 'white');
+    vi.setSystemTime(at(20));
+    state().releaseDecision();
+    // limpeza automática da decisão (10 s depois) roda sem contar como uso
+    vi.advanceTimersByTime(10_000);
+    expect(rm.sweepExpired(at(26))).toEqual([roomId]);
+  });
+
+  it('timer em andamento não renova a sala', () => {
+    const { rm, roomId, state } = votesRoom();
+    vi.setSystemTime(at(1));
+    state().setVote('left', 'white');
+    vi.setSystemTime(at(20));
+    const live = state();
+    live.startTimerWithSeconds(90);
+    expect(rm.sweepExpired(at(26))).toEqual([roomId]);
+    live.stopTimer();
+  });
+});
+
+describe('política activity: timer e legenda renovam', () => {
+  it('timer iniciado depois de 20 h renova a sala', () => {
+    const rm = new RoomManager(() => {}, { ttlMs: 24 * HOUR });
+    const { roomId } = rm.createRoom();
+    vi.setSystemTime(at(20));
+    const state = rm.getRoomState(roomId)!;
+    state.startTimerWithSeconds(90);
+    expect(rm.sweepExpired(at(43))).toEqual([]);
+    expect(rm.sweepExpired(at(45))).toEqual([roomId]);
+    state.stopTimer();
+  });
+
+  it('legenda alterada depois de 20 h renova a sala', () => {
+    const rm = new RoomManager(() => {}, { ttlMs: 24 * HOUR });
+    const { roomId } = rm.createRoom();
+    vi.setSystemTime(at(20));
+    rm.getRoomState(roomId)!.setLegendConfig({
+      bgColor: '#000000',
+      timerColor: '#FFFFFF',
+      digitMode: 'mmss',
+      showPlaceholders: true,
+      showDashedFrame: true,
+      keepAwake: true
+    });
+    expect(rm.sweepExpired(at(43))).toEqual([]);
+    expect(rm.sweepExpired(at(45))).toEqual([roomId]);
+  });
+});
+
 describe('política votes: três árbitros conectados', () => {
   it('impede expiração enquanto os 3 estiverem conectados, mesmo sem voto', () => {
     const { rm, roomId, state } = votesRoom();
@@ -140,18 +202,34 @@ describe('política votes: três árbitros conectados', () => {
     expect(rm.sweepExpired(at(55))).toEqual([roomId]);
   });
 
+  it('sair de 3 conectados marca atividade na saída (sem varredura no meio)', () => {
+    const { rm, roomId, state } = votesRoom();
+    vi.setSystemTime(at(1));
+    state().setConnected('left', true);
+    state().setConnected('center', true);
+    state().setConnected('right', true);
+    // 3 conectados de 1h até 20h; a queda às 20h renova o prazo até 44h
+    vi.setSystemTime(at(20));
+    state().setConnected('right', false);
+
+    expect(rm.sweepExpired(at(43))).toEqual([]);
+    expect(rm.sweepExpired(at(45))).toEqual([roomId]);
+  });
+
   it('dois de três conectados não impedem expiração', () => {
     const { rm, roomId, state } = votesRoom();
     vi.setSystemTime(at(1));
     state().setConnected('left', true);
     state().setConnected('center', true);
     state().setConnected('right', true);
-    vi.setSystemTime(at(20));
+    vi.setSystemTime(at(2));
     state().setConnected('right', false);
+    // depois da queda, 2 conectados não renovam: 2h + 24h
+    vi.setSystemTime(at(10));
+    state().setConnected('center', false);
 
-    // último momento com os 3 conectados: 1h; 24h depois ainda não passou do ttl
     expect(rm.sweepExpired(at(25))).toEqual([]);
-    expect(rm.sweepExpired(at(26))).toEqual([roomId]);
+    expect(rm.sweepExpired(at(27))).toEqual([roomId]);
   });
 });
 

@@ -22,37 +22,51 @@ export function sanitizeRole(raw: unknown): string {
 }
 
 /**
- * Janela fixa por chave. Dentro da janela a falha é contada, não gravada; a
- * próxima gravação carrega quantas foram engolidas. Mapa limitado: sem isso um
- * ataque com IPs variados faria a memória crescer sem fim.
+ * Controle de gravação das falhas (log e banco). Duas regras:
+ * - por chave (tipo + IP): no máximo 1 registro a cada `windowMs`; as demais
+ *   entram só no contador de suprimidas da própria chave;
+ * - global: no máximo `budgetPerMinute` registros por minuto no total, para que
+ *   um ataque com IPs variados não encha o disco. O que passa disso é contado
+ *   e sai como `suppressed` na próxima linha gravada.
+ * O mapa tem teto e despeja a chave mais antiga em O(1) quando lota.
  */
 export class AuthFailThrottle {
   private readonly last = new Map<string, { at: number; suppressed: number }>();
+  private budgetStart = Number.NEGATIVE_INFINITY;
+  private budgetUsed = 0;
+  private overflow = 0;
 
   constructor(
     private readonly windowMs = AUTH_AUDIT_WINDOW_MS,
-    private readonly maxKeys = 5_000
+    private readonly maxKeys = 5_000,
+    private readonly budgetPerMinute = 120
   ) {}
 
   take(key: string, now = Date.now()): { allowed: boolean; suppressed: number } {
+    if (now - this.budgetStart >= 60_000) {
+      this.budgetStart = now;
+      this.budgetUsed = 0;
+    }
     const entry = this.last.get(key);
     if (entry && now - entry.at < this.windowMs) {
       entry.suppressed += 1;
       return { allowed: false, suppressed: 0 };
     }
-    if (!entry && this.last.size >= this.maxKeys) this.prune(now);
-    const suppressed = entry?.suppressed ?? 0;
-    this.last.set(key, { at: now, suppressed: 0 });
-    return { allowed: true, suppressed };
-  }
-
-  private prune(now: number): void {
-    for (const [key, entry] of this.last) {
-      if (now - entry.at >= this.windowMs) this.last.delete(key);
+    if (this.budgetUsed >= this.budgetPerMinute) {
+      this.overflow += 1;
+      return { allowed: false, suppressed: 0 };
     }
-    if (this.last.size >= this.maxKeys) {
+    this.budgetUsed += 1;
+    if (!entry && this.last.size >= this.maxKeys) {
+      // Mapa mantém ordem de inserção: a primeira chave é a mais antiga.
       const oldest = this.last.keys().next();
       if (!oldest.done) this.last.delete(oldest.value);
     }
+    const suppressed = (entry?.suppressed ?? 0) + this.overflow;
+    this.overflow = 0;
+    // delete + set move a chave para o fim (a mais recente).
+    this.last.delete(key);
+    this.last.set(key, { at: now, suppressed: 0 });
+    return { allowed: true, suppressed };
   }
 }

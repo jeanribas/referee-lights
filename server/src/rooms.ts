@@ -21,6 +21,8 @@ interface Room {
   createdAt: number;
   /** Última mudança de estado (voto, timer, conexão…) — base do arquivamento. */
   lastActivityAt: number;
+  /** Último snapshot tinha os 3 árbitros conectados (para marcar a saída desse estado). */
+  allConnectedBefore: boolean;
 }
 
 export interface RoomAccessPayload {
@@ -123,7 +125,8 @@ export class RoomManager {
       refereeTokens,
       state,
       createdAt: Date.now(),
-      lastActivityAt: Date.now()
+      lastActivityAt: Date.now(),
+      allConnectedBefore: false
     };
 
     this.attachActivityTracking(room);
@@ -142,7 +145,8 @@ export class RoomManager {
       refereeTokens: rec.refereeTokens as RefereeTokens,
       state: new RoomState(),
       createdAt: rec.createdAt,
-      lastActivityAt: rec.lastActivityAt
+      lastActivityAt: rec.lastActivityAt,
+      allConnectedBefore: false
     };
     this.attachActivityTracking(room);
     this.rooms.set(room.id, room);
@@ -159,8 +163,14 @@ export class RoomManager {
         this.onStateUpdate(room.id, snapshot);
         return;
       }
-      if (this.idlePolicy === 'activity' || this.allJudgesConnected(room)) {
+      if (this.idlePolicy === 'activity') {
         this.markActivity(room, Date.now());
+      } else {
+        // Estar com os 3 conectados é uso vivo; a SAÍDA desse estado também é
+        // (o último momento com os 3 vira o início do prazo, não a varredura anterior).
+        const allConnected = this.allJudgesConnected(room);
+        if (allConnected || room.allConnectedBefore) this.markActivity(room, Date.now());
+        room.allConnectedBefore = allConnected;
       }
       this.onStateUpdate(room.id, snapshot);
     });

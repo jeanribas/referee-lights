@@ -132,6 +132,15 @@ describe('janela de 10 s', () => {
     expect(t.take('invalid_pin|h2', 2).allowed).toBe(true);
   });
 
+  it('teto global: 120 gravações por minuto; o excedente sai como suppressed na próxima', () => {
+    const t = new AuthFailThrottle(10_000, 5_000, 120);
+    let allowed = 0;
+    for (let i = 0; i < 150; i++) if (t.take(`k${i}`, 1_000).allowed) allowed++;
+    expect(allowed).toBe(120);
+    // minuto seguinte: a primeira gravada carrega as 30 que passaram do teto
+    expect(t.take('nova', 61_000)).toEqual({ allowed: true, suppressed: 30 });
+  });
+
   it('mapa tem teto: chave mais antiga sai quando lota', () => {
     const t = new AuthFailThrottle(10_000, 3);
     for (let i = 0; i < 4; i++) t.take(`k${i}`, i);
@@ -226,6 +235,25 @@ describe('falha de PIN por HTTP', () => {
     expect(status).toBe(200);
     expect(body.recent.some((r) => r.roomId === room.roomId)).toBe(true);
     expect(JSON.stringify(body)).not.toContain(ip);
+  });
+
+  it('refresh de tokens com PIN errado grava invalid_pin via http', async () => {
+    const warn = vi.spyOn(app.log, 'warn');
+    const ip = freshIp();
+    const room = await createRoom();
+    const res = await app.inject({
+      method: 'POST',
+      url: `/rooms/${room.roomId}/refresh-ref-tokens`,
+      headers: { 'x-forwarded-for': ip },
+      payload: { adminPin: WRONG_PIN }
+    });
+    expect(res.statusCode).toBe(403);
+    const logs = authFailLogs(warn);
+    expect(logs[0][0]).toMatchObject({ kind: 'invalid_pin', via: 'http', roomId: room.roomId, role: 'admin' });
+    warn.mockRestore();
+
+    const { body } = await failures('?period=all', await masterToken());
+    expect(body.recent.some((r) => r.roomId === room.roomId && r.kind === 'invalid_pin' && r.via === 'http')).toBe(true);
   });
 
   it('roomId fora do formato vira invalid (aqui via bloqueio, o caminho que aceita qualquer id)', async () => {
@@ -340,6 +368,15 @@ describe('GET /master/auth-failures', () => {
     const { status, body } = await failures('?period=all');
     expect(status).toBe(401);
     expect(body).toEqual({ error: 'unauthorized' });
+  });
+
+  it('Bearer forjado → 401', async () => {
+    const forged = await failures('?period=all', 'forjado.token.xyz');
+    expect(forged.status).toBe(401);
+    // assinatura válida de outra chave também não passa
+    const fakeSig = `${Buffer.from('{"u":"test-user"}').toString('base64url')}.AAAA`;
+    const sig = await failures('?period=all', fakeSig);
+    expect(sig.status).toBe(401);
   });
 
   it('com token válido → formato agregado', async () => {
