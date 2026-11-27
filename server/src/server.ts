@@ -14,6 +14,7 @@ import { failureBlocked, rateLimitOk, recordFailure } from './rate-limit.js';
 import { buildRequestLine, isNoiseRequest, requestPath } from './request-log.js';
 import { isTrackOriginAllowed, originHostOf, TrackRejectCounter } from './track-origin.js';
 import { RoomManager } from './rooms.js';
+import { getSiteStatsReport, parseSitePeriod, SITE_STATS_ROUTES } from './site-stats.js';
 import { Telemetry } from './telemetry.js';
 import {
   type AppState,
@@ -1093,6 +1094,17 @@ export async function createServer() {
     if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
     return { hosts: analyticsStore.getHosts(request.query.period, parseTz(request.query.tz)) };
   });
+
+  // Relatórios do site refereelights.app vindos do Assist Stats (servidor a servidor).
+  // period: today|7d|30d|all (padrão 30d). tz não é aceito: o stats fixa o dia em BRT.
+  for (const route of SITE_STATS_ROUTES) {
+    app.get<{ Querystring: { period?: string } }>(`/master/site/${route}`, async (request, reply) => {
+      if (!requireMaster(request)) { reply.code(401); return { error: 'unauthorized' }; }
+      const period = parseSitePeriod(request.query.period);
+      if (!period) { reply.code(400); return { error: 'invalid_period' }; }
+      return getSiteStatsReport(route, period);
+    });
+  }
 
   // --- Key Relay Endpoints ---
 

@@ -64,5 +64,9 @@ export const config = {
   // 0 = sem proxy (bundle na LAN): X-Forwarded-For é ignorado.
   TRUST_PROXY_HOPS: parseTrustProxyHops(process.env.TRUST_PROXY_HOPS),
   // Origens exatas (esquema+host+porta) aceitas em /track/page e /track/click. Vazia = aceita tudo.
-  TRACK_ALLOWED_ORIGINS: parseTrackAllowedOrigins(process.env.TRACK_ALLOWED_ORIGINS)
+  TRACK_ALLOWED_ORIGINS: parseTrackAllowedOrigins(process.env.TRACK_ALLOWED_ORIGINS),
+  // Assist Stats: host e token de serviço (só leitura). Vazios = integração desligada.
+  STATS_API_URL: process.env.STATS_API_URL ?? '',
+  STATS_SERVICE_TOKEN: process.env.STATS_SERVICE_TOKEN ?? '',
+  STATS_SITE_ID: process.env.STATS_SITE_ID ?? 'refereelights'
 };

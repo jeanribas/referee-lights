@@ -14,6 +14,9 @@ ENV ROOM_IDLE_POLICY=votes
 ENV REQUEST_LOG=compact
 # Rastreio público (/track/page, /track/click) só aceita a origem do site.
 ENV TRACK_ALLOWED_ORIGINS=https://refereelights.app
+# Assist Stats: host e site (o token de serviço fica nas envs do Dokploy, nunca aqui).
+ENV STATS_API_URL=https://stats.assist.com.br
+ENV STATS_SITE_ID=refereelights
 WORKDIR /app
 COPY --from=builder /app/package*.json ./
 RUN npm ci --omit=dev
