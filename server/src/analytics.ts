@@ -35,10 +35,6 @@ export interface StatsResult {
   siteVisitorsDistinct: number;
   /** Visitas (page_view) de datacenter/VPN ou robô de UA no recorte. Campo novo. */
   siteBotViews: number;
-  /** Salas online com atividade no recorte: criadas no período ou com conexão no período. Campo novo. */
-  activeSessions: number;
-  /** Mesma contagem na janela anterior de mesmo tamanho; null em period='all'. Campo novo. */
-  activeSessionsPrevious: number | null;
 }
 
 /** Fonte de geo: site (page_view sem datacenter/VPN nem robô), salas (conexões) ou bots (page_view de datacenter/VPN ou robô). */
@@ -492,7 +488,10 @@ export class AnalyticsStore {
     if (!this.db) return 0;
     const ev = rangeSql('received_at', from, to);
     const row = this.db
-      .prepare(`SELECT COUNT(DISTINCT ${BUNDLE_ROOM_PAIR}) AS c FROM instance_events WHERE instance_id != ? AND ${ev.sql}`)
+      .prepare(
+        `SELECT COUNT(DISTINCT ${BUNDLE_ROOM_PAIR}) AS c FROM instance_events
+         WHERE instance_id != ? AND event_type IN ('session_created', 'connection') AND ${ev.sql}`
+      )
       .get(excludeInstanceId, ...ev.params) as { c: number };
     return row.c;
   }
@@ -710,14 +709,11 @@ export class AnalyticsStore {
   getStats(activeRoomCount: number, period?: string, tz = 0): StatsResult {
     const empty: StatsResult = {
       totalSessions: 0, totalConnections: 0, uniqueIps: 0, activeRooms: activeRoomCount,
-      siteVisitorsDistinct: 0, siteBotViews: 0,
-      activeSessions: 0, activeSessionsPrevious: period === 'all' ? null : 0
+      siteVisitorsDistinct: 0, siteBotViews: 0
     };
     if (!this.db) return empty;
     try {
-      const now = Date.now();
-      const win = periodWindow(period, tz, now);
-      const prev = previousWindowBounds(period, tz, now);
+      const win = periodWindow(period, tz);
       const whereSess = this.inWindow('created_at', win);
       const whereConn = this.inWindow('connected_at', win);
       const whereLog = this.inWindow('timestamp', win);
@@ -742,13 +738,41 @@ export class AnalyticsStore {
         uniqueIps: ips.c,
         activeRooms: activeRoomCount,
         siteVisitorsDistinct: site.c,
-        siteBotViews: bots.c,
-        activeSessions: this.countActiveOnline(win.since, null),
-        activeSessionsPrevious: prev ? this.countActiveOnline(prev.from, prev.to) : null
+        siteBotViews: bots.c
       };
     } catch (err) {
       console.error('[analytics] getStats error:', err);
       return empty;
+    }
+  }
+
+  /**
+   * Salas com atividade no período, atual e anterior (mesmo tamanho). Consultado só pela
+   * rota /master/stats: fica fora de getStats/getBundleSummary, que também alimentam o heartbeat.
+   */
+  getActiveSessions(period?: string, tz = 0, excludeInstanceId = ''): {
+    online: { current: number; previous: number | null };
+    bundle: { current: number; previous: number | null };
+  } {
+    const zero = { online: { current: 0, previous: period === 'all' ? null : 0 }, bundle: { current: 0, previous: period === 'all' ? null : 0 } };
+    if (!this.db) return zero;
+    try {
+      const now = Date.now();
+      const cur = periodWindow(period, tz, now);
+      const prev = previousWindowBounds(period, tz, now);
+      return {
+        online: {
+          current: this.countActiveOnline(cur.since, null),
+          previous: prev ? this.countActiveOnline(prev.from, prev.to) : null
+        },
+        bundle: {
+          current: this.countActiveBundleRooms(excludeInstanceId, cur.since, null),
+          previous: prev ? this.countActiveBundleRooms(excludeInstanceId, prev.from, prev.to) : null
+        }
+      };
+    } catch (err) {
+      console.error('[analytics] getActiveSessions error:', err);
+      return zero;
     }
   }
 
@@ -1124,18 +1148,13 @@ export class AnalyticsStore {
     errors: number;
     lifetimeSessions: number;
     lifetimeConnections: number;
-    /** Pares instalação|sala distintos com evento no período. Campo novo. */
-    activeSessions: number;
-    /** Mesma contagem na janela anterior de mesmo tamanho; null em period='all'. Campo novo. */
-    activeSessionsPrevious: number | null;
   } {
     // excludeInstanceId = a instância do PRÓPRIO servidor central, que também
     // se reporta — sem excluir, as sessões online seriam contadas de novo
     // como "bundle".
     const zero = {
       instances: 0, onlineInstances: 0, sessions: 0, connections: 0,
-      decisions: 0, errors: 0, lifetimeSessions: 0, lifetimeConnections: 0,
-      activeSessions: 0, activeSessionsPrevious: period === 'all' ? null : 0
+      decisions: 0, errors: 0, lifetimeSessions: 0, lifetimeConnections: 0
     };
     if (!this.db) return zero;
     try {
@@ -1159,12 +1178,7 @@ export class AnalyticsStore {
            FROM instance_events WHERE instance_id != ? AND ${where}`
         )
         .get(excludeInstanceId) as { sessions: number; connections: number; decisions: number; errors: number };
-      const now = Date.now();
-      const cur = periodWindow(period, tz, now);
-      const prev = previousWindowBounds(period, tz, now);
-      const activeSessions = this.countActiveBundleRooms(excludeInstanceId, cur.since, null);
-      const activeSessionsPrevious = prev ? this.countActiveBundleRooms(excludeInstanceId, prev.from, prev.to) : null;
-      return { ...inst, ...ev, activeSessions, activeSessionsPrevious };
+      return { ...inst, ...ev };
     } catch (err) {
       console.error('[analytics] getBundleSummary error:', err);
       return zero;
@@ -1239,7 +1253,7 @@ export class AnalyticsStore {
                   SUM(CASE WHEN event_type = 'connection' THEN 1 ELSE 0 END) AS connections,
                   COUNT(DISTINCT CASE WHEN event_type = 'connection' THEN ${BUNDLE_DEVICE} END) AS devices,
                   SUM(CASE WHEN event_type = 'decision' THEN 1 ELSE 0 END) AS decisions,
-                  COUNT(DISTINCT ${BUNDLE_ROOM_PAIR}) AS activeSessions
+                  COUNT(DISTINCT CASE WHEN event_type IN ('session_created', 'connection') THEN ${BUNDLE_ROOM_PAIR} END) AS activeSessions
            FROM instance_events WHERE instance_id != ? AND ${this.inWindow('received_at', win)}
            GROUP BY date ORDER BY date ASC`
         )
