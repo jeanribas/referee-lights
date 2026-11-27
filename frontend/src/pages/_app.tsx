@@ -104,7 +104,8 @@ export default function App({ Component, pageProps }: AppProps) {
               português e nenhum atributo de idioma. Num site trilíngue quem
               exibe é o CookieConsent, que lê o mesmo estado pela API do
               script. */}
-          <Script src="/_a/s.js" strategy="afterInteractive" data-site="refereelights" data-banner="0" />
+          {/* data-paths/data-strip-locale: o s.js segue ativo após navegação SPA; sem isso contaria /admin etc. */}
+          <Script src="/_a/s.js" strategy="afterInteractive" data-site="refereelights" data-banner="0" data-paths={MARKETING_ROUTES.join(',')} data-strip-locale="pt-BR,en-US,es-ES" />
           <CookieConsent />
         </>
       )}
