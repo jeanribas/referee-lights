@@ -24,6 +24,8 @@ export type SiteStatsResult =
 
 export const STATS_TIMEOUT_MS = 4000;
 const CACHE_TTL_MS = 60_000;
+// Falha (timeout/error) fica de fora por pouco tempo: evita martelar o stats fora do ar.
+const NEGATIVE_TTL_MS = 10_000;
 const CACHE_MAX_ENTRIES = 64;
 const LOG_INTERVAL_MS = 60_000;
 const MAX_BODY_CHARS = 1_000_000;
@@ -103,31 +105,44 @@ export function buildStatsUrl(env: StatsEnv, route: SiteStatsRoute, period: Site
 }
 
 type CacheEntry = { at: number; fetchedAt: string; data: unknown };
+type NegativeEntry = { at: number; reason: FailureReason };
+type FailureReason = Exclude<UnavailableReason, 'off'>;
+
 const cache = new Map<string, CacheEntry>();
+const negativeCache = new Map<string, NegativeEntry>();
+// Busca em andamento por chave: chamadas simultâneas com cache frio esperam a mesma.
+const inflight = new Map<string, Promise<SiteStatsResult>>();
 const lastLogAt = new Map<UnavailableReason, number>();
 
 export function resetSiteStatsState(): void {
   cache.clear();
+  negativeCache.clear();
+  inflight.clear();
   lastLogAt.clear();
 }
 
-function cacheGet(key: string, now: number): CacheEntry | null {
-  const entry = cache.get(key);
+/** Chave por (rota, período). A timeline ignora o período no stats: uma chave só. */
+function cacheKey(route: SiteStatsRoute, period: SiteStatsPeriod): string {
+  return route === 'timeline' ? 'timeline' : `${route}|${period}`;
+}
+
+function freshEntry<V extends { at: number }>(map: Map<string, V>, key: string, ttl: number, now: number): V | null {
+  const entry = map.get(key);
   if (!entry) return null;
-  if (now - entry.at >= CACHE_TTL_MS) {
-    cache.delete(key);
+  if (now - entry.at >= ttl) {
+    map.delete(key);
     return null;
   }
   return entry;
 }
 
-function cacheSet(key: string, entry: CacheEntry): void {
-  if (!cache.has(key) && cache.size >= CACHE_MAX_ENTRIES) {
+function boundedSet<V>(map: Map<string, V>, key: string, value: V): void {
+  if (!map.has(key) && map.size >= CACHE_MAX_ENTRIES) {
     // Map guarda a ordem de inserção: a primeira chave é a mais antiga.
-    const oldest = cache.keys().next();
-    if (!oldest.done) cache.delete(oldest.value);
+    const oldest = map.keys().next();
+    if (!oldest.done) map.delete(oldest.value);
   }
-  cache.set(key, entry);
+  map.set(key, value);
 }
 
 /** Uma linha por minuto por motivo. Só route e motivo: nada do stats, nada de token. */
@@ -144,19 +159,37 @@ function unavailable(reason: UnavailableReason, route: SiteStatsRoute, now: numb
 }
 
 /**
- * Busca um relatório no stats. Resultado de sucesso fica 60 s em cache por
- * (rota, período); falhas nunca são cacheadas. `tz` não entra: o stats fixa BRT.
+ * Busca um relatório no stats. Sucesso fica 60 s em cache por (rota, período);
+ * timeout e erro ficam 10 s em cache negativo; `off` nunca é cacheado. Buscas
+ * simultâneas da mesma chave compartilham uma única chamada. `tz` não entra: o stats fixa BRT.
  */
 export async function getSiteStatsReport(route: SiteStatsRoute, period: SiteStatsPeriod): Promise<SiteStatsResult> {
-  const now = Date.now();
   const env = readStatsEnv();
   if (!env) return { source: 'stats', unavailable: true, reason: 'off' };
 
-  const key = `${route}|${period}`;
-  const hit = cacheGet(key, now);
+  const key = cacheKey(route, period);
+  const now = Date.now();
+  const hit = freshEntry(cache, key, CACHE_TTL_MS, now);
   if (hit) return { source: 'stats', fetchedAt: hit.fetchedAt, data: hit.data };
+  const failed = freshEntry(negativeCache, key, NEGATIVE_TTL_MS, now);
+  if (failed) return { source: 'stats', unavailable: true, reason: failed.reason };
+  const running = inflight.get(key);
+  if (running) return running;
 
-  const url = buildStatsUrl(env, route, period);
+  // Sem await antes deste ponto: a segunda chamada simultânea já encontra a busca registrada.
+  const job = fetchReport(env, route, period, key).finally(() => {
+    inflight.delete(key);
+  });
+  inflight.set(key, job);
+  return job;
+}
+
+async function fetchReport(
+  env: StatsEnv,
+  route: SiteStatsRoute,
+  period: SiteStatsPeriod,
+  key: string
+): Promise<SiteStatsResult> {
   const controller = new AbortController();
   let timedOut = false;
   const timer = setTimeout(() => {
@@ -164,24 +197,35 @@ export async function getSiteStatsReport(route: SiteStatsRoute, period: SiteStat
     controller.abort();
   }, STATS_TIMEOUT_MS);
 
+  const fail = (reason: FailureReason): SiteStatsResult => {
+    const at = Date.now();
+    boundedSet(negativeCache, key, { at, reason });
+    return unavailable(reason, route, at);
+  };
+
   try {
-    const res = await fetch(url, {
+    const res = await fetch(buildStatsUrl(env, route, period), {
       method: 'GET',
       headers: { Authorization: `Bearer ${env.token}`, Accept: 'application/json' },
       redirect: 'error',
       signal: controller.signal
     });
-    if (!res.ok) return unavailable('error', route, Date.now());
+    if (!res.ok) {
+      // Corpo de erro não é lido nem repassado: só solta a conexão.
+      await res.body?.cancel().catch(() => undefined);
+      return fail('error');
+    }
     const text = await res.text();
-    if (text.length > MAX_BODY_CHARS) return unavailable('error', route, Date.now());
+    if (text.length > MAX_BODY_CHARS) return fail('error');
     const data: unknown = JSON.parse(text);
-    if (!VALIDATORS[route](data)) return unavailable('error', route, Date.now());
-    const fetchedAt = new Date(Date.now()).toISOString();
-    cacheSet(key, { at: Date.now(), fetchedAt, data });
+    if (!VALIDATORS[route](data)) return fail('error');
+    const at = Date.now();
+    const fetchedAt = new Date(at).toISOString();
+    boundedSet(cache, key, { at, fetchedAt, data });
     return { source: 'stats', fetchedAt, data };
   } catch {
     // Mensagem do erro não entra em lugar nenhum: pode trazer a URL com dados internos.
-    return unavailable(timedOut ? 'timeout' : 'error', route, Date.now());
+    return fail(timedOut ? 'timeout' : 'error');
   } finally {
     clearTimeout(timer);
   }

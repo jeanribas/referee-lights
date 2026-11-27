@@ -13,6 +13,7 @@ import {
   parseSitePeriod,
   readStatsEnv,
   resetSiteStatsState,
+  SITE_STATS_ROUTES,
   STATS_TIMEOUT_MS
 } from '../src/site-stats.js';
 
@@ -211,11 +212,73 @@ describe('getSiteStatsReport', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
-  it('falha não entra no cache', async () => {
+  it('cache negativo de 10 s para falha; depois disso busca de novo', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-27T12:00:00Z'));
     const fetchMock = stubFetch(async () => new Response('x', { status: 503 }));
-    await getSiteStatsReport('audience', '30d');
+    await expect(getSiteStatsReport('audience', '30d')).resolves.toMatchObject({ reason: 'error' });
+    await expect(getSiteStatsReport('audience', '30d')).resolves.toMatchObject({ reason: 'error' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    vi.setSystemTime(new Date('2026-11-27T12:00:11Z'));
     await getSiteStatsReport('audience', '30d');
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('timeout também vira cache negativo de 10 s', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const fetchMock = stubFetch(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new DOMException('abortado', 'AbortError')));
+        })
+    );
+    const first = getSiteStatsReport('overview', '7d');
+    await vi.advanceTimersByTimeAsync(STATS_TIMEOUT_MS);
+    await expect(first).resolves.toMatchObject({ reason: 'timeout' });
+    await expect(getSiteStatsReport('overview', '7d')).resolves.toMatchObject({ reason: 'timeout' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('off nunca fica em cache: ligar o env na sequência já busca', async () => {
+    disableStats();
+    const fetchMock = stubFetch(async () => jsonResponse(overviewFixture));
+    await getSiteStatsReport('overview', '30d');
+    enableStats();
+    await expect(getSiteStatsReport('overview', '30d')).resolves.toMatchObject({ source: 'stats', data: overviewFixture });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('timeline usa uma chave só, independente do período', async () => {
+    const fetchMock = stubFetch(async () => jsonResponse({ timeline: [] }));
+    await getSiteStatsReport('timeline', '7d');
+    await getSiteStatsReport('timeline', '30d');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('chamadas simultâneas com cache frio compartilham uma busca só', async () => {
+    let release: (value: Response) => void = () => undefined;
+    const fetchMock = stubFetch(
+      () =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        })
+    );
+    const a = getSiteStatsReport('pages', '30d');
+    const b = getSiteStatsReport('pages', '30d');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    release(jsonResponse({ top: [], entry: [], exit: [] }));
+    const [ra, rb] = await Promise.all([a, b]);
+    expect(ra).toEqual(rb);
+    expect(ra).toMatchObject({ source: 'stats', data: { top: [], entry: [], exit: [] } });
+  });
+
+  it('status não 2xx solta o corpo (cancel) sem lê-lo', async () => {
+    const cancel = vi.fn(async () => undefined);
+    const fake = { ok: false, status: 500, body: { cancel }, text: vi.fn() } as unknown as Response;
+    stubFetch(async () => fake);
+    await expect(getSiteStatsReport('geo', '30d')).resolves.toEqual({ source: 'stats', unavailable: true, reason: 'error' });
+    expect(cancel).toHaveBeenCalledTimes(1);
   });
 
   it('log no máximo uma linha por minuto por motivo, sem token', async () => {
@@ -236,13 +299,13 @@ describe('getSiteStatsReport', () => {
 });
 
 describe('rotas /master/site/*', () => {
-  it('sem token de master → 401, mesmo com stats configurado', async () => {
+  it.each(SITE_STATS_ROUTES)('sem token de master → 401 em /master/site/%s, sem chamar o stats', async (route) => {
     const fetchMock = stubFetch(async () => jsonResponse(overviewFixture));
-    const none = await app.inject({ method: 'GET', url: '/master/site/overview' });
+    const none = await app.inject({ method: 'GET', url: `/master/site/${route}` });
     expect(none.statusCode).toBe(401);
     const bad = await app.inject({
       method: 'GET',
-      url: '/master/site/overview',
+      url: `/master/site/${route}`,
       headers: { authorization: 'Bearer nao-e-um-token' }
     });
     expect(bad.statusCode).toBe(401);
